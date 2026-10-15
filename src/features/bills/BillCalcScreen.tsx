@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View, type GestureResponderEvent } from 'react-native';
+import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
@@ -13,60 +14,58 @@ import { AppRadius } from '@/constants/palette';
 import { BillInputError, loadBillNames } from '@/data/billRepository';
 import { saveBillSynced } from '@/data/billService';
 import { loadPeople } from '@/data/peopleRepository';
-import { MAX_BILL_PEOPLE, MIN_BILL_PEOPLE, canSaveBill, computeSplit, defaultPersonName, describeSplitProblem } from '@/domain/bills';
+import { MAX_BILL_PEOPLE, MIN_BILL_PEOPLE, canSaveBill, computeSplit, defaultPersonName } from '@/domain/bills';
 import {
   applyMemberSelection,
   emptyPerson,
-  formatMoney,
   formatPaidText,
   initialPeople,
   maskPaidInput,
   resizePeople,
-  rowMeta,
   resetAfterSave,
-  rowStatus,
   toSplitPeople,
   weightCaption,
   withFixedText,
   withWeightText,
   type FormPerson,
 } from '@/domain/billForm';
+import { formFromBill } from '@/domain/billHistory';
 import { allCategories } from '@/domain/expenses';
 import { swipeToggle } from '@/domain/swipe';
 import { describeStorageError, useExpenseSettings } from '@/features/expenses/hooks';
 import { MemberPicker } from '@/features/people/MemberPicker';
+import { SplitReceipt } from '@/features/bills/SplitReceipt';
 import { useColors } from '@/hooks/use-colors';
+import type { Bill } from '@/types/bill';
 import type { DateStr } from '@/types/expense';
 import { withAlpha } from '@/utils/color';
 import { todayStr } from '@/utils/date';
 
-/** Màu nhận lại / còn thiếu (`--in`, `--out` của PWA). */
-const GET_COLOR = '#0F8A4B';
-const OWE_COLOR = '#D64545';
 /** Các mục chi của bill và thứ tự hiển thị, như PWA (`ne`). */
 const BILL_CATEGORY_IDS = ['food', 'fun', 'trip', 'move', 'bill', 'other'];
 
 /**
  * Màn tính chia bill (phần "Chia bill" của tab Giao dịch): nội dung, mục chi, ngày, số người 2–20, số tiền mỗi
  * người đã chi (NGHÌN đồng) và kết quả chia theo thời gian thực. Vuốt ô tiền sang trái để đặt hệ số hoặc mức
- * cố định. Lưu bill và chọn người từ danh sách thuộc bước 4D.
+ * cố định. Có `existing` thì là chế độ SỬA bill đó (lưu xong gọi `onFinished`, không đặt lại form).
  */
-export default function BillCalcScreen() {
+export default function BillCalcScreen({ existing = null, onFinished }: { existing?: Bill | null; onFinished?: () => void }) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const today = todayStr();
   const { settings } = useExpenseSettings();
 
-  const [title, setTitle] = useState('');
-  const [date, setDate] = useState<DateStr>(today);
-  const [catId, setCatId] = useState('food');
-  const [rows, setRows] = useState<FormPerson[]>([emptyPerson('Tôi')]);
+  const [initial] = useState(() => (existing ? formFromBill(existing) : null));
+  const [title, setTitle] = useState(initial?.title ?? '');
+  const [date, setDate] = useState<DateStr>(initial?.date ?? today);
+  const [catId, setCatId] = useState(initial?.cat ?? 'food');
+  const [rows, setRows] = useState<FormPerson[]>(initial?.rows ?? [emptyPerson('Tôi')]);
   const [openRow, setOpenRow] = useState<number | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [pickingCategory, setPickingCategory] = useState(false);
   const [pickingMembers, setPickingMembers] = useState(false);
   const [saving, setSaving] = useState(false);
-  const touched = useRef(false);
+  const touched = useRef(!!existing);
   const toast = useToast();
 
   // Nhóm người của lần chia gần nhất (chỉ giữ người còn trong Danh sách người), như PWA; lỗi đọc thì dùng mặc định.
@@ -100,7 +99,16 @@ export default function BillCalcScreen() {
     if (saving || !canSaveBill(split)) return;
     setSaving(true);
     try {
-      await saveBillSynced({ title, date, cat: catId, people });
+      const saved = await saveBillSynced({ id: existing?.id, title, date, cat: catId, people });
+      if (existing) {
+        if (saved.value === null) {
+          toast.show('Không tìm thấy bill này. Có thể nó đã bị xoá.');
+          return;
+        }
+        toast.show('Đã lưu thay đổi');
+        onFinished?.();
+        return;
+      }
       toast.show('Đã lưu vào lịch sử');
       // Như PWA: xoá tiền / hệ số / mức cố định và nội dung, giữ nhóm người và ngày cho lần chia sau.
       update(resetAfterSave(rows));
@@ -201,84 +209,21 @@ export default function BillCalcScreen() {
           Lưu
         </AppText>
       </Pressable>
-
-      {split.total > 0 && (split.bad ? (
-        <View style={[styles.warn, { backgroundColor: colors.dangerSoft }]} accessibilityRole="alert">
-          <AppText weight="semibold" color={colors.danger} style={styles.warnText}>
-            {describeSplitProblem(split)}
+      {existing ? (
+        <Pressable accessibilityRole="button" onPress={() => onFinished?.()} style={[styles.ghostButton, { borderColor: colors.line }]}>
+          <AppText weight="semibold" color={colors.muted} style={styles.ghostText}>
+            Hủy sửa
           </AppText>
-        </View>
+        </Pressable>
       ) : (
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.line }]}>
-          <View style={styles.totRow}>
-            <View style={styles.totCell}>
-              <AppText weight="semibold" color={colors.muted} style={styles.lbl}>
-                Tổng bill
-              </AppText>
-              <AppText weight="display" style={styles.total} numberOfLines={1}>
-                {formatMoney(split.total)}
-              </AppText>
-            </View>
-            <View style={[styles.totCell, styles.totRight]}>
-              <AppText weight="semibold" color={colors.muted} style={styles.lbl}>
-                {split.even ? 'Mỗi người' : 'Mỗi phần'}
-              </AppText>
-              <AppText weight="display" style={styles.each} numberOfLines={1}>
-                {formatMoney(split.share)}
-              </AppText>
-            </View>
-          </View>
-          <View style={[styles.dash, { borderTopColor: colors.line }]} />
-          {split.rows.map((row) => {
-            const status = rowStatus(row);
-            return (
-              <View key={row.index} style={styles.resultLine}>
-                <View style={styles.resultMain}>
-                  <AppText weight="semibold" style={styles.who} numberOfLines={1}>
-                    {row.name}
-                  </AppText>
-                  <AppText color={colors.muted} style={styles.meta}>
-                    {rowMeta(row)}
-                  </AppText>
-                </View>
-                {status.kind === 'even' ? (
-                  <AppText weight="semibold" color={colors.muted} style={styles.statusText}>
-                    Đã đủ
-                  </AppText>
-                ) : (
-                  <View style={styles.statusCol}>
-                    <AppText color={colors.muted} style={styles.statusLabel}>
-                      {status.kind === 'get' ? 'Nhận lại' : 'Còn thiếu'}
-                    </AppText>
-                    <AppText weight="bold" color={status.kind === 'get' ? GET_COLOR : OWE_COLOR} style={styles.statusAmount}>
-                      {status.kind === 'get' ? '+' : '−'}
-                      {formatMoney(status.amount / 1e3)}
-                    </AppText>
-                  </View>
-                )}
-              </View>
-            );
-          })}
-          {split.transfers.length > 0 && (
-            <>
-              <View style={[styles.dash, { borderTopColor: colors.line }]} />
-              <AppText weight="semibold" color={colors.muted} style={styles.lbl}>
-                Cần chuyển
-              </AppText>
-              {split.transfers.map((transfer, index) => (
-                <View key={index} style={styles.transfer}>
-                  <AppText weight="semibold" style={styles.transferWho} numberOfLines={1}>
-                    {transfer.from} → {transfer.to}
-                  </AppText>
-                  <AppText weight="bold" style={styles.statusAmount}>
-                    {formatMoney(transfer.amt)}
-                  </AppText>
-                </View>
-              ))}
-            </>
-          )}
-        </View>
-      ))}
+        <Pressable accessibilityRole="button" onPress={() => router.push('/chia-bill/lich-su')} style={[styles.ghostButton, { borderColor: colors.line }]}>
+          <AppText weight="semibold" color={colors.primary} style={styles.ghostText}>
+            Lịch sử bill
+          </AppText>
+        </Pressable>
+      )}
+
+      <SplitReceipt split={split} showTotal={false} />
 
       {pickingMembers && (
         <MemberPicker
@@ -481,6 +426,8 @@ const styles = StyleSheet.create({
   memberText: { fontSize: 14 },
   saveButton: { minHeight: 48, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   saveText: { fontSize: 16 },
+  ghostButton: { minHeight: 44, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  ghostText: { fontSize: 14.5 },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 6 },
   stepperLabel: { flex: 1, fontSize: 14 },
   stepButton: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
@@ -506,25 +453,6 @@ const styles = StyleSheet.create({
   moreButton: { width: 28, height: 46, alignItems: 'center', justifyContent: 'center' },
   moreText: { fontSize: 20 },
   caption: { fontSize: 12, paddingLeft: 2 },
-  warn: { borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12 },
-  warnText: { fontSize: 14 },
-  totRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12 },
-  totCell: { flexShrink: 1, minWidth: 0 },
-  totRight: { alignItems: 'flex-end', flexShrink: 0 },
-  lbl: { fontSize: 13 },
-  total: { fontSize: 30 },
-  each: { fontSize: 20 },
-  dash: { borderTopWidth: 1, borderStyle: 'dashed' },
-  resultLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  resultMain: { flex: 1, minWidth: 0 },
-  who: { fontSize: 15.5 },
-  meta: { fontSize: 12.5, lineHeight: 17 },
-  statusCol: { alignItems: 'flex-end' },
-  statusLabel: { fontSize: 12 },
-  statusAmount: { fontSize: 15.5 },
-  statusText: { fontSize: 14 },
-  transfer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  transferWho: { flex: 1, minWidth: 0, fontSize: 15 },
   scrim: { flex: 1, justifyContent: 'flex-end' },
   sheet: { borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 16, gap: 12 },
   sheetTitle: { fontSize: 17 },
