@@ -666,3 +666,18 @@ export function bucketStats(buckets: readonly Bucket[], total: Vnd): BucketStats
     average: total / elapsed,
   };
 }
+
+/** Kỳ xem (từ tham số route) -> trạng thái ô chọn thời gian; các kiểu xem khác giữ giá trị mặc định. */
+export function periodViewFromPeriod(period: Period, today: DateStr): PeriodView {
+  const base = initialPeriodView(today);
+  switch (period.mode) {
+    case 'month':
+      return { ...base, mode: 'month', month: period.month };
+    case 'year':
+      return { ...base, mode: 'year', year: period.year };
+    case 'all':
+      return { ...base, mode: 'all' };
+    case 'custom':
+      return { ...base, mode: 'custom', from: period.from, to: period.to };
+  }
+}

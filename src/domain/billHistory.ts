@@ -76,3 +76,56 @@ export function formFromBill(bill: Pick<Bill, 'title' | 'date' | 'cat' | 'people
   else if (meIndex < 0) rows.unshift({ ...emptyPerson(BILL_OWNER_NAME), weightText: '0' });
   return { title: bill.title === DEFAULT_BILL_TITLE ? '' : bill.title || '', date: bill.date, cat: bill.cat || 'other', rows };
 }
+
+// ───────────────────────── Khung Chia bill ở Tổng quan ─────────────────────────
+
+/** Khung hiện tối đa 3 người; nhiều hơn thì có "Xem thêm N người" / "Thu gọn". */
+export const OVERVIEW_BILL_PEOPLE_LIMIT = 3;
+
+export interface BillSpenderRow {
+  name: string;
+  /** Tổng số tiền người này đã chi trong kỳ (nghìn đồng). */
+  amount: Nghin;
+  /** Độ dài thanh so với người chi nhiều nhất, từ 2 đến 100 (%), làm tròn 1 chữ số thập phân. */
+  percent: number;
+}
+
+export interface BillOverviewCard {
+  count: number;
+  /** Tổng bill trong kỳ (nghìn đồng). */
+  total: Nghin;
+  rows: BillSpenderRow[];
+  /** Số người chưa hiện (nút "Xem thêm N người"). */
+  hidden: number;
+  /** Đang hiện tất cả mà có hơn 3 người (nút "Thu gọn"). */
+  canCollapse: boolean;
+}
+
+/**
+ * Khung "Chia bill" ở Tổng quan (hàm `an()` của PWA): số bill và tổng bill trong kỳ, rồi những người đã chi tiền
+ * theo thứ tự chi nhiều nhất. Người đầu danh sách của mỗi bill và người tên đúng "Tôi" gộp thành "Tôi";
+ * người chưa chi đồng nào hoặc không có tên thì bỏ qua.
+ */
+export function buildBillOverviewCard(bills: readonly Bill[], period: Period, showAll: boolean): BillOverviewCard {
+  const inPeriod = bills.filter((bill) => isInPeriod(bill.date, period));
+  const paidBy = new Map<string, number>();
+  for (const bill of inPeriod) {
+    bill.people.forEach((person, index) => {
+      const paid = +person.paid || 0;
+      if (paid <= 0) return;
+      const name = index === 0 || person.name === BILL_OWNER_NAME ? BILL_OWNER_NAME : String(person.name || '').trim();
+      if (name) paidBy.set(name, (paidBy.get(name) || 0) + paid);
+    });
+  }
+  const sorted = [...paidBy.entries()].map(([name, amount]) => ({ name, amount })).sort((a, b) => b.amount - a.amount);
+  const max = sorted.length ? sorted[0].amount : 0;
+  const overflow = sorted.length > OVERVIEW_BILL_PEOPLE_LIMIT;
+  const shown = overflow && !showAll ? sorted.slice(0, OVERVIEW_BILL_PEOPLE_LIMIT) : sorted;
+  return {
+    count: inPeriod.length,
+    total: inPeriod.reduce((sum, bill) => sum + billTotal(bill), 0),
+    rows: shown.map((row) => ({ ...row, percent: max ? Math.round(Math.max(2, (row.amount / max) * 100) * 10) / 10 : 0 })),
+    hidden: sorted.length - shown.length,
+    canCollapse: overflow && showAll,
+  };
+}

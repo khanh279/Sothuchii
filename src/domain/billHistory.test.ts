@@ -2,7 +2,7 @@ import type { Bill } from '@/types/bill';
 
 import { computeSplit, desiredBillExpense } from './bills';
 import { toSplitPeople } from './billForm';
-import { billTotal, buildBillHistory, formFromBill } from './billHistory';
+import { billTotal, buildBillHistory, buildBillOverviewCard, formFromBill } from './billHistory';
 
 // DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng. Tiền là NGHÌN đồng.
 const p = (name: string, paid: number, extra: { w?: number; fix?: number } = {}) => ({ name, paid, ...extra });
@@ -73,5 +73,40 @@ describe('formFromBill (sửa bill)', () => {
     const b = computeSplit(again);
     expect(b.rows.map((r) => [r.share, r.paid])).toEqual(a.rows.map((r) => [r.share, r.paid]));
     expect(desiredBillExpense({ ...original, people: again })).toEqual(desiredBillExpense(original));
+  });
+});
+
+describe('buildBillOverviewCard', () => {
+  const bills = [
+    bill('a', '2025-10-05', 1, [p('Tôi', 100), p('An', 50), p('Bình', 0)]),
+    bill('b', '2025-10-06', 2, [p('Chủ bill', 60), p('Tôi', 10), p('An', 0)]), // người đầu tính là "Tôi"
+    bill('c', '2025-09-20', 3, [p('Tôi', 30), p('  ', 5)]),
+  ];
+
+  it('đếm bill và tổng bill trong kỳ; người chi gộp theo tên, xếp chi nhiều nhất trước', () => {
+    const card = buildBillOverviewCard(bills, { mode: 'month', month: '2025-10' }, false);
+    expect(card).toMatchObject({ count: 2, total: 220, hidden: 0, canCollapse: false });
+    expect(card.rows.map((r) => [r.name, r.amount])).toEqual([['Tôi', 170], ['An', 50]]);
+    expect(card.rows.map((r) => r.percent)).toEqual([100, 29.4]);
+  });
+
+  it('bỏ người không có tên hoặc chưa chi; kỳ trống cho khung rỗng', () => {
+    const all = buildBillOverviewCard(bills, { mode: 'all' }, false);
+    expect(all.rows.map((r) => r.name)).toEqual(['Tôi', 'An']);
+    expect(buildBillOverviewCard(bills, { mode: 'month', month: '2024-01' }, false)).toEqual({ count: 0, total: 0, rows: [], hidden: 0, canCollapse: false });
+  });
+
+  it('thanh tối thiểu 2% để vẫn thấy được', () => {
+    const big = [bill('x', '2025-10-05', 1, [p('Tôi', 100000), p('An', 1)])];
+    expect(buildBillOverviewCard(big, { mode: 'all' }, false).rows.map((r) => r.percent)).toEqual([100, 2]);
+  });
+
+  it('quá 3 người: thu gọn còn 3 + "Xem thêm"; mở hết thì có "Thu gọn"; đúng 3 người thì không thu gọn', () => {
+    const many = [bill('m', '2025-10-05', 1, [p('Tôi', 50), p('A', 40), p('B', 30), p('C', 20), p('D', 10)])];
+    expect(buildBillOverviewCard(many, { mode: 'all' }, false)).toMatchObject({ hidden: 2, canCollapse: false });
+    expect(buildBillOverviewCard(many, { mode: 'all' }, false).rows).toHaveLength(3);
+    expect(buildBillOverviewCard(many, { mode: 'all' }, true)).toMatchObject({ hidden: 0, canCollapse: true });
+    const three = [bill('t', '2025-10-05', 1, [p('Tôi', 50), p('A', 40), p('B', 30)])];
+    expect(buildBillOverviewCard(three, { mode: 'all' }, false)).toMatchObject({ hidden: 0, canCollapse: false });
   });
 });

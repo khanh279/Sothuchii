@@ -1,4 +1,4 @@
-import { Stack, router } from 'expo-router';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,7 +12,7 @@ import { deleteBillSynced } from '@/data/billService';
 import { computeSplit } from '@/domain/bills';
 import { formatMoney } from '@/domain/billForm';
 import { billTotal, buildBillHistory } from '@/domain/billHistory';
-import { dayHeading, initialPeriodView, periodOf, periodTitle, resolveCategory } from '@/domain/expenses';
+import { dayHeading, periodFromParams, periodOf, periodTitle, periodViewFromPeriod, resolveCategory } from '@/domain/expenses';
 import { describeBillError, useBills } from '@/features/bills/hooks';
 import { SplitReceipt } from '@/features/bills/SplitReceipt';
 import { useExpenseSettings } from '@/features/expenses/hooks';
@@ -26,11 +26,12 @@ import { formatVnDate, todayStr } from '@/utils/date';
  * Xóa bill sẽ dọn khoản chi cá nhân đã tạo từ bill đó.
  */
 export default function BillHistoryScreen() {
+  const params = useLocalSearchParams<{ mode?: string; month?: string; year?: string; from?: string; to?: string }>();
   const today = todayStr();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const toast = useToast();
-  const [view, setView] = useState(() => initialPeriodView(today));
+  const [view, setView] = useState(() => periodViewFromPeriod(periodFromParams(params, today), today));
   const period = useMemo(() => periodOf(view), [view]);
   const { settings } = useExpenseSettings();
   const { bills, loaded, error, reload } = useBills();

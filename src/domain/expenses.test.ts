@@ -32,6 +32,7 @@ import {
   parseAmountInput,
   periodFromParams,
   periodOf,
+  periodViewFromPeriod,
   periodPhrase,
   periodToParams,
   periodTitle,
@@ -522,5 +523,23 @@ describe('biểu đồ cột', () => {
     expect(stats.maxSum).toBe(0);
     expect(stats.scale).toBe(1e5);
     expect(stats.average).toBe(0);
+  });
+});
+
+describe('periodViewFromPeriod', () => {
+  const today = '2025-10-15';
+  it('đi và về với periodOf cho mọi kiểu xem', () => {
+    for (const period of [
+      { mode: 'month', month: '2025-03' },
+      { mode: 'year', year: 2024 },
+      { mode: 'all' },
+      { mode: 'custom', from: '2025-01-01', to: '2025-02-01' },
+    ] as const) {
+      expect(periodOf(periodViewFromPeriod(period, today))).toEqual(period);
+    }
+  });
+
+  it('kiểu không chọn giữ giá trị mặc định (tháng hiện tại, 30 ngày gần nhất)', () => {
+    expect(periodViewFromPeriod({ mode: 'year', year: 2024 }, today)).toMatchObject({ month: '2025-10', from: '2025-09-16', to: today });
   });
 });
