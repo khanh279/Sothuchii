@@ -1,9 +1,13 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AppText } from '@/components/app-text';
 import { DateField } from '@/components/date-field';
+import { SvgIcon } from '@/components/svg-icon';
 import { useToast } from '@/components/toast';
-import { PwaColors } from '@/constants/theme';
+import { AppRadius } from '@/constants/palette';
 import { canGoNext, monthHeading, normalizeCustomRange, periodOf, type PeriodView } from '@/domain/expenses';
+import { useColors } from '@/hooks/use-colors';
 import type { DateStr, Period } from '@/types/expense';
 import { addMonths, isValidDateStr } from '@/utils/date';
 
@@ -20,10 +24,16 @@ interface Props {
   today: DateStr;
 }
 
-/** Ô chọn thời gian xem: Tháng / Năm / Tất cả / Tuỳ chọn. */
+/**
+ * Ô chọn thời gian xem của Tổng quan (`#periodBar`): nền trang, đệm 8 trên/dưới, cao 110 với
+ * thanh phân đoạn 42 + khoảng 10 + hàng 42. Được đặt làm phần tử dính ở đầu trang cuộn.
+ */
 export function PeriodBar({ view, onChange, today }: Props) {
-  const period = periodOf(view);
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
   const toast = useToast();
+  const period = periodOf(view);
+  const next = canGoNext(period, today);
 
   function shift(delta: number) {
     if (view.mode === 'month') onChange({ ...view, month: addMonths(view.month, delta) });
@@ -37,83 +47,91 @@ export function PeriodBar({ view, onChange, today }: Props) {
     if (range.clamped) toast.show('Xem tối đa 5 năm một lần');
   }
 
+  const pill = [styles.pillRow, { backgroundColor: colors.surface, borderColor: colors.line }];
+
   return (
-    <View style={styles.wrap}>
-      <View style={styles.segment} accessibilityRole="tablist">
+    <View style={[styles.wrap, { backgroundColor: colors.bg, paddingTop: 8 + insets.top }]}>
+      <View style={[styles.segment, { backgroundColor: colors.surface2 }]} accessibilityRole="tablist">
         {MODES.map((item) => {
           const selected = item.mode === view.mode;
           return (
             <Pressable
               key={item.mode}
-              style={[styles.segmentItem, selected && styles.segmentItemSelected]}
+              style={[styles.segmentItem, selected && [styles.segmentItemOn, { backgroundColor: colors.surface }]]}
               accessibilityRole="tab"
               accessibilityState={{ selected }}
               onPress={() => onChange({ ...view, mode: item.mode })}>
-              <Text style={[styles.segmentText, selected && styles.segmentTextSelected]}>{item.label}</Text>
+              <AppText weight="semibold" color={selected ? colors.ink : colors.muted} style={styles.segmentText}>
+                {item.label}
+              </AppText>
             </Pressable>
           );
         })}
       </View>
 
-      {(view.mode === 'month' || view.mode === 'year') && (
-        <View style={styles.nav}>
-          <Pressable style={styles.navButton} accessibilityLabel="Kỳ trước" onPress={() => shift(-1)}>
-            <Text style={styles.navArrow}>‹</Text>
-          </Pressable>
-          <Text style={styles.navLabel}>{view.mode === 'month' ? monthHeading(view.month) : `Năm ${view.year}`}</Text>
-          <Pressable
-            style={[styles.navButton, !canGoNext(period, today) && styles.navDisabled]}
-            accessibilityLabel="Kỳ sau"
-            disabled={!canGoNext(period, today)}
-            onPress={() => shift(1)}>
-            <Text style={styles.navArrow}>›</Text>
-          </Pressable>
-        </View>
-      )}
+      <View style={styles.row}>
+        {(view.mode === 'month' || view.mode === 'year') && (
+          <View style={pill}>
+            <Pressable style={styles.arrow} accessibilityLabel="Kỳ trước" onPress={() => shift(-1)}>
+              <SvgIcon name="chevronLeft" size={18} color={colors.muted} strokeWidth={2.2} />
+            </Pressable>
+            <AppText weight="semibold" style={styles.label}>
+              {view.mode === 'month' ? monthHeading(view.month) : `Năm ${view.year}`}
+            </AppText>
+            <Pressable style={[styles.arrow, !next && styles.arrowOff]} accessibilityLabel="Kỳ sau" disabled={!next} onPress={() => shift(1)}>
+              <SvgIcon name="chevronRight" size={18} color={colors.muted} strokeWidth={2.2} />
+            </Pressable>
+          </View>
+        )}
 
-      {view.mode === 'custom' && (
-        <View style={styles.range}>
-          <View style={styles.rangeCol}>
-            <Text style={styles.rangeLabel}>Từ ngày</Text>
-            <DateField value={view.from} max={today} onChange={(from) => applyRange(from, view.to)} />
+        {view.mode === 'all' && (
+          <View style={[...pill, styles.center]}>
+            <AppText weight="semibold" style={styles.label}>
+              Từ trước đến nay
+            </AppText>
           </View>
-          <View style={styles.rangeCol}>
-            <Text style={styles.rangeLabel}>Đến ngày</Text>
-            <DateField value={view.to} max={today} onChange={(to) => applyRange(view.from, to)} />
+        )}
+
+        {view.mode === 'custom' && (
+          <View style={styles.range}>
+            <View style={styles.rangeCol}>
+              <DateField pill value={view.from} max={today} onChange={(from) => applyRange(from, view.to)} />
+            </View>
+            <AppText color={colors.muted} style={styles.arrowText}>
+              →
+            </AppText>
+            <View style={styles.rangeCol}>
+              <DateField pill value={view.to} max={today} onChange={(to) => applyRange(view.from, to)} />
+            </View>
           </View>
-        </View>
-      )}
+        )}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: 12 },
-  segment: {
-    flexDirection: 'row',
-    backgroundColor: PwaColors.surface2,
-    borderRadius: 12,
-    padding: 3,
-  },
-  segmentItem: { flex: 1, paddingVertical: 9, borderRadius: 10, alignItems: 'center' },
-  segmentItemSelected: { backgroundColor: PwaColors.surface },
-  segmentText: { fontSize: 14, fontWeight: '500', color: PwaColors.muted },
-  segmentTextSelected: { color: PwaColors.ink, fontWeight: '700' },
-  nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  navButton: {
-    width: 44,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: PwaColors.surface,
+  wrap: { paddingHorizontal: 12, paddingBottom: 8, gap: 10 },
+  segment: { flexDirection: 'row', padding: 3, borderRadius: AppRadius.segment },
+  segmentItem: { flex: 1, height: 36, borderRadius: AppRadius.segmentItem, alignItems: 'center', justifyContent: 'center' },
+  segmentItemOn: { shadowColor: '#12211D', shadowOpacity: 0.12, shadowRadius: 1.5, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
+  segmentText: { fontSize: 13 },
+  row: { height: 42 },
+  pillRow: {
+    height: 42,
+    borderRadius: AppRadius.pill,
     borderWidth: 1,
-    borderColor: PwaColors.line,
+    padding: 3,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
+    gap: 2,
   },
-  navDisabled: { opacity: 0.35 },
-  navArrow: { fontSize: 22, color: PwaColors.ink, lineHeight: 24 },
-  navLabel: { fontSize: 16, fontWeight: '700', color: PwaColors.ink },
-  range: { flexDirection: 'row', gap: 12 },
-  rangeCol: { flex: 1, gap: 6 },
-  rangeLabel: { fontSize: 13, fontWeight: '600', color: PwaColors.muted },
+  center: { justifyContent: 'center' },
+  arrow: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  arrowOff: { opacity: 0.3 },
+  label: { fontSize: 14 },
+  range: { flexDirection: 'row', alignItems: 'center' },
+  rangeCol: { flex: 1 },
+  arrowText: { width: 24, textAlign: 'center', fontSize: 16 },
 });

@@ -4,7 +4,6 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { useColors } from '@/hooks/use-colors';
 import {
   budgetSummary,
   initialPeriodView,
@@ -18,9 +17,13 @@ import { AddExpenseFab } from '@/features/expenses/AddExpenseFab';
 import { useExpenseSettings, useExpenses } from '@/features/expenses/hooks';
 import { PeriodBar } from '@/features/expenses/PeriodBar';
 import { SpentCard } from '@/features/expenses/SpentCard';
+import { useColors } from '@/hooks/use-colors';
 import { todayStr } from '@/utils/date';
 
-/** Màn Tổng quan: chọn kỳ xem, thẻ "Đã chi" và chi tiêu cá nhân theo mục. */
+/**
+ * Màn Tổng quan: ô chọn kỳ dính ở mép trên, thẻ "Đã chi" và chi tiêu cá nhân theo mục.
+ * Các khung Nợ / Giao dịch / Chia bill / Quỹ của PWA sẽ thêm khi làm các module tương ứng.
+ */
 export default function OverviewScreen() {
   const today = todayStr();
   const colors = useColors();
@@ -41,27 +44,30 @@ export default function OverviewScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
-      <ScrollView contentContainerStyle={[styles.content, { paddingTop: 8 + insets.top, paddingBottom: 92 + insets.bottom }]}>
+      {/* Phần tử đầu tiên là ô chọn kỳ và được ghim lại khi cuộn (sticky). */}
+      <ScrollView stickyHeaderIndices={[0]} contentContainerStyle={{ paddingBottom: 92 + insets.bottom }}>
         <PeriodBar view={view} onChange={setView} today={today} />
-        {message ? (
-          <View style={[styles.notice, { backgroundColor: colors.dangerSoft }]}>
-            <AppText color={colors.danger} style={styles.noticeText}>
-              {message}
-            </AppText>
-          </View>
-        ) : (
-          <SpentCard
-            period={period}
-            loaded={loaded}
-            total={total}
-            budget={budget}
-            summaries={summaries}
-            expanded={expanded}
-            onToggle={() => setExpanded((open) => !open)}
-            onOpenCategory={(cat) => router.push({ pathname: '/lich-su', params: { ...periodParams, cat } })}
-            onOpenAll={() => router.push({ pathname: '/lich-su', params: periodParams })}
-          />
-        )}
+        <View style={styles.body}>
+          {message ? (
+            <View style={[styles.notice, { backgroundColor: colors.dangerSoft }]}>
+              <AppText color={colors.danger} style={styles.noticeText}>
+                {message}
+              </AppText>
+            </View>
+          ) : (
+            <SpentCard
+              period={period}
+              loaded={loaded}
+              total={total}
+              budget={budget}
+              summaries={summaries}
+              expanded={expanded}
+              onToggle={() => setExpanded((open) => !open)}
+              onOpenCategory={(cat) => router.push({ pathname: '/lich-su', params: { ...periodParams, cat } })}
+              onOpenAll={() => router.push({ pathname: '/lich-su', params: periodParams })}
+            />
+          )}
+        </View>
       </ScrollView>
 
       <AddExpenseFab
@@ -75,7 +81,7 @@ export default function OverviewScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  content: { paddingHorizontal: 12, gap: 12 },
+  body: { paddingHorizontal: 12, paddingTop: 12, gap: 12 },
   notice: { padding: 16, borderRadius: 16 },
   noticeText: { fontSize: 15 },
 });
