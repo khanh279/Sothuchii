@@ -1,6 +1,14 @@
-import { formatVnd, formatVndCompact } from './format';
+import { formatGrouped, formatVnd, formatVndCompact } from './format';
 
 describe('format', () => {
+  it('formatGrouped không kèm ký hiệu tiền', () => {
+    expect(formatGrouped(0)).toBe('0');
+    expect(formatGrouped(999)).toBe('999');
+    expect(formatGrouped(1000)).toBe('1.000');
+    expect(formatGrouped(999999999999)).toBe('999.999.999.999');
+    expect(formatGrouped(NaN)).toBe('0');
+  });
+
   it('formatVnd có dấu chấm hàng nghìn', () => {
     expect(formatVnd(0)).toBe('0 ₫');
     expect(formatVnd(1234567)).toBe('1.234.567 ₫');

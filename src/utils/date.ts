@@ -81,6 +81,24 @@ export function formatVnDate(date: DateStr): string {
   return `${date.slice(8)}/${date.slice(5, 7)}/${date.slice(0, 4)}`;
 }
 
+/** 'dd/mm/yyyy' -> 'YYYY-MM-DD'; trả '' nếu sai định dạng hoặc ngày không có thật. */
+export function parseVnDate(text: string): DateStr {
+  const match = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(text.trim());
+  if (!match) return '';
+  const [d, m, y] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  const date = new Date(y, m - 1, d);
+  if (date.getFullYear() !== y || date.getMonth() !== m - 1 || date.getDate() !== d) return '';
+  return formatDateStr(date);
+}
+
+/** Gõ số liền thì tự chèn dấu '/': '08102025' -> '08/10/2025' (hàm nhập ngày của PWA). */
+export function maskVnDateInput(text: string): string {
+  const digits = text.replace(/\D/g, '').slice(0, 8);
+  if (digits.length > 4) return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+  if (digits.length > 2) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return digits;
+}
+
 export function weekdayName(date: DateStr): string {
   const [y, m, d] = date.split('-').map(Number);
   return WEEKDAY_NAMES[new Date(y, m - 1, d).getDay()];

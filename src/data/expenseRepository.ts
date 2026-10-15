@@ -19,7 +19,7 @@ import {
   saveJsonStrict,
   saveManyJsonStrict,
 } from '@/data/storage';
-import { EMPTY_SETTINGS, normalizeSettings } from '@/domain/expenses';
+import { EMPTY_SETTINGS, newExpenseId, normalizeSettings } from '@/domain/expenses';
 import type { Expense, ExpenseRef, ExpenseSettings, ExpenseWithId, MonthKey } from '@/types/expense';
 import { isValidDateStr, isValidMonthKey, monthOf } from '@/utils/date';
 
@@ -128,6 +128,20 @@ export function createExpense(id: string, expense: Expense): Promise<ExpenseRef>
     await saveJsonStrict(monthKeyOf(month), { ...data, [id]: { ...expense } });
     return { m: month, id };
   });
+}
+
+/**
+ * Thêm khoản chi và tự sinh id (thời gian + 4 ký tự ngẫu nhiên). Nếu id trùng (rất hiếm)
+ * thì thử id khác, không bao giờ ghi đè khoản cũ.
+ */
+export async function addExpense(expense: Expense, now: number = Date.now()): Promise<ExpenseRef> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await createExpense(newExpenseId(now), expense);
+    } catch (error) {
+      if (!(error instanceof ExpenseIdExistsError) || attempt >= 9) throw error;
+    }
+  }
 }
 
 /**

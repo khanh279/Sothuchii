@@ -5,6 +5,12 @@ function groupThousands(digits: string): string {
   return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 }
 
+/** 1234567 -> "1.234.567" (không kèm ký hiệu tiền). */
+export function formatGrouped(value: number): string {
+  const n = Math.round(+value || 0);
+  return `${n < 0 ? '-' : ''}${groupThousands(String(Math.abs(n)))}`;
+}
+
 /** 1234567 -> "1.234.567 ₫". Số âm giữ dấu trừ. */
 export function formatVnd(vnd: Vnd): string {
   const n = Math.round(+vnd || 0);

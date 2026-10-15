@@ -11,8 +11,7 @@
  */
 
 import { MEMO_MAX } from '@/constants/categories';
-import { ExpenseIdExistsError, createExpense, deleteExpense, getExpense, listBySource } from '@/data/expenseRepository';
-import { newExpenseId } from '@/domain/expenses';
+import { addExpense, deleteExpense, getExpense, listBySource } from '@/data/expenseRepository';
 import type { DateStr, Expense, ExpenseRef, ExpenseSource } from '@/types/expense';
 import type { Vnd } from '@/types/money';
 import { isValidDateStr } from '@/utils/date';
@@ -55,14 +54,7 @@ export async function addExp(input: AddExpInput, now: number = Date.now()): Prom
     t: now,
     src: input.src,
   };
-  // Id = thời gian + 4 ký tự ngẫu nhiên; nếu trùng (rất hiếm) thì thử id khác, không bao giờ ghi đè.
-  for (let attempt = 0; ; attempt++) {
-    try {
-      return await createExpense(newExpenseId(now), expense);
-    } catch (error) {
-      if (!(error instanceof ExpenseIdExistsError) || attempt >= 9) throw error;
-    }
-  }
+  return addExpense(expense, now);
 }
 
 /** Đọc một khoản đã ghi; null nếu không còn (hoặc `ref` trống). */

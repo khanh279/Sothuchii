@@ -7,7 +7,9 @@ import {
   formatVnDate,
   isValidDateStr,
   isValidMonthKey,
+  maskVnDateInput,
   monthsBetween,
+  parseVnDate,
   todayStr,
   weekdayName,
 } from './date';
@@ -61,6 +63,26 @@ describe('date', () => {
     expect(isValidMonthKey('2025-10')).toBe(true);
     expect(isValidMonthKey('2025-00')).toBe(false);
     expect(isValidMonthKey('2025-1')).toBe(false);
+  });
+
+  it('parseVnDate nhận dd/mm/yyyy hợp lệ, từ chối ngày không có thật', () => {
+    expect(parseVnDate('08/10/2025')).toBe('2025-10-08');
+    expect(parseVnDate('8/1/2025')).toBe('2025-01-08');
+    expect(parseVnDate(' 29/02/2024 ')).toBe('2024-02-29');
+    expect(parseVnDate('29/02/2025')).toBe('');
+    expect(parseVnDate('31/04/2025')).toBe('');
+    expect(parseVnDate('2025-10-08')).toBe('');
+    expect(parseVnDate('')).toBe('');
+    expect(parseVnDate('ab/cd/efgh')).toBe('');
+  });
+
+  it('maskVnDateInput tự chèn dấu gạch chéo', () => {
+    expect(maskVnDateInput('')).toBe('');
+    expect(maskVnDateInput('0')).toBe('0');
+    expect(maskVnDateInput('081')).toBe('08/1');
+    expect(maskVnDateInput('08102')).toBe('08/10/2');
+    expect(maskVnDateInput('08102025999')).toBe('08/10/2025');
+    expect(maskVnDateInput('08/10/2025')).toBe('08/10/2025');
   });
 
   it('định dạng hiển thị', () => {
