@@ -158,10 +158,12 @@ export function desiredLinkedExpense(
   funds: readonly Fund[],
 ): DesiredLinkedExpense | null {
   const own = ownContributionTotal(contribution);
-  if (own <= 0) return null;
+  const amount = Math.round(own);
+  // Phần dưới 0,5 đồng làm tròn về 0: `addExp` từ chối số tiền 0, nên coi như không có phần của "Tôi".
+  if (own <= 0 || amount <= 0) return null;
   const fund = funds.find((item) => item.id === contribution.fundId);
   return {
-    a: Math.round(own),
+    a: amount,
     c: FUND_CATEGORY_ID,
     n: (contribution.title || DEFAULT_CONTRIBUTION_TITLE).slice(0, MEMO_MAX),
     d: String(contribution.date),

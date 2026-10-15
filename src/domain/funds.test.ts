@@ -198,6 +198,8 @@ describe('phần của "Tôi" và khoản chi cá nhân cần có', () => {
     expect(desiredLinkedExpense(contrib('c', [['An', 50_000]]), [fundA])).toBeNull();
     expect(desiredLinkedExpense(contrib('c', [['Tôi', 0]]), [fundA])).toBeNull();
     expect(desiredLinkedExpense(contrib('c', [['Tôi', -5]]), [fundA])).toBeNull();
+    // dưới 0,5 đồng làm tròn về 0: addExp từ chối số 0 nên không đề nghị khoản chi
+    expect(desiredLinkedExpense(contrib('c', [['Tôi', 0.4]]), [fundA])).toBeNull();
   });
 
   it('tiêu đề trống dùng "Đóng quỹ"; thiếu quỹ thì không có hậu tố; làm tròn số tiền', () => {
