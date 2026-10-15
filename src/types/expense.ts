@@ -67,6 +67,9 @@ export type Period =
   | { mode: 'all' }
   | { mode: 'custom'; from: DateStr; to: DateStr };
 
+/** Nguồn tự ghi vào chi tiêu cá nhân: 'cb' = chia bill, 'quy' = quỹ nhóm. */
+export type ExpenseSource = 'cb' | 'quy';
+
 /** Dữ liệu người dùng nhập vào form (đã tách khỏi chuỗi gõ tay). */
 export interface ExpenseInput {
   a: Vnd;

@@ -16,6 +16,16 @@ export const StorageKeys = {
   people: 'sotien:people',
 } as const;
 
+/** Dữ liệu đã có nhưng không đọc được (JSON hỏng). Tuyệt đối không ghi đè khi gặp lỗi này. */
+export class StorageCorruptError extends Error {
+  readonly key: string;
+  constructor(key: string) {
+    super(`Dữ liệu ở khóa "${key}" bị hỏng, không đọc được.`);
+    this.name = 'StorageCorruptError';
+    this.key = key;
+  }
+}
+
 /** Đọc JSON; lỗi hoặc chưa có dữ liệu thì trả về `fallback` (giống hành vi `b.get` của PWA). */
 export async function loadJson<T>(key: string, fallback: T): Promise<T> {
   try {
@@ -34,4 +44,32 @@ export async function saveJson<T>(key: string, value: T): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/**
+ * Đọc JSON nghiêm ngặt: chưa có dữ liệu → undefined; JSON hỏng → ném StorageCorruptError;
+ * lỗi bộ nhớ → ném lỗi gốc. Dùng cho các thao tác đọc-sửa-ghi để không ghi đè dữ liệu hỏng.
+ */
+export async function loadJsonStrict<T>(key: string): Promise<T | undefined> {
+  const raw = await AsyncStorage.getItem(key);
+  if (raw === null || raw === undefined || raw === '') return undefined;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    throw new StorageCorruptError(key);
+  }
+}
+
+/** Ghi JSON, ném lỗi nếu thất bại. */
+export async function saveJsonStrict<T>(key: string, value: T): Promise<void> {
+  await AsyncStorage.setItem(key, JSON.stringify(value));
+}
+
+/** Ghi nhiều khóa trong một lệnh (theo thứ tự cho trước). Ném lỗi nếu thất bại. */
+export async function saveManyJsonStrict(entries: readonly (readonly [string, unknown])[]): Promise<void> {
+  await AsyncStorage.multiSet(entries.map(([key, value]) => [key, JSON.stringify(value)] as [string, string]));
+}
+
+export async function listKeys(): Promise<string[]> {
+  return [...(await AsyncStorage.getAllKeys())];
 }
