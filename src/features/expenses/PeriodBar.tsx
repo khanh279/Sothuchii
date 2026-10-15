@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
+import { CalendarPanel } from '@/components/calendar-panel';
 import { DateField } from '@/components/date-field';
 import { SvgIcon } from '@/components/svg-icon';
 import { useToast } from '@/components/toast';
@@ -32,6 +34,7 @@ export function PeriodBar({ view, onChange, today }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const toast = useToast();
+  const [picking, setPicking] = useState<'from' | 'to' | null>(null);
   const period = periodOf(view);
   const next = canGoNext(period, today);
 
@@ -95,17 +98,32 @@ export function PeriodBar({ view, onChange, today }: Props) {
         {view.mode === 'custom' && (
           <View style={styles.range}>
             <View style={styles.rangeCol}>
-              <DateField pill value={view.from} max={today} onChange={(from) => applyRange(from, view.to)} />
+              <DateField pill value={view.from} accessibilityLabel="Từ ngày" onPress={() => setPicking('from')} />
             </View>
             <AppText color={colors.muted} style={styles.arrowText}>
               →
             </AppText>
             <View style={styles.rangeCol}>
-              <DateField pill value={view.to} max={today} onChange={(to) => applyRange(view.from, to)} />
+              <DateField pill value={view.to} accessibilityLabel="Đến ngày" onPress={() => setPicking('to')} />
             </View>
           </View>
         )}
       </View>
+
+      {picking && (
+        <CalendarPanel
+          variant="popup"
+          value={picking === 'from' ? view.from : view.to}
+          today={today}
+          max={today}
+          onCancel={() => setPicking(null)}
+          onConfirm={(date) => {
+            setPicking(null);
+            if (picking === 'from') applyRange(date, view.to);
+            else applyRange(view.from, date);
+          }}
+        />
+      )}
     </View>
   );
 }

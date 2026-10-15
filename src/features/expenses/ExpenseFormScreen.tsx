@@ -2,24 +2,26 @@ import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  BackHandler,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   TextInput,
   View,
 } from 'react-native';
-
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AmountInput } from '@/components/amount-input';
-import { useToast } from '@/components/toast';
+import { AppText } from '@/components/app-text';
+import { CalendarPanel } from '@/components/calendar-panel';
 import { CategoryIcon } from '@/components/category-icon';
 import { DateField } from '@/components/date-field';
+import { useToast } from '@/components/toast';
 import { DEFAULT_CATEGORY_ID, MEMO_MAX } from '@/constants/categories';
-import { PwaColors } from '@/constants/theme';
+import { AppFonts } from '@/constants/fonts';
+import { AppRadius } from '@/constants/palette';
 import { addExpense, deleteExpense, getExpense, updateExpense } from '@/data/expenseRepository';
 import {
   addToAmount,
@@ -31,15 +33,19 @@ import {
   validateExpenseInput,
 } from '@/domain/expenses';
 import { describeStorageError, useExpenseSettings } from '@/features/expenses/hooks';
-import type { ExpenseRef, ExpenseSettings, ExpenseWithId, Period } from '@/types/expense';
+import { useColors } from '@/hooks/use-colors';
+import type { Category, ExpenseRef, ExpenseSettings, ExpenseWithId, Period } from '@/types/expense';
+import { withAlpha } from '@/utils/color';
 import { isValidDateStr, monthOf, todayStr } from '@/utils/date';
-import { confirmAsync } from '@/utils/dialog';
 
 /** Quay lại màn trước; nếu không có màn trước (mở thẳng trang này) thì về Tổng quan. */
 function leave() {
   if (router.canGoBack()) router.back();
   else router.replace('/');
 }
+
+/** Bảng chọn mục có 4 cột (đo từ PWA). */
+const PICK_COLUMNS = 4;
 
 /** Nút nhập nhanh, đúng như PWA: +5k … +500k và ".000" (nhân 1000). */
 const QUICK_ADDS = [
@@ -58,10 +64,12 @@ type Loaded =
 
 /**
  * Màn hình thêm / sửa khoản chi.
- * Tham số route: `m` + `id` (sửa khoản đã có) hoặc `d` (ngày gợi ý khi thêm mới).
+ * Tham số route: `m` + `id` (sửa khoản đã có), `d` (ngày gợi ý khi thêm mới) và kỳ đang xem
+ * (`mode`, `month`, `year`, `from`, `to`) để chọn nội dung thông báo sau khi lưu.
  */
 export default function ExpenseFormScreen() {
   const params = useLocalSearchParams<{ m?: string; id?: string; d?: string; mode?: string; month?: string; year?: string; from?: string; to?: string }>();
+  const colors = useColors();
   const insets = useSafeAreaInsets();
   const { mode, month, year, from, to } = params;
   const period = useMemo(() => periodFromParams({ mode, month, year, from, to }, todayStr()), [mode, month, year, from, to]);
@@ -82,26 +90,29 @@ export default function ExpenseFormScreen() {
     };
   }, [refMonth, refId]);
 
-  const title = ref ? 'Sửa khoản chi' : 'Thêm khoản chi';
   let body;
   if (settingsError) body = <Notice text={settingsError} />;
   else if (expense.status === 'error') body = <Notice text={expense.message} />;
-  else if (!settingsLoaded || expense.status === 'loading') body = <ActivityIndicator style={styles.loading} color={PwaColors.primary} />;
+  else if (!settingsLoaded || expense.status === 'loading') body = <ActivityIndicator style={styles.loading} color={colors.primary} />;
   else if (ref && !expense.existing) body = <Notice text="Không tìm thấy khoản chi này. Có thể nó đã bị xoá." />;
   else body = <ExpenseForm settings={settings} existing={expense.existing} suggestedDate={params.d} period={period} />;
 
+  // Trang riêng: không có header; khoảng đệm phía trên = 12 + vùng an toàn (4 của trang + 8 của khung, như PWA).
   return (
-    <View style={[styles.flex, { paddingTop: 4 + insets.top }]}>
-      <Stack.Screen options={{ title, headerShown: false }} />
+    <View style={[styles.flex, { backgroundColor: colors.bg, paddingTop: 12 + insets.top }]}>
+      <Stack.Screen options={{ title: ref ? 'Sửa khoản chi' : 'Thêm khoản chi', headerShown: false }} />
       {body}
     </View>
   );
 }
 
 function Notice({ text }: { text: string }) {
+  const colors = useColors();
   return (
-    <View style={styles.notice}>
-      <Text style={styles.noticeText}>{text}</Text>
+    <View style={[styles.notice, { backgroundColor: colors.dangerSoft }]}>
+      <AppText color={colors.danger} style={styles.noticeText}>
+        {text}
+      </AppText>
     </View>
   );
 }
@@ -115,19 +126,36 @@ interface FormProps {
 }
 
 function ExpenseForm({ settings, existing, suggestedDate, period }: FormProps) {
-  const today = todayStr();
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
   const toast = useToast();
+  const today = todayStr();
   const [amount, setAmount] = useState(existing?.a ?? 0);
   const [memo, setMemo] = useState(existing?.n ?? '');
   const [date, setDate] = useState(
     existing?.d ?? (suggestedDate && isValidDateStr(suggestedDate) && suggestedDate <= today ? suggestedDate : today),
   );
   const [categoryId, setCategoryId] = useState(existing ? resolveCategory(settings, existing.c).id : DEFAULT_CATEGORY_ID);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [errors, setErrors] = useState({ amount: false, date: false });
   const [busy, setBusy] = useState(false);
+  /** Nút Xoá bấm lần đầu thì "lên đạn": đổi chữ, bấm lần nữa mới xoá (như PWA). */
+  const [deleteArmed, setDeleteArmed] = useState(false);
 
   const category = resolveCategory(settings, categoryId);
+  const overlayOpen = calendarOpen || pickerOpen;
+
+  // Android: nút Back đóng lịch / bảng chọn mục trước khi rời màn hình.
+  useEffect(() => {
+    if (!overlayOpen) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      setCalendarOpen(false);
+      setPickerOpen(false);
+      return true;
+    });
+    return () => subscription.remove();
+  }, [overlayOpen]);
 
   async function save() {
     if (busy) return;
@@ -160,8 +188,10 @@ function ExpenseForm({ settings, existing, suggestedDate, period }: FormProps) {
 
   async function remove() {
     if (!existing || busy) return;
-    const ok = await confirmAsync('Xoá khoản chi', 'Khoản chi này sẽ bị xoá và không khôi phục được.', 'Xoá', true);
-    if (!ok) return;
+    if (!deleteArmed) {
+      setDeleteArmed(true);
+      return;
+    }
     setBusy(true);
     try {
       await deleteExpense({ m: monthOf(existing.d), id: existing.id });
@@ -175,163 +205,244 @@ function ExpenseForm({ settings, existing, suggestedDate, period }: FormProps) {
 
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.card}>
-          <Text style={styles.label}>Số tiền</Text>
-          <AmountInput
-            value={amount}
-            invalid={errors.amount}
-            autoFocus={!existing}
-            onChangeValue={(value) => {
-              setAmount(value);
-              setErrors((prev) => ({ ...prev, amount: false }));
-            }}
-          />
-          <View style={styles.quickRow}>
-            {QUICK_ADDS.map((item) => (
-              <Pressable key={item.label} style={styles.quick} onPress={() => setAmount((prev) => addToAmount(prev, item.add))}>
-                <Text style={styles.quickText}>{item.label}</Text>
-              </Pressable>
-            ))}
-            <Pressable style={styles.quick} accessibilityLabel="Thêm ba số không" onPress={() => setAmount((prev) => addToAmount(0, prev * 1000))}>
-              <Text style={styles.quickText}>.000</Text>
-            </Pressable>
-          </View>
-          {errors.amount && <Text style={styles.error}>Nhập số tiền lớn hơn 0.</Text>}
+      <ScrollView style={styles.flex} contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.line }]}>
+          <AppText weight="display" style={styles.title}>
+            {existing ? 'Sửa khoản chi' : 'Thêm khoản chi'}
+          </AppText>
 
-          <Text style={[styles.label, styles.gap]}>Nội dung</Text>
-          <TextInput
-            style={styles.input}
-            value={memo}
-            onChangeText={setMemo}
-            maxLength={MEMO_MAX}
-            placeholder="Phở sáng, mừng cưới…"
-            placeholderTextColor={PwaColors.muted}
-          />
+          <View style={styles.field}>
+            <Label>Số tiền</Label>
+            <AmountInput
+              value={amount}
+              invalid={errors.amount}
+              onChangeValue={(value) => {
+                setAmount(value);
+                setErrors((prev) => ({ ...prev, amount: false }));
+              }}
+            />
+            <View style={styles.quickRow}>
+              {QUICK_ADDS.map((item) => (
+                <QuickButton key={item.label} label={item.label} onPress={() => setAmount((prev) => addToAmount(prev, item.add))} />
+              ))}
+              <QuickButton label=".000" accessibilityLabel="Thêm ba số không" onPress={() => setAmount((prev) => addToAmount(0, prev * 1000))} />
+            </View>
+            {errors.amount && (
+              <AppText color={colors.danger} style={styles.error}>
+                Nhập số tiền lớn hơn 0.
+              </AppText>
+            )}
+          </View>
+
+          <View style={styles.field}>
+            <Label>Nội dung</Label>
+            <TextInput
+              style={[styles.input, { backgroundColor: colors.bg, borderColor: colors.line, color: colors.ink, fontFamily: AppFonts.regular }]}
+              value={memo}
+              onChangeText={setMemo}
+              maxLength={MEMO_MAX}
+              placeholder="Phở sáng, mừng cưới…"
+              placeholderTextColor={colors.muted}
+            />
+          </View>
 
           <View style={styles.twoCols}>
-            <View style={styles.col}>
-              <Text style={styles.label}>Ngày</Text>
-              <DateField
-                value={date}
-                max={today}
-                invalid={errors.date}
-                onChange={(value) => {
-                  setDate(value);
-                  setErrors((prev) => ({ ...prev, date: false }));
-                }}
-              />
+            <View style={[styles.field, styles.dateCol]}>
+              <Label>Ngày</Label>
+              <DateField value={date} invalid={errors.date} onPress={() => setCalendarOpen(true)} />
             </View>
-            <View style={styles.col}>
-              <Text style={styles.label}>Mục chi</Text>
-              <Pressable style={styles.pickCurrent} onPress={() => setPickerOpen((open) => !open)} accessibilityRole="button" accessibilityState={{ expanded: pickerOpen }}>
+            <View style={[styles.field, styles.pickCol]}>
+              <Label>Mục chi</Label>
+              <Pressable
+                style={[styles.pickCurrent, { backgroundColor: colors.bg, borderColor: colors.line }]}
+                onPress={() => setPickerOpen(true)}
+                accessibilityRole="button"
+                accessibilityLabel={`Mục chi: ${category.name}`}>
                 <CategoryIcon category={category} size={28} />
-                <Text style={styles.pickName} numberOfLines={1}>{category.name}</Text>
-                <Text style={styles.chevron}>{pickerOpen ? '▲' : '▼'}</Text>
+                <AppText weight="semibold" style={styles.pickName} numberOfLines={1}>
+                  {category.name}
+                </AppText>
               </Pressable>
             </View>
           </View>
-          {errors.date && <Text style={styles.error}>Ngày chưa đúng. Nhập dạng dd/mm/yyyy và không sau hôm nay.</Text>}
-
-          {pickerOpen && (
-            <View style={styles.pickGrid}>
-              <Text style={styles.pickTitle}>Chọn mục chi</Text>
-              <View style={styles.pickWrap}>
-                {allCategories(settings).map((item) => (
-                  <Pressable
-                    key={item.id}
-                    style={[styles.pickItem, item.id === categoryId && { borderColor: item.color, backgroundColor: item.color + '1A' }]}
-                    onPress={() => {
-                      setCategoryId(item.id);
-                      setPickerOpen(false);
-                    }}>
-                    <CategoryIcon category={item} size={32} />
-                    <Text style={styles.pickItemName} numberOfLines={1}>{item.name}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
+          {errors.date && (
+            <AppText color={colors.danger} style={styles.error}>
+              Ngày chưa đúng. Nhập dạng dd/mm/yyyy và không sau hôm nay.
+            </AppText>
           )}
-        </View>
 
-        <View style={styles.actions}>
-          {existing && (
-            <Pressable style={[styles.btn, styles.btnDanger]} onPress={remove} disabled={busy}>
-              <Text style={styles.btnDangerText}>Xoá</Text>
+          <View style={styles.actions}>
+            {existing && (
+              <Pressable
+                style={[styles.btn, styles.btnDelete, { backgroundColor: colors.dangerSoft }]}
+                onPress={remove}
+                disabled={busy}
+                accessibilityRole="button">
+                <AppText weight="semibold" color={colors.danger} style={styles.btnText}>
+                  {deleteArmed ? 'Chạm lần nữa để xoá' : 'Xoá'}
+                </AppText>
+              </Pressable>
+            )}
+            <Pressable
+              style={[styles.btn, styles.btnSave, { backgroundColor: colors.primary }, busy && styles.disabled]}
+              onPress={save}
+              disabled={busy}
+              accessibilityRole="button">
+              <AppText weight="semibold" color={colors.primaryInk} style={styles.btnText}>
+                Lưu khoản chi
+              </AppText>
             </Pressable>
+          </View>
+
+          {calendarOpen && (
+            <CalendarPanel
+              variant="overlay"
+              value={date}
+              today={today}
+              max={today}
+              onCancel={() => setCalendarOpen(false)}
+              onConfirm={(picked) => {
+                setDate(picked);
+                setErrors((prev) => ({ ...prev, date: false }));
+                setCalendarOpen(false);
+              }}
+            />
           )}
-          <Pressable style={[styles.btn, styles.btnPrimary, busy && styles.disabled]} onPress={save} disabled={busy}>
-            <Text style={styles.btnPrimaryText}>Lưu khoản chi</Text>
-          </Pressable>
+          {pickerOpen && (
+            <CategoryPicker
+              categories={allCategories(settings)}
+              selectedId={categoryId}
+              onSelect={(id) => {
+                setCategoryId(id);
+                setPickerOpen(false);
+              }}
+            />
+          )}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
+function Label({ children }: { children: string }) {
+  const colors = useColors();
+  return (
+    <AppText weight="semibold" color={colors.muted} style={styles.label}>
+      {children}
+    </AppText>
+  );
+}
+
+function QuickButton({ label, onPress, accessibilityLabel }: { label: string; onPress: () => void; accessibilityLabel?: string }) {
+  const colors = useColors();
+  return (
+    <Pressable
+      style={[styles.quick, { backgroundColor: colors.surface2 }]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? label}>
+      <AppText weight="semibold" style={styles.quickText} numberOfLines={1}>
+        {label}
+      </AppText>
+    </Pressable>
+  );
+}
+
+/** Bảng chọn mục chi phủ lên khung form (`.pick-grid`): lưới 4 cột, mục đang chọn viền theo màu mục. */
+function CategoryPicker({ categories, selectedId, onSelect }: { categories: Category[]; selectedId: string; onSelect: (id: string) => void }) {
+  const colors = useColors();
+  const rows: Category[][] = [];
+  for (let i = 0; i < categories.length; i += PICK_COLUMNS) rows.push(categories.slice(i, i + PICK_COLUMNS));
+  return (
+    <View style={[styles.pickPanel, { backgroundColor: colors.surface }]} accessibilityViewIsModal>
+      <AppText weight="display" style={styles.pickTitle}>
+        Chọn mục chi
+      </AppText>
+      <View style={styles.pickGrid}>
+        {rows.map((row, rowIndex) => (
+          <View key={rowIndex} style={styles.pickRow}>
+            {row.map((item) => {
+          const selected = item.id === selectedId;
+          return (
+            <Pressable
+              key={item.id}
+              style={[
+                styles.pickItem,
+                selected ? { backgroundColor: withAlpha(item.color, 0.1), borderColor: item.color } : { borderColor: 'transparent' },
+              ]}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              accessibilityLabel={item.name}
+              onPress={() => onSelect(item.id)}>
+              <CategoryIcon category={item} />
+              <AppText weight="medium" style={styles.pickItemName} numberOfLines={1}>
+                {item.name}
+              </AppText>
+            </Pressable>
+          );
+            })}
+            {Array.from({ length: PICK_COLUMNS - row.length }, (_, i) => (
+              <View key={`blank-${i}`} style={styles.pickBlank} />
+            ))}
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: PwaColors.bg },
-  content: { padding: 16, gap: 16 },
+  flex: { flex: 1 },
+  content: { paddingHorizontal: 12 },
   loading: { marginTop: 48 },
-  notice: { margin: 16, padding: 16, borderRadius: 16, backgroundColor: PwaColors.dangerSoft },
-  noticeText: { color: PwaColors.danger, fontSize: 15 },
-  card: {
-    backgroundColor: PwaColors.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: PwaColors.line,
-    padding: 16,
-    gap: 8,
-  },
-  label: { fontSize: 13, fontWeight: '600', color: PwaColors.muted },
-  gap: { marginTop: 8 },
-  input: {
-    minHeight: 46,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: PwaColors.line,
-    backgroundColor: PwaColors.bg,
-    fontSize: 16,
-    color: PwaColors.ink,
-  },
-  quickRow: { flexDirection: 'row', gap: 4, marginTop: 4 },
-  quick: { flex: 1, paddingVertical: 8, borderRadius: 999, backgroundColor: PwaColors.surface2, alignItems: 'center' },
-  quickText: { fontSize: 12, fontWeight: '600', color: PwaColors.ink },
-  error: { color: PwaColors.danger, fontSize: 13 },
-  twoCols: { flexDirection: 'row', gap: 12, marginTop: 8 },
-  col: { flex: 1, gap: 6 },
+  notice: { marginHorizontal: 12, padding: 16, borderRadius: 16 },
+  noticeText: { fontSize: 15 },
+  /** Khung form: bo 22, đệm 16, các khối cách nhau 16 (đo từ PWA). */
+  card: { borderRadius: AppRadius.hero, borderWidth: 1, padding: 16, gap: 16 },
+  title: { fontSize: 18, lineHeight: 26 },
+  field: { gap: 6 },
+  label: { fontSize: 13, lineHeight: 19 },
+  quickRow: { flexDirection: 'row', gap: 4 },
+  quick: { flex: 1, height: 33, borderRadius: AppRadius.pill, alignItems: 'center', justifyContent: 'center' },
+  quickText: { fontSize: 12 },
+  input: { height: 46, borderRadius: AppRadius.field, borderWidth: 1, paddingHorizontal: 14, fontSize: 16 },
+  twoCols: { flexDirection: 'row', gap: 8 },
+  dateCol: { flex: 1.25 },
+  pickCol: { flex: 1 },
   pickCurrent: {
-    minHeight: 46,
+    height: 46,
+    borderRadius: AppRadius.field,
+    borderWidth: 1,
+    paddingVertical: 6,
+    paddingLeft: 6,
+    paddingRight: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: PwaColors.line,
-    backgroundColor: PwaColors.bg,
+    gap: 6,
   },
-  pickName: { flex: 1, fontSize: 15, color: PwaColors.ink },
-  chevron: { fontSize: 10, color: PwaColors.muted },
-  pickGrid: { marginTop: 8, gap: 8 },
-  pickTitle: { fontSize: 13, fontWeight: '600', color: PwaColors.muted },
-  pickWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  pickItem: {
-    width: '23%',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 8,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: 'transparent',
-  },
-  pickItemName: { fontSize: 11, color: PwaColors.ink },
-  actions: { flexDirection: 'row', gap: 12 },
-  btn: { minHeight: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18 },
-  btnPrimary: { flex: 1, backgroundColor: PwaColors.primary },
-  btnPrimaryText: { color: PwaColors.primaryInk, fontSize: 16, fontWeight: '600' },
-  btnDanger: { backgroundColor: PwaColors.dangerSoft },
-  btnDangerText: { color: PwaColors.danger, fontSize: 16, fontWeight: '600' },
+  pickName: { flex: 1, fontSize: 15 },
+  error: { fontSize: 13 },
+  actions: { flexDirection: 'row', gap: 10 },
+  btn: { height: 46, borderRadius: AppRadius.field, alignItems: 'center', justifyContent: 'center' },
+  btnSave: { flex: 1 },
+  btnDelete: { paddingHorizontal: 18 },
+  btnText: { fontSize: 15 },
   disabled: { opacity: 0.6 },
+  /** Bảng chọn mục phủ kín khung form, lệch 4px mỗi cạnh như lịch. */
+  pickPanel: { position: 'absolute', top: 4, left: 4, right: 4, bottom: 4, zIndex: 6, padding: 16, gap: 8, borderRadius: 21 },
+  pickTitle: { fontSize: 18, lineHeight: 33 },
+  pickGrid: { gap: 8 },
+  pickRow: { flexDirection: 'row', gap: 8 },
+  pickItem: {
+    flex: 1,
+    height: 85,
+    borderRadius: AppRadius.field,
+    borderWidth: 0.8,
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 2,
+    gap: 6,
+  },
+  pickBlank: { flex: 1 },
+  pickItemName: { fontSize: 12, maxWidth: '100%' },
 });
