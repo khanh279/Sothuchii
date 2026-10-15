@@ -1,31 +1,34 @@
 import { useFonts } from 'expo-font';
-import { DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 
 import { ToastProvider } from '@/components/toast';
 import { FONT_ASSETS } from '@/constants/font-assets';
-import { PwaColors } from '@/constants/theme';
+import { SoTienColors } from '@/constants/palette';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
 SplashScreen.preventAutoHideAsync();
 
-/**
- * Tạm thời ép chủ đề sáng: các màn hình chưa chuyển sang `useColors()` (chế độ tối của PWA)
- * nên chưa thể theo hệ thống. Sẽ gỡ khi mọi màn hình đã hỗ trợ chế độ tối.
- */
-const AppTheme = {
-  ...DefaultTheme,
-  colors: {
-    ...DefaultTheme.colors,
-    primary: PwaColors.primary,
-    background: PwaColors.bg,
-    card: PwaColors.surface,
-    text: PwaColors.ink,
-    border: PwaColors.line,
-  },
-};
+/** Chủ đề điều hướng theo bộ màu sáng/tối của PWA (nền, thẻ, chữ, viền). */
+function navigationTheme(scheme: 'light' | 'dark') {
+  const palette = SoTienColors[scheme];
+  const base = scheme === 'dark' ? DarkTheme : DefaultTheme;
+  return {
+    ...base,
+    colors: {
+      ...base.colors,
+      primary: palette.primary,
+      background: palette.bg,
+      card: palette.surface,
+      text: palette.ink,
+      border: palette.line,
+    },
+  };
+}
 
 export default function RootLayout() {
+  const scheme = useColorScheme();
   const [fontsLoaded, fontError] = useFonts(FONT_ASSETS);
   const ready = fontsLoaded || !!fontError;
 
@@ -38,7 +41,7 @@ export default function RootLayout() {
   if (!ready) return null;
 
   return (
-    <ThemeProvider value={AppTheme}>
+    <ThemeProvider value={navigationTheme(scheme === 'dark' ? 'dark' : 'light')}>
       <ToastProvider>
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="(tabs)" />
