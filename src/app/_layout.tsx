@@ -52,6 +52,7 @@ export default function RootLayout() {
           <Stack.Screen name="chia-bill/sua" />
           <Stack.Screen name="cong-no/lich-su" />
           <Stack.Screen name="cong-no/sua" />
+          <Stack.Screen name="cong-no/chi-tiet" />
         </Stack>
       </ToastProvider>
     </ThemeProvider>

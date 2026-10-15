@@ -1,0 +1,236 @@
+/**
+ * Mô hình hiển thị màn "Chi tiết nợ" (hàm thuần): chi tiết với MỘT người (hai ngăn Nợ vay / Nợ bill, thanh toán, gộp nợ,
+ * lịch sử gộp) và chi tiết một CẶP người trong kỳ. Chuyển từ `Q()`, `nxCt()`, `nxGroupBill()`, `nxDays()` của `mod-c` trong PWA.
+ * Tiền là NGHÌN đồng.
+ */
+
+import { BILL_OWNER_NAME } from '@/domain/bills';
+import { isInPeriod } from '@/domain/expenses';
+import {
+  DEBT_ZERO,
+  canMerge,
+  debtEvents,
+  isNearZero,
+  ledgerItems,
+  mergeAmount,
+  mergeHistory,
+  pairNet,
+  personLedger,
+  r3,
+  type LedgerItem,
+  type MergeRecord,
+} from '@/domain/ledger';
+import type { Bill } from '@/types/bill';
+import type { DateStr, Period } from '@/types/expense';
+import type { Nghin } from '@/types/money';
+import type { Ledger, Pay } from '@/types/pay';
+
+export type Tone = 'get' | 'owe' | 'mid';
+
+/** Màu theo dấu (`nxCl`): dương = nhận (xanh), âm = trả (đỏ), gần 0 = trung tính. */
+export const toneOf = (value: number): Tone => (value > 5e-4 ? 'get' : value < -5e-4 ? 'owe' : 'mid');
+
+const isMe = (name: unknown): boolean => String(name || '') === BILL_OWNER_NAME;
+
+export interface DebtRow extends LedgerItem {
+  tone: Tone;
+}
+
+export interface DayGroup {
+  date: DateStr;
+  net: Nghin;
+  tone: Tone;
+  rows: DebtRow[];
+}
+
+export interface MonthGroup {
+  /** 'YYYY-MM'. */
+  month: string;
+  net: Nghin;
+  tone: Tone;
+  count: number;
+  days: DayGroup[];
+}
+
+/** Xem theo từng ngày khi kỳ nằm trong một tháng (`nxMonthMode`); ngược lại gom theo tháng. */
+export function isMonthMode(period: Period): boolean {
+  if (period.mode === 'month') return true;
+  if (period.mode === 'custom') return period.from.slice(0, 7) === period.to.slice(0, 7);
+  return false;
+}
+
+/** Gom các dòng theo ngày (`nxDays`). Dòng có `tone` cố định (chi tiết cặp) giữ nguyên; ngày có dòng trung tính thì cả ngày trung tính. */
+export function groupByDay(rows: readonly DebtRow[], fixedTone = false): DayGroup[] {
+  const order: DateStr[] = [];
+  const map = new Map<DateStr, DebtRow[]>();
+  for (const row of rows) {
+    if (!map.has(row.d)) {
+      map.set(row.d, []);
+      order.push(row.d);
+    }
+    map.get(row.d)?.push(row);
+  }
+  return order.map((date) => {
+    const list = map.get(date) ?? [];
+    const net = r3(list.reduce((sum, row) => sum + row.v, 0));
+    return { date, net, tone: fixedTone ? (list[0].tone === 'mid' ? 'mid' : toneOf(net)) : toneOf(net), rows: list };
+  });
+}
+
+/** Gom các dòng theo tháng (`nxGroupBill` khi không ở chế độ tháng). */
+export function groupByMonth(rows: readonly DebtRow[], fixedTone = false): MonthGroup[] {
+  const order: string[] = [];
+  const map = new Map<string, DebtRow[]>();
+  for (const row of rows) {
+    const key = row.d.slice(0, 7);
+    if (!map.has(key)) {
+      map.set(key, []);
+      order.push(key);
+    }
+    map.get(key)?.push(row);
+  }
+  return order.map((month) => {
+    const list = map.get(month) ?? [];
+    const net = r3(list.reduce((sum, row) => sum + row.v, 0));
+    return { month, net, tone: fixedTone && list.some((row) => row.tone === 'mid') ? 'mid' : toneOf(net), count: list.length, days: groupByDay(list, fixedTone) };
+  });
+}
+
+/** Dòng phụ dưới tên ngăn (`nxSubOf`). */
+export function ledgerSubtitle(balance: Nghin, name: string): string {
+  return isNearZero(balance) ? 'Đã thanh toán xong' : balance > 0 ? `${name} nợ tôi` : `Tôi nợ ${name}`;
+}
+
+export interface PayAction {
+  ledger: Ledger;
+  /** "Nợ vay" / "Nợ bill". */
+  label: string;
+  balance: Nghin;
+  /** Dòng chữ: "<họ> nợ tôi" hoặc "Tôi nợ <họ>". */
+  owes: string;
+}
+
+export interface DebtDetail {
+  name: string;
+  loan: Nghin;
+  bill: Nghin;
+  /** Ngăn Nợ vay chỉ hiện khi từng có biến động; liệt kê MỌI dòng (không theo kỳ). */
+  hasLoan: boolean;
+  loanSubtitle: string;
+  loanRows: DebtRow[];
+  hasBill: boolean;
+  billSubtitle: string;
+  /** Tổng nợ bill trong kỳ; null khi kỳ là "Tất cả" (không hiện dòng tổng). */
+  billPeriodTotal: Nghin | null;
+  /** Bill trong kỳ: theo ngày (chế độ tháng) hoặc theo tháng. */
+  monthMode: boolean;
+  billDays: DayGroup[];
+  billMonths: MonthGroup[];
+  billEmpty: boolean;
+  /** Không còn khoản nợ nào ở cả hai sổ. */
+  settled: boolean;
+  canMerge: boolean;
+  mergeAmount: Nghin;
+  payActions: PayAction[];
+  history: MergeRecord[];
+}
+
+const toRows = (items: readonly LedgerItem[]): DebtRow[] => items.map((item) => ({ ...item, tone: toneOf(item.v) }));
+
+/** Chi tiết nợ với MỘT người (`Q()`): số dư toàn thời gian ở hai sổ; danh sách bill chỉ trong kỳ đang xem. */
+export function buildDebtDetail(
+  bills: readonly Bill[],
+  pays: readonly Pay[],
+  name: string,
+  period: Period,
+  categoryName: (id: string) => string = () => '',
+): DebtDetail {
+  const ledger = personLedger(debtEvents(bills, pays), name);
+  const who = ledger.name;
+  const loanItems = ledgerItems(ledger.ev.loan, categoryName);
+  const billItems = ledgerItems(ledger.ev.bill, categoryName);
+  const inPeriod = billItems.filter((item) => isInPeriod(item.d, period));
+  const monthMode = isMonthMode(period);
+  const rows = toRows(inPeriod);
+  const merge = { loan: ledger.loan, bill: ledger.bill };
+  const label: Record<Ledger, string> = { loan: 'Nợ vay', bill: 'Nợ bill' };
+  const payActions: PayAction[] = (['loan', 'bill'] as const)
+    .filter((key) => !isNearZero(ledger[key]))
+    .map((key) => ({ ledger: key, label: label[key], balance: ledger[key], owes: ledger[key] > 0 ? `${who} nợ tôi` : `Tôi nợ ${who}` }));
+  return {
+    name: who,
+    loan: ledger.loan,
+    bill: ledger.bill,
+    hasLoan: loanItems.length > 0,
+    loanSubtitle: ledgerSubtitle(ledger.loan, who),
+    loanRows: toRows(loanItems),
+    hasBill: billItems.length > 0,
+    billSubtitle: ledgerSubtitle(ledger.bill, who),
+    billPeriodTotal: period.mode === 'all' ? null : r3(inPeriod.reduce((sum, item) => sum + item.v, 0)),
+    monthMode,
+    billDays: monthMode ? groupByDay(rows) : [],
+    billMonths: monthMode ? [] : groupByMonth(rows),
+    billEmpty: inPeriod.length === 0,
+    settled: isNearZero(ledger.loan) && isNearZero(ledger.bill),
+    canMerge: canMerge(merge),
+    mergeAmount: mergeAmount(merge),
+    payActions,
+    history: mergeHistory(pays, who),
+  };
+}
+
+export interface PairDetail {
+  /** Có dòng nào trong kỳ không. */
+  empty: boolean;
+  /** "Tôi nợ X" / "X nợ tôi" / "X nợ Y". */
+  label: string;
+  tone: Tone;
+  /** Số tiền chênh lệch (luôn ≥ 0). */
+  amount: Nghin;
+  monthMode: boolean;
+  days: DayGroup[];
+  months: MonthGroup[];
+  /** Có nút "Thanh toán toàn bộ" (chênh lệch từ 0,05 nghìn). */
+  canPay: boolean;
+  /** Người còn lại khi một bên là "Tôi" (để gộp nợ); null nếu không liên quan đến tôi. */
+  other: string | null;
+  canMerge: boolean;
+  mergeAmount: Nghin;
+}
+
+/** Chi tiết bill giữa hai người `x` và `z` trong kỳ (`nxCt`). */
+export function buildPairDetail(
+  bills: readonly Bill[],
+  pays: readonly Pay[],
+  x: string,
+  z: string,
+  period: Period,
+  categoryName: (id: string) => string = () => '',
+): PairDetail {
+  const net = pairNet(bills, pays, x, z, period, categoryName);
+  const monthMode = isMonthMode(period);
+  const me = isMe(x) || isMe(z);
+  const debtor = net.from;
+  const creditor = net.to;
+  const label = isMe(debtor) ? `Tôi nợ ${creditor}` : isMe(creditor) ? `${debtor} nợ tôi` : `${debtor} nợ ${creditor}`;
+  const tone: Tone = isMe(debtor) ? 'owe' : isMe(creditor) ? 'get' : 'mid';
+  const rows: DebtRow[] = net.items.map((item) => {
+    const v = me ? (isMe(z) ? item.s : -item.s) : debtor === x ? item.s : -item.s;
+    return { d: item.d, v, t: item.t, s: item.x, tone: me ? toneOf(v) : 'mid' };
+  });
+  const other = isMe(x) ? z : isMe(z) ? x : null;
+  const ledger = other ? personLedger(debtEvents(bills, pays), other) : null;
+  return {
+    empty: net.items.length === 0,
+    label,
+    tone,
+    amount: net.amt,
+    monthMode,
+    days: monthMode ? groupByDay(rows, true) : [],
+    months: monthMode ? [] : groupByMonth(rows, true),
+    canPay: net.amt >= DEBT_ZERO,
+    other,
+    canMerge: ledger ? canMerge(ledger) : false,
+    mergeAmount: ledger ? mergeAmount(ledger) : 0,
+  };
+}
