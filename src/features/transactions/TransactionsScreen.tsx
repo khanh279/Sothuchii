@@ -3,8 +3,8 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { AppRadius } from '@/constants/palette';
 import BillCalcScreen from '@/features/bills/BillCalcScreen';
+import PayFormScreen from '@/features/debts/PayFormScreen';
 import FundListScreen from '@/features/funds/FundListScreen';
 import { useColors } from '@/hooks/use-colors';
 
@@ -16,10 +16,7 @@ const SUBS = [
 ] as const;
 type SubId = (typeof SUBS)[number]['id'];
 
-/**
- * Tab Giao dịch. Hiện chỉ "Đóng quỹ" có nội dung; Giao dịch (chuyển tiền) và Chia bill chưa được chuyển sang
- * mobile nên hiện thông báo, sẽ thay khi làm các module đó.
- */
+/** Tab Giao dịch: Đóng quỹ, Giao dịch (chuyển tiền / trả bill) và Chia bill, chuyển bằng thanh ở trên như PWA. */
 export default function TransactionsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -47,20 +44,7 @@ export default function TransactionsScreen() {
         </View>
       </View>
 
-      {sub === 'quy' ? (
-        <FundListScreen />
-      ) : sub === 'bill' ? (
-        <BillCalcScreen />
-      ) : (
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.line }]}>
-          <AppText weight="display" style={styles.title}>
-            Đang phát triển
-          </AppText>
-          <AppText color={colors.muted} style={styles.text}>
-            Chuyển tiền chưa có trên bản mobile. Chức năng này sẽ được bổ sung ở giai đoạn sau.
-          </AppText>
-        </View>
-      )}
+      {sub === 'quy' ? <FundListScreen /> : sub === 'bill' ? <BillCalcScreen /> : <PayFormScreen />}
     </View>
   );
 }
@@ -72,7 +56,4 @@ const styles = StyleSheet.create({
   switchIn: { flexDirection: 'row', gap: 4, padding: 4, borderWidth: 1, borderRadius: 16 },
   switchButton: { flex: 1, minHeight: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2 },
   switchText: { fontSize: 14 },
-  card: { marginHorizontal: 12, marginTop: 4, borderRadius: AppRadius.card, borderWidth: 1, padding: 20, gap: 8 },
-  title: { fontSize: 18 },
-  text: { fontSize: 14, lineHeight: 20 },
 });
