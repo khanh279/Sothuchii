@@ -4,6 +4,8 @@ import type { Category } from '@/types/expense';
 export const MAX_CUSTOM_CATEGORIES = 12;
 export const CATEGORY_NAME_MAX = 24;
 export const MEMO_MAX = 80;
+/** Độ dài tối đa của dòng chi tiết phụ `i` của khoản chi tự ghi (do Quỹ / Chia bill ghi). */
+export const DETAIL_MAX = 120;
 export const AMOUNT_MAX_DIGITS = 12;
 export const MAX_AMOUNT = 999_999_999_999;
 /** Kỳ "Tuỳ chọn" xem tối đa 5 năm; biểu đồ theo ngày khi kỳ ≤ 62 ngày. */

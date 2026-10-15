@@ -10,14 +10,13 @@
  * - Không thay đổi hình dạng các hàm này khi chưa cập nhật cả hai module gọi nó.
  */
 
-import { MEMO_MAX } from '@/constants/categories';
+import { DETAIL_MAX, MEMO_MAX } from '@/constants/categories';
 import { addExpense, deleteExpense, getExpense, listBySource } from '@/data/expenseRepository';
 import type { DateStr, Expense, ExpenseRef, ExpenseSource } from '@/types/expense';
 import type { Vnd } from '@/types/money';
 import { isValidDateStr } from '@/utils/date';
 
-/** Độ dài tối đa của dòng chi tiết phụ `i`. */
-export const DETAIL_MAX = 120;
+export { DETAIL_MAX };
 
 export interface AddExpInput {
   /** Số tiền (đồng). Được làm tròn; sau khi làm tròn phải > 0. */
