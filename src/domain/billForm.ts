@@ -142,3 +142,25 @@ export function rowMeta(row: Pick<SplitRow, 'paid' | 'share' | 'fixed' | 'w'>): 
   const extra = row.fixed ? ' · Cố định' : row.w !== 1 ? ` · Hệ số ${String(row.w).replace('.', ',')}` : '';
   return `Chi ${formatMoney(row.paid)} · Phần ${formatMoney(row.share)}${extra}`;
 }
+
+/**
+ * Áp dụng lựa chọn thành viên (nút "Chọn thành viên"): dòng đầu luôn là "Tôi" với dữ liệu đang có; các thành viên
+ * khác theo đúng thứ tự đã chọn, người đã có dòng thì giữ nguyên số tiền / hệ số, người mới thì dòng trống.
+ * Số dòng = số người đã chọn (có thể chỉ còn "Tôi").
+ */
+export function applyMemberSelection(rows: readonly FormPerson[], selected: readonly string[]): FormPerson[] {
+  const byName = new Map<string, FormPerson>();
+  for (const row of rows) if (row.name) byName.set(row.name, row);
+  const me = rows[0] ? { ...rows[0], name: BILL_OWNER_NAME } : emptyPerson(BILL_OWNER_NAME);
+  const next = [me];
+  for (const name of selected) {
+    if (name === BILL_OWNER_NAME || next.some((row) => row.name === name)) continue;
+    next.push({ ...(byName.get(name) ?? emptyPerson(name)) });
+  }
+  return next;
+}
+
+/** Sau khi lưu bill: xoá số tiền, hệ số, mức cố định nhưng giữ nhóm người cho lần chia sau (như PWA). */
+export function resetAfterSave(rows: readonly FormPerson[]): FormPerson[] {
+  return rows.map((row) => emptyPerson(row.name));
+}

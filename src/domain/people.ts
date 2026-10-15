@@ -81,3 +81,16 @@ export function pickerOptions(people: readonly string[], selected: string | null
   if (name && !options.includes(name)) options.push(name);
   return options;
 }
+
+/**
+ * Các lựa chọn khi chọn NHIỀU người: "Tôi" (luôn có), danh sách người, rồi các tên đang chọn mà chưa có trong
+ * danh sách (để không mất tên đã nhập). Thứ tự này cũng là thứ tự người trong bill.
+ */
+export function memberOptions(people: readonly string[], selected: readonly string[]): string[] {
+  const options = [FUND_OWNER_NAME, ...people];
+  for (const raw of selected) {
+    const name = cleanPersonName(raw);
+    if (name && !options.includes(name)) options.push(name);
+  }
+  return options;
+}

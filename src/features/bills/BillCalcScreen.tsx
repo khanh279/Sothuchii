@@ -7,12 +7,15 @@ import { CalendarPanel } from '@/components/calendar-panel';
 import { CategoryIcon } from '@/components/category-icon';
 import { DateField } from '@/components/date-field';
 import { SvgIcon } from '@/components/svg-icon';
+import { useToast } from '@/components/toast';
 import { AppFonts } from '@/constants/fonts';
 import { AppRadius } from '@/constants/palette';
-import { loadBillNames } from '@/data/billRepository';
+import { BillInputError, loadBillNames } from '@/data/billRepository';
+import { saveBillSynced } from '@/data/billService';
 import { loadPeople } from '@/data/peopleRepository';
-import { MAX_BILL_PEOPLE, MIN_BILL_PEOPLE, computeSplit, defaultPersonName, describeSplitProblem } from '@/domain/bills';
+import { MAX_BILL_PEOPLE, MIN_BILL_PEOPLE, canSaveBill, computeSplit, defaultPersonName, describeSplitProblem } from '@/domain/bills';
 import {
+  applyMemberSelection,
   emptyPerson,
   formatMoney,
   formatPaidText,
@@ -20,6 +23,7 @@ import {
   maskPaidInput,
   resizePeople,
   rowMeta,
+  resetAfterSave,
   rowStatus,
   toSplitPeople,
   weightCaption,
@@ -29,7 +33,8 @@ import {
 } from '@/domain/billForm';
 import { allCategories } from '@/domain/expenses';
 import { swipeToggle } from '@/domain/swipe';
-import { useExpenseSettings } from '@/features/expenses/hooks';
+import { describeStorageError, useExpenseSettings } from '@/features/expenses/hooks';
+import { MemberPicker } from '@/features/people/MemberPicker';
 import { useColors } from '@/hooks/use-colors';
 import type { DateStr } from '@/types/expense';
 import { withAlpha } from '@/utils/color';
@@ -59,7 +64,10 @@ export default function BillCalcScreen() {
   const [openRow, setOpenRow] = useState<number | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [pickingCategory, setPickingCategory] = useState(false);
+  const [pickingMembers, setPickingMembers] = useState(false);
+  const [saving, setSaving] = useState(false);
   const touched = useRef(false);
+  const toast = useToast();
 
   // Nhóm người của lần chia gần nhất (chỉ giữ người còn trong Danh sách người), như PWA; lỗi đọc thì dùng mặc định.
   useEffect(() => {
@@ -88,6 +96,24 @@ export default function BillCalcScreen() {
     setRows(next);
   }
   const patchRow = (index: number, change: (row: FormPerson) => FormPerson) => update(rows.map((row, i) => (i === index ? change(row) : row)));
+  async function save() {
+    if (saving || !canSaveBill(split)) return;
+    setSaving(true);
+    try {
+      await saveBillSynced({ title, date, cat: catId, people });
+      toast.show('Đã lưu vào lịch sử');
+      // Như PWA: xoá tiền / hệ số / mức cố định và nội dung, giữ nhóm người và ngày cho lần chia sau.
+      update(resetAfterSave(rows));
+      setTitle('');
+      setCatId('food');
+      setOpenRow(null);
+    } catch (e) {
+      toast.show(e instanceof BillInputError ? e.message : describeStorageError(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const setCount = (count: number) => {
     setOpenRow(null);
     update(resizePeople(rows, count));
@@ -117,7 +143,23 @@ export default function BillCalcScreen() {
             <SvgIcon name="chevronRight" size={18} color={colors.muted} />
           </View>
         </Pressable>
-        <DateField value={date} onPress={() => setCalendarOpen(true)} />
+        <View style={styles.dateRow}>
+          <View style={styles.flex}>
+            <DateField value={date} onPress={() => setCalendarOpen(true)} />
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              setOpenRow(null);
+              setPickingMembers(true);
+            }}
+            style={[styles.memberButton, { borderColor: colors.line, backgroundColor: colors.bg }]}>
+            <SvgIcon name="people" size={18} color={colors.primary} />
+            <AppText weight="semibold" color={colors.primary} style={styles.memberText}>
+              Chọn thành viên
+            </AppText>
+          </Pressable>
+        </View>
 
         <View style={styles.stepper}>
           <AppText weight="semibold" color={colors.muted} style={styles.stepperLabel}>
@@ -147,6 +189,18 @@ export default function BillCalcScreen() {
           />
         ))}
       </View>
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ disabled: !canSaveBill(split) || saving }}
+        disabled={!canSaveBill(split) || saving}
+        onPress={() => void save()}
+        style={[styles.saveButton, { backgroundColor: colors.primary, opacity: canSaveBill(split) && !saving ? 1 : 0.45 }]}>
+        <SvgIcon name="check" size={20} color={colors.primaryInk} strokeWidth={2.2} />
+        <AppText weight="semibold" color={colors.primaryInk} style={styles.saveText}>
+          Lưu
+        </AppText>
+      </Pressable>
 
       {split.total > 0 && (split.bad ? (
         <View style={[styles.warn, { backgroundColor: colors.dangerSoft }]} accessibilityRole="alert">
@@ -225,6 +279,15 @@ export default function BillCalcScreen() {
           )}
         </View>
       ))}
+
+      {pickingMembers && (
+        <MemberPicker
+          title="Người chia bill"
+          selected={rows.map((row) => row.name).filter(Boolean)}
+          onChange={(names) => update(applyMemberSelection(rows, names))}
+          onClose={() => setPickingMembers(false)}
+        />
+      )}
 
       {pickingCategory && (
         <Modal transparent animationType="fade" visible onRequestClose={() => setPickingCategory(false)}>
@@ -413,6 +476,11 @@ const styles = StyleSheet.create({
   input: { height: 46, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, fontSize: 16 },
   categoryButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 6, paddingRight: 12, borderWidth: 1, borderRadius: 12 },
   categoryName: { flex: 1, fontSize: 16 },
+  dateRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  memberButton: { height: 46, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, borderWidth: 1, borderRadius: 12 },
+  memberText: { fontSize: 14 },
+  saveButton: { minHeight: 48, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  saveText: { fontSize: 16 },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 6 },
   stepperLabel: { flex: 1, fontSize: 14 },
   stepButton: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },

@@ -1,5 +1,6 @@
 import { computeSplit } from './bills';
 import {
+  applyMemberSelection,
   clampBillPeople,
   emptyPerson,
   formatMoney,
@@ -10,6 +11,7 @@ import {
   maskWeightInput,
   parseFixedText,
   parseWeightText,
+  resetAfterSave,
   resizePeople,
   rowMeta,
   rowStatus,
@@ -125,5 +127,37 @@ describe('hiển thị kết quả', () => {
     expect(rowMeta({ paid: 0, share: 30, fixed: true, w: 1 })).toBe('Chi 0 ₫ · Phần 30.000 ₫ · Cố định');
     expect(rowMeta({ paid: 0, share: 60, fixed: false, w: 2 })).toBe('Chi 0 ₫ · Phần 60.000 ₫ · Hệ số 2');
     expect(formatMoney(1.5)).toBe('1.500 ₫');
+  });
+});
+
+describe('chọn thành viên và đặt lại sau khi lưu', () => {
+  const rows = [
+    { ...emptyPerson('Tôi'), paidText: '100' },
+    { ...emptyPerson('An'), paidText: '5', weightText: '2' },
+    emptyPerson(''),
+  ];
+
+  it('giữ dữ liệu "Tôi" và người đã có; người mới là dòng trống; thứ tự theo lựa chọn', () => {
+    const next = applyMemberSelection(rows, ['Tôi', 'Bình', 'An']);
+    expect(next.map((r) => r.name)).toEqual(['Tôi', 'Bình', 'An']);
+    expect(next[0].paidText).toBe('100');
+    expect(next[1]).toEqual(emptyPerson('Bình'));
+    expect(next[2]).toMatchObject({ paidText: '5', weightText: '2' });
+  });
+
+  it('bỏ chọn hết người khác thì còn mình "Tôi"; tên trùng và "Tôi" lặp bị bỏ', () => {
+    expect(applyMemberSelection(rows, []).map((r) => r.name)).toEqual(['Tôi']);
+    expect(applyMemberSelection(rows, ['An', 'An', 'Tôi']).map((r) => r.name)).toEqual(['Tôi', 'An']);
+  });
+
+  it('không sửa đầu vào', () => {
+    const copy = JSON.parse(JSON.stringify(rows));
+    applyMemberSelection(rows, ['Chi']);
+    resetAfterSave(rows);
+    expect(rows).toEqual(copy);
+  });
+
+  it('sau khi lưu: xoá tiền, hệ số, mức cố định; giữ tên', () => {
+    expect(resetAfterSave(rows)).toEqual([emptyPerson('Tôi'), emptyPerson('An'), emptyPerson('')]);
   });
 });
