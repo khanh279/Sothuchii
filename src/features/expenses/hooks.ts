@@ -1,10 +1,11 @@
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
-import { loadSettings, saveSettings } from '@/data/expenseRepository';
+import { listMonthKeys, loadMonths, loadSettings, saveSettings } from '@/data/expenseRepository';
 import { StorageCorruptError } from '@/data/storage';
-import { EMPTY_SETTINGS } from '@/domain/expenses';
-import type { ExpenseSettings } from '@/types/expense';
+import { EMPTY_SETTINGS, filterByPeriod, monthsInPeriod } from '@/domain/expenses';
+import type { ExpenseSettings, ExpenseWithId, Period } from '@/types/expense';
+import { todayStr } from '@/utils/date';
 
 /** Thông báo dễ hiểu cho lỗi đọc/ghi dữ liệu. */
 export function describeStorageError(error: unknown): string {
@@ -46,4 +47,39 @@ export function useExpenseSettings() {
   }, []);
 
   return { ...state, reload, save };
+}
+
+interface ExpensesState {
+  items: ExpenseWithId[];
+  loaded: boolean;
+  error: string | null;
+}
+
+/**
+ * Các khoản chi trong một kỳ; tự đọc lại mỗi khi màn hình được mở lại.
+ * `period` phải ổn định giữa các lần render (giữ trong state hoặc useMemo), nếu không sẽ đọc lại liên tục.
+ */
+export function useExpenses(period: Period) {
+  const [state, setState] = useState<ExpensesState>({ items: [], loaded: false, error: null });
+  const latest = useRef(0);
+
+  const reload = useCallback(async () => {
+    const request = ++latest.current;
+    try {
+      const known = period.mode === 'all' ? await listMonthKeys() : [];
+      const months = monthsInPeriod(period, known, todayStr());
+      const items = filterByPeriod(await loadMonths(months), period);
+      if (request === latest.current) setState({ items, loaded: true, error: null });
+    } catch (error) {
+      if (request === latest.current) setState((prev) => ({ ...prev, loaded: true, error: describeStorageError(error) }));
+    }
+  }, [period]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void reload();
+    }, [reload]),
+  );
+
+  return { ...state, reload };
 }

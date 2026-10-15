@@ -223,6 +223,45 @@ export function canGoNext(period: Period, today: DateStr): boolean {
   return false;
 }
 
+/** Kỳ xem -> tham số route (chuỗi) để truyền giữa các màn hình. */
+export function periodToParams(period: Period): Record<string, string> {
+  switch (period.mode) {
+    case 'month':
+      return { mode: 'month', month: period.month };
+    case 'year':
+      return { mode: 'year', year: String(period.year) };
+    case 'all':
+      return { mode: 'all' };
+    case 'custom':
+      return { mode: 'custom', from: period.from, to: period.to };
+  }
+}
+
+/** Tham số route -> kỳ xem. Tham số thiếu hoặc sai thì dùng tháng hiện tại. */
+export function periodFromParams(
+  params: { mode?: string; month?: string; year?: string; from?: string; to?: string },
+  today: DateStr,
+): Period {
+  if (params.mode === 'month' && params.month && isValidMonthKey(params.month)) {
+    return { mode: 'month', month: params.month };
+  }
+  if (params.mode === 'year' && /^\d{4}$/.test(params.year ?? '')) {
+    return { mode: 'year', year: Number(params.year) };
+  }
+  if (params.mode === 'all') return { mode: 'all' };
+  if (
+    params.mode === 'custom' &&
+    params.from &&
+    params.to &&
+    isValidDateStr(params.from) &&
+    isValidDateStr(params.to) &&
+    params.from <= params.to
+  ) {
+    return { mode: 'custom', from: params.from, to: params.to };
+  }
+  return monthPeriod(today);
+}
+
 /** Danh sách tháng cần đọc dữ liệu cho một kỳ (hàm `z`). */
 export function monthsInPeriod(period: Period, knownMonths: readonly MonthKey[], today: DateStr): MonthKey[] {
   switch (period.mode) {

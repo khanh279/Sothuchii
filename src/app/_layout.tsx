@@ -26,6 +26,7 @@ export default function RootLayout() {
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="chi-tieu/nhap" options={{ title: 'Thêm khoản chi' }} />
+        <Stack.Screen name="lich-su" options={{ title: 'Chi tiêu cá nhân' }} />
       </Stack>
     </ThemeProvider>
   );

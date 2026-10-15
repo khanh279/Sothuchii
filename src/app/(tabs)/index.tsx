@@ -14,6 +14,9 @@ export default function OverviewScreen() {
         <Pressable style={styles.button} onPress={() => router.push('/chi-tieu/nhap')}>
           <Text style={styles.buttonText}>+ Thêm khoản chi</Text>
         </Pressable>
+        <Pressable style={styles.button} onPress={() => router.push({ pathname: '/lich-su', params: { mode: 'all' } })}>
+          <Text style={styles.buttonText}>Xem lịch sử (tất cả)</Text>
+        </Pressable>
       </View>
     </SafeAreaView>
   );

@@ -28,7 +28,9 @@ import {
   normalizeCustomRange,
   normalizeSettings,
   parseAmountInput,
+  periodFromParams,
   periodPhrase,
+  periodToParams,
   periodTitle,
   removeCustomCategory,
   resolveCategory,
@@ -234,6 +236,29 @@ describe('kỳ xem', () => {
     expect(canGoNext({ mode: 'year', year: 2025 }, TODAY)).toBe(false);
     expect(canGoNext({ mode: 'year', year: 2024 }, TODAY)).toBe(true);
     expect(canGoNext({ mode: 'all' }, TODAY)).toBe(false);
+  });
+
+  it('periodToParams <-> periodFromParams đi về nguyên vẹn', () => {
+    const periods = [
+      { mode: 'month', month: '2025-03' },
+      { mode: 'year', year: 2024 },
+      { mode: 'all' },
+      { mode: 'custom', from: '2025-01-05', to: '2025-02-10' },
+    ] as const;
+    for (const period of periods) {
+      expect(periodFromParams(periodToParams(period), TODAY)).toEqual(period);
+    }
+  });
+
+  it('periodFromParams: thiếu hoặc sai tham số thì về tháng hiện tại', () => {
+    const fallback = { mode: 'month', month: '2025-10' };
+    expect(periodFromParams({}, TODAY)).toEqual(fallback);
+    expect(periodFromParams({ mode: 'month', month: 'abc' }, TODAY)).toEqual(fallback);
+    expect(periodFromParams({ mode: 'year', year: '20x5' }, TODAY)).toEqual(fallback);
+    expect(periodFromParams({ mode: 'custom', from: '2025-02-30', to: '2025-03-01' }, TODAY)).toEqual(fallback);
+    expect(periodFromParams({ mode: 'custom', from: '2025-03-05', to: '2025-03-01' }, TODAY)).toEqual(fallback);
+    expect(periodFromParams({ mode: 'custom', from: '2025-03-05' }, TODAY)).toEqual(fallback);
+    expect(periodFromParams({ mode: 'khac' }, TODAY)).toEqual(fallback);
   });
 
   it('nhãn kỳ', () => {
