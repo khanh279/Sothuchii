@@ -28,6 +28,11 @@ export interface NormalizeContext {
   newId?: () => string;
 }
 
+/** Khoản chi cá nhân do Quỹ tạo (`src:'quy'`) chỉ đổi được từ Quỹ; sửa/xoá trực tiếp sẽ bị đồng bộ hoàn tác. */
+export const FUND_LINKED_EDIT_MESSAGE = 'Khoản này được tạo từ Quỹ, vui lòng sửa tại Quỹ';
+export const FUND_LINKED_DELETE_MESSAGE = 'Khoản này được tạo từ Quỹ, vui lòng xoá tại Quỹ';
+export const isFundLinkedExpense = (expense: { src?: string }): boolean => expense.src === 'quy';
+
 const isRecord = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 
 /**

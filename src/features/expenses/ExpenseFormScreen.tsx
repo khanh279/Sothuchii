@@ -32,6 +32,7 @@ import {
   savedMessage,
   validateExpenseInput,
 } from '@/domain/expenses';
+import { FUND_LINKED_EDIT_MESSAGE, isFundLinkedExpense } from '@/domain/funds';
 import { describeStorageError, useExpenseSettings } from '@/features/expenses/hooks';
 import { useColors } from '@/hooks/use-colors';
 import type { Category, ExpenseRef, ExpenseSettings, ExpenseWithId, Period } from '@/types/expense';
@@ -90,8 +91,18 @@ export default function ExpenseFormScreen() {
     };
   }, [refMonth, refId]);
 
+  // Khoản do Quỹ tạo chỉ sửa được tại Quỹ: báo rồi quay lại, không mở form (mở từ bất kỳ màn nào cũng chặn).
+  const toast = useToast();
+  const blocked = expense.status === 'ready' && !!expense.existing && isFundLinkedExpense(expense.existing);
+  useEffect(() => {
+    if (!blocked) return;
+    toast.show(FUND_LINKED_EDIT_MESSAGE);
+    leave();
+  }, [blocked, toast]);
+
   let body;
-  if (settingsError) body = <Notice text={settingsError} />;
+  if (blocked) body = <ActivityIndicator style={styles.loading} color={colors.primary} />;
+  else if (settingsError) body = <Notice text={settingsError} />;
   else if (expense.status === 'error') body = <Notice text={expense.message} />;
   else if (!settingsLoaded || expense.status === 'loading') body = <ActivityIndicator style={styles.loading} color={colors.primary} />;
   else if (ref && !expense.existing) body = <Notice text="Không tìm thấy khoản chi này. Có thể nó đã bị xoá." />;

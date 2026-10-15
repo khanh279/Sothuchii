@@ -20,6 +20,7 @@ import {
   resolveCategory,
   sumAmounts,
 } from '@/domain/expenses';
+import { FUND_LINKED_DELETE_MESSAGE, FUND_LINKED_EDIT_MESSAGE, isFundLinkedExpense } from '@/domain/funds';
 import { describeStorageError, useExpenseSettings, useExpenses } from '@/features/expenses/hooks';
 import { useColors } from '@/hooks/use-colors';
 import type { ExpenseSettings, ExpenseWithId, Period } from '@/types/expense';
@@ -58,6 +59,11 @@ export default function HistoryScreen() {
   const message = settingsError ?? error;
 
   async function remove(item: ExpenseWithId) {
+    if (isFundLinkedExpense(item)) {
+      setOpenId(null);
+      toast.show(FUND_LINKED_DELETE_MESSAGE, { bottom: TOAST_BOTTOM_HISTORY });
+      return;
+    }
     try {
       await deleteExpense({ m: monthOf(item.d), id: item.id });
       setOpenId(null);
@@ -69,6 +75,10 @@ export default function HistoryScreen() {
   }
 
   function edit(item: ExpenseWithId) {
+    if (isFundLinkedExpense(item)) {
+      toast.show(FUND_LINKED_EDIT_MESSAGE, { bottom: TOAST_BOTTOM_HISTORY });
+      return;
+    }
     router.push({ pathname: '/chi-tieu/nhap', params: { ...periodToParams(period), m: monthOf(item.d), id: item.id } });
   }
 

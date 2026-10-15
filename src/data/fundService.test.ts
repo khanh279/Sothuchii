@@ -2,7 +2,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { createExpense } from './expenseRepository';
 import { saveContribution } from './fundRepository';
-import { createFundSynced, deleteFundSynced, renameFundSynced } from './fundService';
+import {
+  createFundSynced,
+  deleteContributionSynced,
+  deleteFundExpenseSynced,
+  deleteFundSynced,
+  renameFundSynced,
+  saveContributionSynced,
+  saveFundExpenseSynced,
+} from './fundService';
 import { syncFundExpenses } from './fundSync';
 
 jest.mock('@react-native-async-storage/async-storage', () =>
@@ -49,6 +57,30 @@ describe('fundService', () => {
     const left = Object.values(await json('sct:m:2025-10')) as { n: string }[];
     expect(left.map((e) => e.n).sort()).toEqual(['Phở', 'b']);
     expect((await json('quy_nhom_v1')).funds).toEqual([b]);
+  });
+
+  it('đóng quỹ: sửa số tiền của "Tôi" cập nhật khoản cá nhân, xoá lần đóng thì khoản cá nhân biến mất', async () => {
+    await createExpense('mine', userExp);
+    const { value: fund } = await createFundSynced('A');
+    const saved = await saveContributionSynced({ fundId: fund.id, title: 'T', date: '2025-10-05', people: [{ name: 'Tôi', amount: 50_000 }] });
+    const id = saved.value as string;
+    const linked = async () => (Object.values(await json('sct:m:2025-10')) as { a: number; src?: string }[]).filter((e) => e.src === 'quy');
+    expect((await linked()).map((e) => e.a)).toEqual([50_000]);
+
+    await saveContributionSynced({ id, fundId: fund.id, title: 'T', date: '2025-10-05', people: [{ name: 'Tôi', amount: 70_000 }] });
+    expect((await linked()).map((e) => e.a)).toEqual([70_000]);
+
+    expect(await deleteContributionSynced(id)).toEqual({ value: true, syncFailed: false });
+    expect(await linked()).toEqual([]);
+    expect((await json('sct:m:2025-10')).mine).toEqual(userExp);
+  });
+
+  it('chi quỹ: lưu đồng, xoá được, không sinh khoản chi cá nhân', async () => {
+    const { value: fund } = await createFundSynced('A');
+    const saved = await saveFundExpenseSynced({ fundId: fund.id, title: 'Nước', date: '2025-10-05', amount: 12_000 });
+    expect((await json('quy_nhom_v1')).expenses).toEqual([{ id: saved.value, fundId: fund.id, title: 'Nước', date: '2025-10-05', amount: 12_000 }]);
+    expect(await AsyncStorage.getItem('sct:m:2025-10')).toBeNull();
+    expect(await deleteFundExpenseSynced(saved.value as string)).toEqual({ value: true, syncFailed: false });
   });
 
   it('xoá quỹ không có thật → false, không đổi gì', async () => {

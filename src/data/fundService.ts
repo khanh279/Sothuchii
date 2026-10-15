@@ -4,7 +4,17 @@
  * lần đồng bộ sau (mở lại màn hình) sẽ làm tiếp.
  */
 
-import { createFund, deleteFund, renameFund } from '@/data/fundRepository';
+import {
+  createFund,
+  deleteContribution,
+  deleteFund,
+  deleteFundExpense,
+  renameFund,
+  saveContribution,
+  saveFundExpense,
+  type ContributionInput,
+  type FundExpenseInput,
+} from '@/data/fundRepository';
 import { syncFundExpenses } from '@/data/fundSync';
 import type { Fund } from '@/types/fund';
 
@@ -29,6 +39,25 @@ export async function createFundSynced(name: string): Promise<SyncedChange<Fund>
 
 export async function renameFundSynced(id: string, name: string): Promise<SyncedChange<boolean>> {
   return thenSync(await renameFund(id, name));
+}
+
+/** Thêm/sửa lần đóng quỹ; phần của "Tôi" được đồng bộ sang chi tiêu cá nhân. Giá trị trả về là id (null nếu không thấy). */
+export async function saveContributionSynced(input: ContributionInput): Promise<SyncedChange<string | null>> {
+  return thenSync(await saveContribution(input));
+}
+
+/** Xoá lần đóng quỹ; khoản chi cá nhân liên kết bị dọn trong bước đồng bộ. */
+export async function deleteContributionSynced(id: string): Promise<SyncedChange<boolean>> {
+  return thenSync(await deleteContribution(id));
+}
+
+/** Khoản chi quỹ không sinh khoản chi cá nhân, nhưng vẫn chạy đồng bộ để mọi thao tác Quỹ cùng một đường. */
+export async function saveFundExpenseSynced(input: FundExpenseInput): Promise<SyncedChange<string | null>> {
+  return thenSync(await saveFundExpense(input));
+}
+
+export async function deleteFundExpenseSynced(id: string): Promise<SyncedChange<boolean>> {
+  return thenSync(await deleteFundExpense(id));
 }
 
 /** Xoá quỹ; các khoản chi cá nhân tạo từ lần đóng của quỹ đó được dọn trong bước đồng bộ. */
