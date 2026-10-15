@@ -24,22 +24,7 @@ export const Colors = {
   },
 } as const;
 
-/** Màu của PWA Sổ Thu Chi cũ (biến --st-* trong index.html), chỉ dùng cho giao diện sáng. */
-export const PwaColors = {
-  bg: '#F0F2F5',
-  surface: '#FFFFFF',
-  surface2: '#E4E6EB',
-  ink: '#1C1E21',
-  muted: '#65676B',
-  line: '#DADDE1',
-  primary: '#1877F2',
-  primaryInk: '#FFFFFF',
-  primarySoft: '#E7F3FF',
-  heroBg: '#A50064',
-  heroInk: '#FFFFFF',
-  danger: '#C9302C',
-  dangerSoft: '#FDE7E6',
-} as const;
+export { AppRadius, PwaColors, SoTienColors, type SoTienPalette } from '@/constants/palette';
 
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 
