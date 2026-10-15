@@ -8,14 +8,12 @@
     "scheme": "sothuchimobile",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/images/icon.png"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#1A5CF0",
+        "foregroundImage": "./assets/images/android-icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false
     },
@@ -29,11 +27,11 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#F0F2F5",
-          "image": "./assets/images/pwa-icon-512.png",
+          "image": "./assets/images/app-icon-512.png",
           "imageWidth": 120,
           "dark": {
             "backgroundColor": "#18191A",
-            "image": "./assets/images/pwa-icon-512.png"
+            "image": "./assets/images/app-icon-512.png"
           }
         }
       ],
