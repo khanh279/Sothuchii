@@ -16,6 +16,7 @@ import {
 import { AddExpenseFab } from '@/features/expenses/AddExpenseFab';
 import { useExpenseSettings, useExpenses } from '@/features/expenses/hooks';
 import { BillOverviewCard } from '@/features/bills/BillOverviewCard';
+import { DebtOverviewCards } from '@/features/debts/DebtOverviewCards';
 import { FundOverviewCard } from '@/features/funds/FundOverviewCard';
 import { PeriodBar } from '@/features/expenses/PeriodBar';
 import { SpentCard } from '@/features/expenses/SpentCard';
@@ -69,6 +70,12 @@ export default function OverviewScreen() {
               onOpenAll={() => router.push({ pathname: '/lich-su', params: periodParams })}
             />
           )}
+          <DebtOverviewCards
+            period={period}
+            onOpenPerson={(name) => router.push({ pathname: '/cong-no/chi-tiet', params: { ...periodParams, name } })}
+            onOpenPair={(x, z) => router.push({ pathname: '/cong-no/chi-tiet', params: { ...periodParams, x, z } })}
+            onOpenPays={() => router.push({ pathname: '/cong-no/lich-su', params: periodParams })}
+          />
           <BillOverviewCard period={period} onOpen={() => router.push({ pathname: '/chia-bill/lich-su', params: periodParams })} />
           <FundOverviewCard
             period={period}
