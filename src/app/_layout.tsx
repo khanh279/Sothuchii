@@ -47,6 +47,7 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="chi-tieu/nhap" />
           <Stack.Screen name="lich-su" />
+          <Stack.Screen name="quy/lich-su" />
         </Stack>
       </ToastProvider>
     </ThemeProvider>

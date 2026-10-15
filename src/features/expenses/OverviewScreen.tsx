@@ -15,6 +15,7 @@ import {
 } from '@/domain/expenses';
 import { AddExpenseFab } from '@/features/expenses/AddExpenseFab';
 import { useExpenseSettings, useExpenses } from '@/features/expenses/hooks';
+import { FundOverviewCard } from '@/features/funds/FundOverviewCard';
 import { PeriodBar } from '@/features/expenses/PeriodBar';
 import { SpentCard } from '@/features/expenses/SpentCard';
 import { useColors } from '@/hooks/use-colors';
@@ -67,6 +68,10 @@ export default function OverviewScreen() {
               onOpenAll={() => router.push({ pathname: '/lich-su', params: periodParams })}
             />
           )}
+          <FundOverviewCard
+            period={period}
+            onOpenFund={(fund) => router.push({ pathname: '/quy/lich-su', params: { ...periodParams, fund } })}
+          />
         </View>
       </ScrollView>
 
