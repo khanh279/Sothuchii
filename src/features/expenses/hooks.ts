@@ -4,7 +4,7 @@ import { useCallback, useRef, useState } from 'react';
 import { listMonthKeys, loadMonths, loadSettings, saveSettings } from '@/data/expenseRepository';
 import { StorageCorruptError } from '@/data/storage';
 import { EMPTY_SETTINGS, filterByPeriod, monthsInPeriod } from '@/domain/expenses';
-import type { ExpenseSettings, ExpenseWithId, Period } from '@/types/expense';
+import type { ExpenseSettings, ExpenseWithId, MonthKey, Period } from '@/types/expense';
 import { todayStr } from '@/utils/date';
 
 /** Thông báo dễ hiểu cho lỗi đọc/ghi dữ liệu. */
@@ -51,6 +51,8 @@ export function useExpenseSettings() {
 
 interface ExpensesState {
   items: ExpenseWithId[];
+  /** Các tháng đã đọc (dùng để vẽ trục thời gian). */
+  months: MonthKey[];
   loaded: boolean;
   error: string | null;
 }
@@ -60,7 +62,7 @@ interface ExpensesState {
  * `period` phải ổn định giữa các lần render (giữ trong state hoặc useMemo), nếu không sẽ đọc lại liên tục.
  */
 export function useExpenses(period: Period) {
-  const [state, setState] = useState<ExpensesState>({ items: [], loaded: false, error: null });
+  const [state, setState] = useState<ExpensesState>({ items: [], months: [], loaded: false, error: null });
   const latest = useRef(0);
 
   const reload = useCallback(async () => {
@@ -69,7 +71,7 @@ export function useExpenses(period: Period) {
       const known = period.mode === 'all' ? await listMonthKeys() : [];
       const months = monthsInPeriod(period, known, todayStr());
       const items = filterByPeriod(await loadMonths(months), period);
-      if (request === latest.current) setState({ items, loaded: true, error: null });
+      if (request === latest.current) setState({ items, months, loaded: true, error: null });
     } catch (error) {
       if (request === latest.current) setState((prev) => ({ ...prev, loaded: true, error: describeStorageError(error) }));
     }

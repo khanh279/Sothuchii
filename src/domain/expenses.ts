@@ -223,6 +223,47 @@ export function canGoNext(period: Period, today: DateStr): boolean {
   return false;
 }
 
+/**
+ * Trạng thái ô chọn thời gian ở Tổng quan. Giữ riêng tháng, năm và khoảng ngày để
+ * đổi qua lại giữa các kiểu xem không làm mất lựa chọn trước đó (như PWA).
+ */
+export interface PeriodView {
+  mode: Period['mode'];
+  month: MonthKey;
+  year: number;
+  from: DateStr;
+  to: DateStr;
+}
+
+/** Mặc định: xem tháng hiện tại; khoảng Tuỳ chọn là 30 ngày gần nhất. */
+export function initialPeriodView(today: DateStr): PeriodView {
+  return {
+    mode: 'month',
+    month: monthOf(today),
+    year: Number(today.slice(0, 4)),
+    from: addDays(today, -29),
+    to: today,
+  };
+}
+
+export function periodOf(view: PeriodView): Period {
+  switch (view.mode) {
+    case 'month':
+      return { mode: 'month', month: view.month };
+    case 'year':
+      return { mode: 'year', year: view.year };
+    case 'all':
+      return { mode: 'all' };
+    case 'custom':
+      return { mode: 'custom', from: view.from, to: view.to };
+  }
+}
+
+/** Ngày gợi ý khi thêm khoản chi: đang xem một tháng đã qua thì gợi ý mùng 1 của tháng đó. */
+export function suggestedDateFor(period: Period, today: DateStr): DateStr {
+  return period.mode === 'month' && period.month !== monthOf(today) ? `${period.month}-01` : today;
+}
+
 /** Kỳ xem -> tham số route (chuỗi) để truyền giữa các màn hình. */
 export function periodToParams(period: Period): Record<string, string> {
   switch (period.mode) {

@@ -21,6 +21,7 @@ import {
   filterByCategory,
   filterByPeriod,
   groupByDay,
+  initialPeriodView,
   isBudgetMonthAllowed,
   monthsInPeriod,
   newExpenseId,
@@ -29,6 +30,7 @@ import {
   normalizeSettings,
   parseAmountInput,
   periodFromParams,
+  periodOf,
   periodPhrase,
   periodToParams,
   periodTitle,
@@ -40,6 +42,7 @@ import {
   spentLabel,
   sumAmounts,
   summarizeByCategory,
+  suggestedDateFor,
   validateExpenseInput,
 } from './expenses';
 
@@ -259,6 +262,22 @@ describe('kỳ xem', () => {
     expect(periodFromParams({ mode: 'custom', from: '2025-03-05', to: '2025-03-01' }, TODAY)).toEqual(fallback);
     expect(periodFromParams({ mode: 'custom', from: '2025-03-05' }, TODAY)).toEqual(fallback);
     expect(periodFromParams({ mode: 'khac' }, TODAY)).toEqual(fallback);
+  });
+
+  it('initialPeriodView / periodOf', () => {
+    const view = initialPeriodView(TODAY);
+    expect(view).toEqual({ mode: 'month', month: '2025-10', year: 2025, from: '2025-09-09', to: TODAY });
+    expect(periodOf(view)).toEqual({ mode: 'month', month: '2025-10' });
+    expect(periodOf({ ...view, mode: 'year' })).toEqual({ mode: 'year', year: 2025 });
+    expect(periodOf({ ...view, mode: 'all' })).toEqual({ mode: 'all' });
+    expect(periodOf({ ...view, mode: 'custom' })).toEqual({ mode: 'custom', from: '2025-09-09', to: TODAY });
+  });
+
+  it('suggestedDateFor: tháng đã qua gợi ý mùng 1, còn lại là hôm nay', () => {
+    expect(suggestedDateFor({ mode: 'month', month: '2025-10' }, TODAY)).toBe(TODAY);
+    expect(suggestedDateFor({ mode: 'month', month: '2025-07' }, TODAY)).toBe('2025-07-01');
+    expect(suggestedDateFor({ mode: 'year', year: 2024 }, TODAY)).toBe(TODAY);
+    expect(suggestedDateFor({ mode: 'all' }, TODAY)).toBe(TODAY);
   });
 
   it('nhãn kỳ', () => {
