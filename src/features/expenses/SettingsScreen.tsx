@@ -24,6 +24,7 @@ import {
 } from '@/domain/expenses';
 import { PERSON_NAME_LIMIT } from '@/domain/people';
 import { describeStorageError, useExpenseSettings } from '@/features/expenses/hooks';
+import { DataSheet } from '@/features/data/DataSheet';
 import { usePeople } from '@/features/people/hooks';
 import { useColors } from '@/hooks/use-colors';
 import type { MonthKey } from '@/types/expense';
@@ -56,14 +57,15 @@ const ICON_COLUMNS = 6;
 export default function SettingsScreen() {
   const today = todayStr();
   const colors = useColors();
-  const { settings, loaded, error, save } = useExpenseSettings();
+  const { settings, loaded, error, save, reload: reloadSettings } = useExpenseSettings();
   const toast = useToast();
   const insets = useSafeAreaInsets();
   const [month, setMonth] = useState<MonthKey>(monthOf(today));
   const [draft, setDraft] = useState<{ month: MonthKey; value: number } | null>(null);
   const [icon, setIcon] = useState<string>('star');
   const [name, setName] = useState('');
-  const { people, error: peopleError, add: addPerson, remove: removePerson } = usePeople();
+  const { people, error: peopleError, add: addPerson, remove: removePerson, reload: reloadPeople } = usePeople();
+  const [dataOpen, setDataOpen] = useState(false);
   const [personName, setPersonName] = useState('');
 
   const saved = budgetForMonth(settings, month);
@@ -303,9 +305,35 @@ export default function SettingsScreen() {
                 Sổ đang lưu trên thiết bị này. Xoá một mục riêng thì các khoản trong mục đó chuyển sang Khác.
               </AppText>
             </Section>
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setDataOpen(true)}
+              style={[styles.dataButton, { backgroundColor: colors.surface, borderColor: colors.line }]}>
+              <SvgIcon name="download" size={22} color={colors.primary} />
+              <View style={styles.dataText}>
+                <AppText weight="bold" style={styles.dataTitle}>
+                  Sao lưu và dữ liệu
+                </AppText>
+                <AppText color={colors.muted} style={styles.dataSub}>
+                  Lưu, khôi phục hoặc xoá dữ liệu
+                </AppText>
+              </View>
+              <SvgIcon name="chevronRight" size={18} color={colors.muted} />
+            </Pressable>
           </>
         )}
       </ScrollView>
+
+      {dataOpen && (
+        <DataSheet
+          onClose={() => setDataOpen(false)}
+          onDataChanged={() => {
+            void reloadSettings();
+            void reloadPeople();
+          }}
+        />
+      )}
     </View>
   );
 }
@@ -360,6 +388,10 @@ const styles = StyleSheet.create({
   footnote: { paddingHorizontal: 4 },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   personTag: { paddingLeft: 10 },
+  dataButton: { minHeight: 64, borderRadius: AppRadius.card, borderWidth: 1, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16 },
+  dataText: { flex: 1, minWidth: 0 },
+  dataTitle: { fontSize: 15.5 },
+  dataSub: { fontSize: 12.5 },
   tag: { height: 32, paddingVertical: 4, paddingLeft: 4, paddingRight: 10, borderRadius: AppRadius.pill, flexDirection: 'row', alignItems: 'center', gap: 6 },
   tagText: { fontSize: 13 },
   tagRemove: { fontSize: 16, lineHeight: 16, paddingHorizontal: 2 },

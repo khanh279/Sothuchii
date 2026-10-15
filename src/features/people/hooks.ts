@@ -46,5 +46,5 @@ export function usePeople() {
     [reload],
   );
 
-  return { people, error, add, remove };
+  return { people, error, add, remove, reload };
 }

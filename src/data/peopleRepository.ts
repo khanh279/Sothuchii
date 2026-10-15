@@ -74,3 +74,17 @@ export function removePersonFromList(name: string): Promise<void> {
     if (next.length !== people.length) await saveJsonStrict(StorageKeys.people, next);
   });
 }
+
+/**
+ * Thêm vào Danh sách người các tên đã dùng trong Quỹ / Chia bill / Công nợ mà chưa có (hàm `Ot(Pt())` của PWA,
+ * chạy sau khi khôi phục dữ liệu). Chưa có khóa thì tạo danh sách; chỉ ghi khi có gì thay đổi.
+ */
+export function refreshPeopleFromData(): Promise<string[]> {
+  return serial(async () => {
+    const raw = await loadJsonStrict<unknown>(StorageKeys.people);
+    const current = normalizePeople(raw);
+    const merged = mergePeople(current, seedNamesFrom(await namesInOtherModules()));
+    if (raw === undefined || merged.length !== current.length) await saveJsonStrict(StorageKeys.people, merged);
+    return merged;
+  });
+}

@@ -73,3 +73,19 @@ export async function saveManyJsonStrict(entries: readonly (readonly [string, un
 export async function listKeys(): Promise<string[]> {
   return [...(await AsyncStorage.getAllKeys())];
 }
+
+/** Đọc nguyên văn (chuỗi) nhiều khóa; khóa chưa có thì là null. Dùng để lưu bản dự phòng trước khi ghi đè. */
+export async function getRawMany(keys: readonly string[]): Promise<Record<string, string | null>> {
+  const pairs = keys.length ? await AsyncStorage.multiGet([...keys]) : [];
+  return Object.fromEntries(pairs.map(([key, value]) => [key, value ?? null]));
+}
+
+/** Ghi nguyên văn nhiều khóa (không qua JSON.stringify). Ném lỗi nếu thất bại. */
+export async function setRawMany(entries: readonly (readonly [string, string])[]): Promise<void> {
+  if (entries.length) await AsyncStorage.multiSet(entries.map(([key, value]) => [key, value] as [string, string]));
+}
+
+/** Xoá các khóa. Ném lỗi nếu thất bại. */
+export async function removeKeys(keys: readonly string[]): Promise<void> {
+  if (keys.length) await AsyncStorage.multiRemove([...keys]);
+}
