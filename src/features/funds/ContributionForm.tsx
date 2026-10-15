@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { AppText } from '@/components/app-text';
 import { CalendarPanel } from '@/components/calendar-panel';
 import { DateField } from '@/components/date-field';
+import { SvgIcon } from '@/components/svg-icon';
 import { useToast } from '@/components/toast';
 import { AppFonts } from '@/constants/fonts';
 import { FundInputError } from '@/data/fundRepository';
@@ -24,6 +25,7 @@ import {
 } from '@/domain/fundForms';
 import { formatNghinInput, maskNghinInput, parseNghinInput } from '@/domain/money';
 import { describeFundError } from '@/features/funds/hooks';
+import { PersonPicker } from '@/features/people/PersonPicker';
 import { useColors } from '@/hooks/use-colors';
 import type { Contribution, Fund } from '@/types/fund';
 import { todayStr } from '@/utils/date';
@@ -64,6 +66,8 @@ export function ContributionForm({ fund, existing, onChanged }: Props) {
   const [eachText, setEachText] = useState(initial?.all ? formatNghinInput(initial.each) : '');
   const [error, setError] = useState('');
   const [calendarOpen, setCalendarOpen] = useState(false);
+  /** Dòng đang mở bảng chọn người từ danh sách (null = đóng). */
+  const [pickingRow, setPickingRow] = useState<number | null>(null);
   const [deleteArmed, setDeleteArmed] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -234,15 +238,26 @@ export function ContributionForm({ fund, existing, onChanged }: Props) {
           <AppText weight="semibold" color={colors.muted} style={styles.noCol}>
             {index + 1}
           </AppText>
-          <TextInput
-            value={row.name}
-            onChangeText={(name) => changeRow(index, { name })}
-            maxLength={PERSON_NAME_MAX}
-            placeholder="Tên người"
-            placeholderTextColor={colors.muted}
-            accessibilityLabel={`Tên người đóng ${index + 1}`}
-            style={[inputStyle, styles.flex]}
-          />
+          <View style={[styles.nameBox, styles.flex]}>
+            <TextInput
+              value={row.name}
+              onChangeText={(name) => changeRow(index, { name })}
+              maxLength={PERSON_NAME_MAX}
+              placeholder="Tên người"
+              placeholderTextColor={colors.muted}
+              accessibilityLabel={`Tên người đóng ${index + 1}`}
+              style={[inputStyle, styles.nameInput]}
+            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Chọn người ${index + 1} từ danh sách`}
+              onPress={() => setPickingRow(index)}
+              style={styles.pickButton}>
+              <View style={{ transform: [{ rotate: '90deg' }] }}>
+                <SvgIcon name="chevronRight" size={16} color={colors.muted} />
+              </View>
+            </Pressable>
+          </View>
           <TextInput
             value={row.text}
             onChangeText={(text) => changeRow(index, { text: maskNghinInput(text) })}
@@ -290,6 +305,18 @@ export function ContributionForm({ fund, existing, onChanged }: Props) {
         </Pressable>
       )}
 
+      {pickingRow !== null && rows[pickingRow] && (
+        <PersonPicker
+          title="Chọn người đóng"
+          selected={rows[pickingRow].name.trim() || null}
+          onClose={() => setPickingRow(null)}
+          onPick={(name) => {
+            changeRow(pickingRow, { name });
+            setPickingRow(null);
+          }}
+        />
+      )}
+
       {calendarOpen && (
         <CalendarPanel
           variant="popup"
@@ -324,6 +351,9 @@ const styles = StyleSheet.create({
   noCol: { width: 28, textAlign: 'center' },
   amountCol: { width: 128 },
   personRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  nameBox: { justifyContent: 'center' },
+  nameInput: { paddingRight: 36 },
+  pickButton: { position: 'absolute', right: 0, top: 0, bottom: 0, width: 36, alignItems: 'center', justifyContent: 'center' },
   amountInput: { textAlign: 'right' },
   total: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', borderTopWidth: 1, paddingTop: 10 },
   totalText: { fontSize: 14 },

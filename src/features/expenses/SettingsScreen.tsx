@@ -22,7 +22,9 @@ import {
   setBudget,
   type BudgetNote,
 } from '@/domain/expenses';
+import { PERSON_NAME_LIMIT } from '@/domain/people';
 import { describeStorageError, useExpenseSettings } from '@/features/expenses/hooks';
+import { usePeople } from '@/features/people/hooks';
 import { useColors } from '@/hooks/use-colors';
 import type { MonthKey } from '@/types/expense';
 import { withAlpha } from '@/utils/color';
@@ -61,6 +63,8 @@ export default function SettingsScreen() {
   const [draft, setDraft] = useState<{ month: MonthKey; value: number } | null>(null);
   const [icon, setIcon] = useState<string>('star');
   const [name, setName] = useState('');
+  const { people, error: peopleError, add: addPerson, remove: removePerson } = usePeople();
+  const [personName, setPersonName] = useState('');
 
   const saved = budgetForMonth(settings, month);
   const budgetValue = draft && draft.month === month ? draft.value : saved;
@@ -71,6 +75,27 @@ export default function SettingsScreen() {
 
   const iconRows: string[][] = [];
   for (let i = 0; i < CUSTOM_ICON_IDS.length; i += ICON_COLUMNS) iconRows.push(CUSTOM_ICON_IDS.slice(i, i + ICON_COLUMNS) as unknown as string[]);
+
+  async function addPersonAndNotify() {
+    try {
+      const result = await addPerson(personName);
+      if (result.status === 'empty') return;
+      if (result.status === 'me') toast.show('"Tôi" luôn có sẵn');
+      else toast.show(result.status === 'added' ? `Đã thêm ${result.name}` : `${result.name} đã có trong danh sách`);
+      setPersonName('');
+    } catch {
+      toast.show('Không ghi được danh sách người. Hãy thử lại.');
+    }
+  }
+
+  async function removePersonAndNotify(person: string) {
+    try {
+      await removePerson(person);
+      toast.show(`Đã xoá ${person} khỏi danh sách`);
+    } catch {
+      toast.show('Không ghi được danh sách người. Hãy thử lại.');
+    }
+  }
 
   async function saveBudget() {
     try {
@@ -125,7 +150,49 @@ export default function SettingsScreen() {
           <ActivityIndicator color={colors.primary} style={{ marginTop: 12 + insets.top }} />
         ) : (
           <>
-            <Section title="Ngân sách chi tiêu hàng tháng" first topInset={insets.top}>
+            <Section title="Danh sách người" first topInset={insets.top}>
+              <Panel>
+                <View style={styles.tags}>
+                  {people.length === 0 ? (
+                    <AppText color={colors.muted} style={styles.note}>
+                      {peopleError ?? 'Chưa có ai trong danh sách'}
+                    </AppText>
+                  ) : (
+                    people.map((person) => (
+                      <View key={person} style={[styles.tag, styles.personTag, { backgroundColor: colors.surface2 }]}>
+                        <AppText weight="medium" style={styles.tagText}>
+                          {person}
+                        </AppText>
+                        <Pressable accessibilityLabel={`Xoá ${person}`} hitSlop={10} onPress={() => void removePersonAndNotify(person)}>
+                          <AppText weight="bold" color={colors.danger} style={styles.tagRemove}>
+                            ×
+                          </AppText>
+                        </Pressable>
+                      </View>
+                    ))
+                  )}
+                </View>
+                <View style={styles.inline}>
+                  <TextInput
+                    style={[...inputStyle, styles.grow]}
+                    value={personName}
+                    onChangeText={setPersonName}
+                    maxLength={PERSON_NAME_LIMIT}
+                    onSubmitEditing={() => void addPersonAndNotify()}
+                    placeholder="Tên người"
+                    placeholderTextColor={colors.muted}
+                    accessibilityLabel="Tên người"
+                  />
+                  <Pressable style={[styles.button, { backgroundColor: colors.primary }]} onPress={() => void addPersonAndNotify()} accessibilityRole="button">
+                    <AppText weight="semibold" color={colors.primaryInk} style={styles.buttonText}>
+                      Thêm
+                    </AppText>
+                  </Pressable>
+                </View>
+              </Panel>
+            </Section>
+
+            <Section title="Ngân sách chi tiêu hàng tháng">
               <Panel>
                 <View style={styles.field}>
                   <Label>Số tiền mỗi tháng (₫)</Label>
@@ -292,6 +359,7 @@ const styles = StyleSheet.create({
   note: { fontSize: 13, lineHeight: 18.85 },
   footnote: { paddingHorizontal: 4 },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  personTag: { paddingLeft: 10 },
   tag: { height: 32, paddingVertical: 4, paddingLeft: 4, paddingRight: 10, borderRadius: AppRadius.pill, flexDirection: 'row', alignItems: 'center', gap: 6 },
   tagText: { fontSize: 13 },
   tagRemove: { fontSize: 16, lineHeight: 16, paddingHorizontal: 2 },
