@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { createBackupDocument, createBackupText, restoreFromText, wipeSection } from './backupRepository';
+import { syncBillExpenses } from './billSync';
 import { createExpense } from './expenseRepository';
 import { StorageCorruptError } from './storage';
 
@@ -169,5 +170,70 @@ describe('xoá dữ liệu', () => {
     await put('sct:m:2025-10', '{hong');
     await expect(wipeSection('quy-nhom')).rejects.toBeInstanceOf(StorageCorruptError);
     expect(await raw('quy_nhom_v1')).toEqual(fund);
+  });
+});
+
+// ───────────── Công nợ: khoản trả trong sao lưu / khôi phục / xoá ─────────────
+
+describe('khoản trả (Công nợ)', () => {
+  const PAYS = 'chiabill:v2:pays';
+  const payExp = { a: 30_000, c: 'food', n: 'Ăn', i: 'Trả An · bill 01/10', d: '2025-10-05', t: 1, src: 'cb' };
+
+  async function seedDebt() {
+    await put('chiabill:v2:bills', [{ id: 'b1', title: 'Ăn', date: '2025-10-01', cat: 'food', createdAt: 1, people: [{ name: 'Tôi', paid: 0, w: 1 }, { name: 'An', paid: 90, w: 1 }, { name: 'Bình', paid: 0, w: 1 }] }]);
+    await put(PAYS, [
+      { id: 'p1', createdAt: 2, date: '2025-10-05', note: '', from: 'Tôi', to: 'An', amt: 30, kind: 'billpay', exp: [{ m: '2025-10', id: 'pe' }], la: 'giữ', nexp: [{ m: '2025-10', id: 'cu' }] },
+      'mục lạ',
+    ]);
+    await put('sct:m:2025-10', { pe: payExp, mine: exp(), fund: exp({ src: 'quy', c: 'fund' }) });
+  }
+
+  it('sao lưu giữ nguyên khoản trả (trường lạ, exp, nexp, mục lạ) và khôi phục lại đúng từng chữ', async () => {
+    await seedDebt();
+    const before = await AsyncStorage.getItem(PAYS);
+    const text = await createBackupText(1);
+    expect((JSON.parse(text) as { chiaBill: { pays: unknown[] } }).chiaBill.pays).toEqual(JSON.parse(before as string));
+    await AsyncStorage.clear();
+    expect((await restoreFromText(text)).ok).toBe(true);
+    expect(await AsyncStorage.getItem(PAYS)).toBe(before);
+  });
+
+  it('sau khôi phục, đồng bộ không đổi gì: khoản chi của khoản trả còn nguyên, không tạo trùng', async () => {
+    await seedDebt();
+    const text = await createBackupText(1);
+    await AsyncStorage.clear();
+    await restoreFromText(text);
+    expect(await syncBillExpenses()).toMatchObject({ added: 0, replaced: 0, unlinked: 0, paysReplaced: 0, paysUnlinked: 0, orphansRemoved: 0 });
+    expect(Object.keys(await raw('sct:m:2025-10')).sort()).toEqual(['fund', 'mine', 'pe']);
+  });
+
+  it('khôi phục thay thế khoản trả hiện có; file không có pays thì pays thành rỗng', async () => {
+    await seedDebt();
+    await restoreFromText(JSON.stringify({ app: 'so-tien', chiaBill: { bills: [] } }));
+    expect(await raw(PAYS)).toEqual([]);
+    await restoreFromText(JSON.stringify({ app: 'so-tien', chiaBill: { bills: [], pays: 'sai' } }));
+    expect(await raw(PAYS)).toEqual([]);
+  });
+
+  it('xoá Chia bill: xoá bills, pays, names và MỌI khoản chi cb (cả của khoản trả); khoản tự nhập và "quy" giữ nguyên', async () => {
+    await seedDebt();
+    await wipeSection('chia-bill');
+    for (const k of ['chiabill:v2:bills', PAYS, 'chiabill:names']) expect(await AsyncStorage.getItem(k)).toBeNull();
+    expect(Object.keys(await raw('sct:m:2025-10')).sort()).toEqual(['fund', 'mine']);
+  });
+
+  it('xoá Chi tiêu rồi đồng bộ: khoản chi của khoản trả được tạo lại từ dữ liệu Công nợ, khoản tự nhập mất như đã xoá', async () => {
+    await seedDebt();
+    await wipeSection('chi-tieu');
+    expect(await syncBillExpenses()).toMatchObject({ paysReplaced: 1 });
+    const month = await raw('sct:m:2025-10');
+    expect(Object.values(month)).toHaveLength(1);
+    expect(Object.values(month)[0]).toMatchObject({ a: 30_000, src: 'cb', i: 'Trả An · bill 01/10' });
+  });
+
+  it('khoản trả hỏng → không tạo sao lưu thiếu', async () => {
+    await seedDebt();
+    await put(PAYS, '{"a":1}');
+    await expect(createBackupText()).rejects.toBeInstanceOf(StorageCorruptError);
   });
 });

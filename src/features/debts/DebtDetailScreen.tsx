@@ -100,7 +100,7 @@ function PersonView({ name, detail, busy, run, periodLabel, today }: { name: str
 
   return (
     <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.line }]}>
-      <AppText weight="display" style={styles.title}>
+      <AppText weight="semibold" color={colors.muted} style={styles.title}>
         {detail.name}
       </AppText>
 
@@ -145,18 +145,18 @@ function PersonView({ name, detail, busy, run, periodLabel, today }: { name: str
           accessibilityRole="button"
           disabled={busy}
           onPress={() => void run(() => mergeDebtsSynced(name))}
-          style={[styles.action, { backgroundColor: colors.bg, borderColor: colors.line }]}>
-          <AppText weight="semibold" style={styles.actionText}>
+          style={[styles.action, { backgroundColor: colors.primary }]}>
+          <AppText weight="bold" color={colors.primaryInk} style={styles.actionText}>
             Gộp nợ
           </AppText>
-          <AppText color={colors.muted} style={styles.small}>
+          <AppText color={colors.primaryInk} style={styles.smallInk}>
             Trừ {formatMoney(detail.mergeAmount)} giữa nợ vay và nợ bill
           </AppText>
         </Pressable>
       )}
 
       {detail.payActions.map((action) => (
-        <View key={action.ledger} style={[styles.payBox, { borderColor: partial === action.ledger ? colors.primary : colors.line, backgroundColor: colors.bg }]}>
+        <View key={action.ledger} style={styles.payBox}>
           <AppText weight="semibold" color={colors.muted} style={styles.small}>
             {action.label} · {action.owes} {formatMoney(Math.abs(action.balance))}
           </AppText>
@@ -187,7 +187,8 @@ function PersonView({ name, detail, busy, run, periodLabel, today }: { name: str
             </Pressable>
           </View>
           {partial === action.ledger && (
-            <View style={styles.partRow}>
+            <View style={styles.partCol}>
+              <View style={styles.partInputWrap}>
               <TextInput
                 autoFocus
                 value={partialText}
@@ -197,9 +198,16 @@ function PersonView({ name, detail, busy, run, periodLabel, today }: { name: str
                 placeholder="Nhập số tiền"
                 placeholderTextColor={colors.muted}
                 accessibilityLabel="Số tiền thanh toán, nghìn đồng"
-                style={[styles.partInput, { backgroundColor: colors.surface, borderColor: colors.line, color: colors.ink, fontFamily: AppFonts.semibold }]}
+                style={[styles.partInput, { backgroundColor: colors.bg, borderColor: colors.line, color: colors.ink, fontFamily: AppFonts.semibold }]}
               />
-              <Pressable accessibilityRole="button" onPress={() => setPartial(null)} style={[styles.small2, { borderColor: colors.line }]}>
+              {!!partialText && (
+                <AppText color={colors.muted} style={styles.partSuffix} pointerEvents="none">
+                  .000 ₫
+                </AppText>
+              )}
+              </View>
+              <View style={styles.partButtons}>
+              <Pressable accessibilityRole="button" onPress={() => setPartial(null)} style={[styles.small2, styles.half, { borderColor: colors.line, backgroundColor: colors.surface }]}>
                 <AppText weight="semibold" color={colors.muted} style={styles.actionText}>
                   Huỷ
                 </AppText>
@@ -214,18 +222,19 @@ function PersonView({ name, detail, busy, run, periodLabel, today }: { name: str
                     void pay(action.ledger, amount);
                   }
                 }}
-                style={[styles.small2, { backgroundColor: colors.primary, borderColor: colors.primary }]}>
+                style={[styles.small2, styles.half, { backgroundColor: colors.primary, borderColor: colors.primary }]}>
                 <AppText weight="semibold" color={colors.primaryInk} style={styles.actionText}>
                   Lưu
                 </AppText>
               </Pressable>
+              </View>
             </View>
           )}
         </View>
       ))}
 
       {detail.history.length > 0 && (
-        <View style={styles.history}>
+        <View style={[styles.history, { opacity: 0.55 }]}>
           <AppText weight="semibold" color={colors.muted} style={styles.small}>
             Lịch sử gộp nợ
           </AppText>
@@ -253,8 +262,8 @@ function PersonView({ name, detail, busy, run, periodLabel, today }: { name: str
                     setArmedUndo(null);
                     void run(() => undoMergeSynced(record.id), () => 'Đã hoàn tác gộp nợ');
                   }}
-                  style={[styles.undo, { backgroundColor: armed ? '#D64545' : colors.surface, borderColor: armed ? '#D64545' : colors.line }]}>
-                  <AppText weight="semibold" color={armed ? '#FFFFFF' : colors.ink} style={styles.actionText}>
+                  style={[styles.undo, { backgroundColor: armed ? '#D64545' : colors.surface, borderColor: '#D64545', opacity: armed ? 1 / 0.55 : 1 }]}>
+                  <AppText weight="semibold" color={armed ? '#FFFFFF' : '#D64545'} style={styles.actionText}>
                     {armed ? 'Chắc chắn?' : 'Hoàn tác'}
                   </AppText>
                 </Pressable>
@@ -278,7 +287,7 @@ function PairView({ x, z, detail, busy, run, period }: { x: string; z: string; d
     <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.line }]}>
       <View style={styles.pairHead}>
         <View style={styles.flex}>
-          <AppText weight="display" style={styles.title}>
+          <AppText weight="semibold" color={colors.muted} style={styles.title}>
             {detail.empty ? `${x} · ${z}` : detail.label}
           </AppText>
           <AppText color={colors.muted} style={styles.small}>
@@ -354,7 +363,7 @@ function Amount({ value, tone }: { value: number; tone?: Tone }) {
 function Row({ row, sub }: { row: DebtRow; sub: string }) {
   const colors = useColors();
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, { borderTopColor: colors.line }]}>
       <View style={styles.flex}>
         <AppText weight="semibold" style={styles.rowTitle}>
           {row.t}
@@ -427,7 +436,7 @@ function Months({ months, openMonth, onToggle, today }: { months: MonthGroup[]; 
 function Stack2({ label, sub, balance, open, onToggle, children }: { label: string; sub: string; balance: number; open: boolean; onToggle: () => void; children: ReactNode }) {
   const colors = useColors();
   return (
-    <View style={[styles.stack, { borderColor: open ? colors.primary : colors.line, backgroundColor: colors.bg }]}>
+    <View style={[styles.stack, { backgroundColor: colors.bg }]}>
       <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={onToggle} style={styles.stackHead}>
         <View style={styles.flex}>
           <AppText weight="bold" style={styles.stackTitle}>
@@ -456,31 +465,36 @@ const styles = StyleSheet.create({
   notice: { padding: 16, borderRadius: 16 },
   noticeText: { fontSize: 15 },
   card: { borderRadius: AppRadius.card, borderWidth: 1, padding: 14, gap: 12 },
-  title: { fontSize: 20 },
+  title: { fontSize: 15 },
   small: { fontSize: 12.5, lineHeight: 17 },
   empty: { textAlign: 'center', fontSize: 14, paddingVertical: 12 },
-  stack: { borderWidth: 1, borderRadius: 14, overflow: 'hidden' },
-  stackHead: { minHeight: 58, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  stackTitle: { fontSize: 16 },
-  stackBody: { paddingHorizontal: 14, paddingBottom: 12, gap: 8 },
+  stack: { borderRadius: 14, overflow: 'hidden' },
+  stackHead: { minHeight: 56, paddingVertical: 8, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  stackTitle: { fontSize: 15.5 },
+  stackBody: { paddingHorizontal: 12, paddingBottom: 4 },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
   dayHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10, paddingTop: 8, paddingBottom: 4 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, borderTopWidth: 1 },
   monthRow: { paddingHorizontal: 10, borderRadius: 10 },
   rowTitle: { fontSize: 15 },
-  amount: { fontSize: 15 },
-  action: { minHeight: 52, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 6 },
-  actionText: { fontSize: 14.5 },
-  payBox: { borderWidth: 1, borderRadius: 14, padding: 12, gap: 10 },
+  amount: { fontSize: 16 },
+  action: { minHeight: 52, borderRadius: 12, alignItems: 'center', justifyContent: 'center', paddingVertical: 6, marginTop: 14 },
+  smallInk: { fontSize: 12, lineHeight: 16, opacity: 0.9 },
+  actionText: { fontSize: 14 },
+  payBox: { marginTop: 14, gap: 8 },
   payButtons: { flexDirection: 'row', gap: 8 },
-  payAll: { flex: 1, minHeight: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
-  payPart: { minHeight: 44, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  partRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  partInput: { flex: 1, minWidth: 0, height: 44, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, fontSize: 16 },
-  small2: { minHeight: 44, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  history: { gap: 8 },
-  historyRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 12 },
-  undo: { minHeight: 40, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  payAll: { flex: 1.3, minHeight: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
+  payPart: { flex: 1, minHeight: 46, paddingHorizontal: 8, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  partCol: { gap: 8 },
+  partInputWrap: { justifyContent: 'center' },
+  partInput: { minHeight: 52, borderWidth: 1, borderRadius: 12, paddingLeft: 10, paddingRight: 51, fontSize: 18, textAlign: 'right' },
+  partSuffix: { position: 'absolute', right: 10, fontSize: 13 },
+  partButtons: { flexDirection: 'row', gap: 8 },
+  half: { flex: 1 },
+  small2: { minHeight: 46, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  history: { marginTop: 14, gap: 4 },
+  historyRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, paddingHorizontal: 2 },
+  undo: { minHeight: 34, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   pairHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  pairAmount: { fontSize: 20 },
+  pairAmount: { fontSize: 30, lineHeight: 36 },
 });
