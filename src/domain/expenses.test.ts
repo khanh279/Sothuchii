@@ -23,6 +23,7 @@ import {
   groupByDay,
   initialPeriodView,
   isBudgetMonthAllowed,
+  isInPeriod,
   monthsInPeriod,
   newExpenseId,
   niceMax,
@@ -37,6 +38,7 @@ import {
   removeCustomCategory,
   resolveCategory,
   sanitizeAmountDigits,
+  savedMessage,
   setBudget,
   shiftPeriod,
   spentLabel,
@@ -262,6 +264,27 @@ describe('kỳ xem', () => {
     expect(periodFromParams({ mode: 'custom', from: '2025-03-05', to: '2025-03-01' }, TODAY)).toEqual(fallback);
     expect(periodFromParams({ mode: 'custom', from: '2025-03-05' }, TODAY)).toEqual(fallback);
     expect(periodFromParams({ mode: 'khac' }, TODAY)).toEqual(fallback);
+  });
+
+  it('isInPeriod', () => {
+    expect(isInPeriod('2025-10-31', { mode: 'month', month: '2025-10' })).toBe(true);
+    expect(isInPeriod('2025-11-01', { mode: 'month', month: '2025-10' })).toBe(false);
+    expect(isInPeriod('2025-01-01', { mode: 'year', year: 2025 })).toBe(true);
+    expect(isInPeriod('2024-12-31', { mode: 'year', year: 2025 })).toBe(false);
+    expect(isInPeriod('1999-01-01', { mode: 'all' })).toBe(true);
+    const custom = { mode: 'custom', from: '2025-10-05', to: '2025-10-10' } as const;
+    expect(isInPeriod('2025-10-05', custom)).toBe(true);
+    expect(isInPeriod('2025-10-10', custom)).toBe(true);
+    expect(isInPeriod('2025-10-04', custom)).toBe(false);
+    expect(isInPeriod('2025-10-11', custom)).toBe(false);
+  });
+
+  it('savedMessage: trong kỳ báo ghi/cập nhật, ngoài kỳ báo tháng đã lưu', () => {
+    const period = { mode: 'month', month: '2025-10' } as const;
+    expect(savedMessage({ isEdit: false, amount: 50000, date: '2025-10-08', period })).toBe('Đã ghi 50.000 ₫');
+    expect(savedMessage({ isEdit: true, amount: 50000, date: '2025-10-08', period })).toBe('Đã cập nhật');
+    expect(savedMessage({ isEdit: false, amount: 50000, date: '2025-09-30', period })).toBe('Đã lưu vào tháng 9, 2025');
+    expect(savedMessage({ isEdit: true, amount: 1, date: '2025-09-30', period })).toBe('Đã lưu vào tháng 9, 2025');
   });
 
   it('initialPeriodView / periodOf', () => {

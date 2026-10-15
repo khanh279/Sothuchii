@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CategoryIcon } from '@/components/category-icon';
 import {
@@ -9,7 +9,8 @@ import {
   CUSTOM_ICON_IDS,
   MAX_CUSTOM_CATEGORIES,
 } from '@/constants/categories';
-import { BottomTabInset, PwaColors } from '@/constants/theme';
+import { useToast } from '@/components/toast';
+import { PwaColors } from '@/constants/theme';
 import {
   addCustomCategory,
   allCategories,
@@ -26,7 +27,7 @@ import {
 import { describeStorageError, useExpenseSettings } from '@/features/expenses/hooks';
 import type { MonthKey } from '@/types/expense';
 import { addMonths, monthOf, todayStr } from '@/utils/date';
-import { confirmAsync, notify } from '@/utils/dialog';
+import { confirmAsync } from '@/utils/dialog';
 import { formatGrouped, formatVnd } from '@/utils/format';
 
 const shortMonth = (month: MonthKey) => `${Number(month.slice(5))}/${month.slice(0, 4)}`;
@@ -48,12 +49,12 @@ function describeBudgetNote(note: BudgetNote, month: MonthKey): string {
 export default function SettingsScreen() {
   const today = todayStr();
   const { settings, loaded, error, save } = useExpenseSettings();
+  const toast = useToast();
+  const insets = useSafeAreaInsets();
   const [month, setMonth] = useState<MonthKey>(monthOf(today));
   const [draft, setDraft] = useState<{ month: MonthKey; value: number } | null>(null);
-  const [budgetStatus, setBudgetStatus] = useState('');
   const [icon, setIcon] = useState<string>('star');
   const [name, setName] = useState('');
-  const [categoryStatus, setCategoryStatus] = useState('');
 
   const saved = budgetForMonth(settings, month);
   const budgetValue = draft && draft.month === month ? draft.value : saved;
@@ -64,34 +65,29 @@ export default function SettingsScreen() {
     try {
       await save(setBudget(settings, month, budgetValue));
       setDraft(null);
-      setBudgetStatus(
+      toast.show(
         budgetValue
           ? `Đã đặt ${formatVnd(budgetValue)} cho ${monthHeading(month).toLowerCase()}`
           : `Đã bỏ ngân sách từ ${monthHeading(month).toLowerCase()}`,
       );
     } catch (e) {
-      notify('Chưa lưu được', describeStorageError(e));
+      toast.show(describeStorageError(e));
     }
   }
 
   async function addCategory() {
     const result = addCustomCategory(settings, name, icon);
     if (!result.ok) {
-      setCategoryStatus(
-        result.reason === 'empty'
-          ? 'Nhập tên mục.'
-          : result.reason === 'duplicate'
-            ? 'Mục này đã có.'
-            : `Tối đa ${MAX_CUSTOM_CATEGORIES} mục riêng.`,
-      );
+      if (result.reason === 'duplicate') toast.show('Mục này đã có');
+      else if (result.reason === 'limit') toast.show(`Tối đa ${MAX_CUSTOM_CATEGORIES} mục riêng`);
       return;
     }
     try {
       await save(result.settings);
       setName('');
-      setCategoryStatus(`Đã thêm mục ${result.category.name}`);
+      toast.show(`Đã thêm mục ${result.category.name}`);
     } catch (e) {
-      notify('Chưa lưu được', describeStorageError(e));
+      toast.show(describeStorageError(e));
     }
   }
 
@@ -105,17 +101,15 @@ export default function SettingsScreen() {
     if (!ok) return;
     try {
       await save(removeCustomCategory(settings, id));
-      setCategoryStatus('Đã xoá mục');
+      toast.show('Đã xoá mục');
     } catch (e) {
-      notify('Chưa xoá được', describeStorageError(e));
+      toast.show(describeStorageError(e));
     }
   }
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Text style={styles.title}>Thiết lập</Text>
-
+    <View style={styles.screen}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: 8 + insets.top, paddingBottom: 92 + insets.bottom }]} keyboardShouldPersistTaps="handled">
         {error ? (
           <View style={styles.notice}>
             <Text style={styles.noticeText}>{error}</Text>
@@ -155,7 +149,6 @@ export default function SettingsScreen() {
                 </Pressable>
               </View>
               <Text style={styles.note}>{describeBudgetNote(budgetNote(settings, month), month)}</Text>
-              {!!budgetStatus && <Text style={styles.status}>{budgetStatus}</Text>}
             </View>
 
             <Text style={styles.sectionTitle}>Mục chi tiêu</Text>
@@ -197,7 +190,6 @@ export default function SettingsScreen() {
                   value={name}
                   onChangeText={(text) => {
                     setName(text);
-                    setCategoryStatus('');
                   }}
                   maxLength={CATEGORY_NAME_MAX}
                   placeholder="Tên mục"
@@ -208,7 +200,6 @@ export default function SettingsScreen() {
                   <Text style={[styles.buttonText, styles.buttonGhostText]}>Thêm</Text>
                 </Pressable>
               </View>
-              {!!categoryStatus && <Text style={styles.status}>{categoryStatus}</Text>}
             </View>
             <Text style={styles.footnote}>
               Sổ đang lưu trên thiết bị này. Xoá một mục riêng thì các khoản trong mục đó chuyển sang Khác.
@@ -216,14 +207,13 @@ export default function SettingsScreen() {
           </>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: PwaColors.bg },
-  content: { padding: 16, gap: 12, paddingBottom: BottomTabInset + 32 },
-  title: { fontSize: 28, fontWeight: '700', color: PwaColors.ink, marginBottom: 4 },
+  content: { paddingHorizontal: 12, gap: 12 },
   notice: { padding: 16, borderRadius: 16, backgroundColor: PwaColors.dangerSoft },
   noticeText: { color: PwaColors.danger, fontSize: 15 },
   sectionTitle: { fontSize: 18, fontWeight: '700', color: PwaColors.ink, marginTop: 8 },
@@ -275,7 +265,6 @@ const styles = StyleSheet.create({
   buttonGhost: { backgroundColor: PwaColors.surface2 },
   buttonGhostText: { color: PwaColors.ink },
   note: { fontSize: 13, color: PwaColors.muted },
-  status: { fontSize: 13, color: PwaColors.primary, fontWeight: '600' },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   tag: {
     flexDirection: 'row',

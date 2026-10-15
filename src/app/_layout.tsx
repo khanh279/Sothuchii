@@ -1,8 +1,9 @@
 import { useFonts } from 'expo-font';
 import { DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
+import { useEffect } from 'react';
 
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
+import { ToastProvider } from '@/components/toast';
 import { FONT_ASSETS } from '@/constants/font-assets';
 import { PwaColors } from '@/constants/theme';
 
@@ -26,19 +27,25 @@ const AppTheme = {
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts(FONT_ASSETS);
+  const ready = fontsLoaded || !!fontError;
 
-  // Chưa nạp xong font thì không vẽ gì: màn hình khởi động vẫn che phía trên (preventAutoHideAsync),
-  // nên không có cảnh chữ đổi font hay bố cục nhảy. Nếu nạp lỗi thì dùng font hệ thống thay vì kẹt.
-  if (!fontsLoaded && !fontError) return null;
+  // Màn hình khởi động (cấu hình trong app.json) giữ nguyên cho tới khi font nạp xong, nên không có
+  // cảnh chữ đổi font hoặc bố cục nhảy. Nếu nạp lỗi thì dùng font hệ thống thay vì kẹt.
+  useEffect(() => {
+    if (ready) SplashScreen.hide();
+  }, [ready]);
+
+  if (!ready) return null;
 
   return (
     <ThemeProvider value={AppTheme}>
-      <AnimatedSplashOverlay />
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="chi-tieu/nhap" options={{ title: 'Thêm khoản chi' }} />
-        <Stack.Screen name="lich-su" options={{ title: 'Chi tiêu cá nhân' }} />
-      </Stack>
+      <ToastProvider>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="chi-tieu/nhap" />
+          <Stack.Screen name="lich-su" />
+        </Stack>
+      </ToastProvider>
     </ThemeProvider>
   );
 }

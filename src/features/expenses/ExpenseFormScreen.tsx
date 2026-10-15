@@ -1,5 +1,5 @@
 import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -12,7 +12,10 @@ import {
   View,
 } from 'react-native';
 
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 import { AmountInput } from '@/components/amount-input';
+import { useToast } from '@/components/toast';
 import { CategoryIcon } from '@/components/category-icon';
 import { DateField } from '@/components/date-field';
 import { DEFAULT_CATEGORY_ID, MEMO_MAX } from '@/constants/categories';
@@ -22,13 +25,15 @@ import {
   addToAmount,
   allCategories,
   buildExpense,
+  periodFromParams,
   resolveCategory,
+  savedMessage,
   validateExpenseInput,
 } from '@/domain/expenses';
 import { describeStorageError, useExpenseSettings } from '@/features/expenses/hooks';
-import type { ExpenseRef, ExpenseSettings, ExpenseWithId } from '@/types/expense';
+import type { ExpenseRef, ExpenseSettings, ExpenseWithId, Period } from '@/types/expense';
 import { isValidDateStr, monthOf, todayStr } from '@/utils/date';
-import { confirmAsync, notify } from '@/utils/dialog';
+import { confirmAsync } from '@/utils/dialog';
 
 /** Quay lại màn trước; nếu không có màn trước (mở thẳng trang này) thì về Tổng quan. */
 function leave() {
@@ -56,7 +61,10 @@ type Loaded =
  * Tham số route: `m` + `id` (sửa khoản đã có) hoặc `d` (ngày gợi ý khi thêm mới).
  */
 export default function ExpenseFormScreen() {
-  const params = useLocalSearchParams<{ m?: string; id?: string; d?: string }>();
+  const params = useLocalSearchParams<{ m?: string; id?: string; d?: string; mode?: string; month?: string; year?: string; from?: string; to?: string }>();
+  const insets = useSafeAreaInsets();
+  const { mode, month, year, from, to } = params;
+  const period = useMemo(() => periodFromParams({ mode, month, year, from, to }, todayStr()), [mode, month, year, from, to]);
   const ref: ExpenseRef | null = params.m && params.id ? { m: params.m, id: params.id } : null;
   const { settings, loaded: settingsLoaded, error: settingsError } = useExpenseSettings();
   const [expense, setExpense] = useState<Loaded>(ref ? { status: 'loading' } : { status: 'ready', existing: null });
@@ -80,13 +88,13 @@ export default function ExpenseFormScreen() {
   else if (expense.status === 'error') body = <Notice text={expense.message} />;
   else if (!settingsLoaded || expense.status === 'loading') body = <ActivityIndicator style={styles.loading} color={PwaColors.primary} />;
   else if (ref && !expense.existing) body = <Notice text="Không tìm thấy khoản chi này. Có thể nó đã bị xoá." />;
-  else body = <ExpenseForm settings={settings} existing={expense.existing} suggestedDate={params.d} />;
+  else body = <ExpenseForm settings={settings} existing={expense.existing} suggestedDate={params.d} period={period} />;
 
   return (
-    <>
-      <Stack.Screen options={{ title }} />
+    <View style={[styles.flex, { paddingTop: 4 + insets.top }]}>
+      <Stack.Screen options={{ title, headerShown: false }} />
       {body}
-    </>
+    </View>
   );
 }
 
@@ -102,10 +110,13 @@ interface FormProps {
   settings: ExpenseSettings;
   existing: ExpenseWithId | null;
   suggestedDate?: string;
+  /** Kỳ đang xem ở Tổng quan, dùng để chọn nội dung thông báo sau khi lưu. */
+  period: Period;
 }
 
-function ExpenseForm({ settings, existing, suggestedDate }: FormProps) {
+function ExpenseForm({ settings, existing, suggestedDate, period }: FormProps) {
   const today = todayStr();
+  const toast = useToast();
   const [amount, setAmount] = useState(existing?.a ?? 0);
   const [memo, setMemo] = useState(existing?.n ?? '');
   const [date, setDate] = useState(
@@ -132,17 +143,18 @@ function ExpenseForm({ settings, existing, suggestedDate }: FormProps) {
       if (existing) {
         const updated = await updateExpense({ m: monthOf(existing.d), id: existing.id }, { a: built.a, c: built.c, n: built.n, d: built.d });
         if (!updated) {
-          notify('Không lưu được', 'Khoản chi này không còn nữa.');
+          toast.show('Khoản chi này không còn nữa');
           setBusy(false);
           return;
         }
       } else {
         await addExpense(built);
       }
+      toast.show(savedMessage({ isEdit: !!existing, amount: built.a, date: built.d, period }));
       leave();
     } catch (error) {
       setBusy(false);
-      notify('Chưa lưu được', describeStorageError(error));
+      toast.show(describeStorageError(error));
     }
   }
 
@@ -153,10 +165,11 @@ function ExpenseForm({ settings, existing, suggestedDate }: FormProps) {
     setBusy(true);
     try {
       await deleteExpense({ m: monthOf(existing.d), id: existing.id });
+      toast.show('Đã xoá khoản chi');
       leave();
     } catch (error) {
       setBusy(false);
-      notify('Chưa xoá được', describeStorageError(error));
+      toast.show(describeStorageError(error));
     }
   }
 

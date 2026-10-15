@@ -1,6 +1,7 @@
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CategoryIcon } from '@/components/category-icon';
 import { PwaColors } from '@/constants/theme';
@@ -27,6 +28,7 @@ export default function HistoryScreen() {
   const params = useLocalSearchParams<{ mode?: string; month?: string; year?: string; from?: string; to?: string; cat?: string }>();
   const { mode, month, year, from, to } = params;
   const today = todayStr();
+  const insets = useSafeAreaInsets();
   const period = useMemo(() => periodFromParams({ mode, month, year, from, to }, today), [mode, month, year, from, to, today]);
 
   const { settings, error: settingsError } = useExpenseSettings();
@@ -45,8 +47,8 @@ export default function HistoryScreen() {
   const message = settingsError ?? error;
 
   return (
-    <View style={styles.screen}>
-      <Stack.Screen options={{ title }} />
+    <View style={[styles.screen, { paddingTop: 4 + insets.top }]}>
+      <Stack.Screen options={{ title, headerShown: false }} />
       {message ? (
         <View style={styles.notice}>
           <Text style={styles.noticeText}>{message}</Text>

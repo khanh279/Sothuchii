@@ -1,9 +1,10 @@
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { BottomTabInset, PwaColors } from '@/constants/theme';
+import { AppText } from '@/components/app-text';
+import { useColors } from '@/hooks/use-colors';
 import {
   budgetSummary,
   initialPeriodView,
@@ -13,6 +14,7 @@ import {
   suggestedDateFor,
   summarizeByCategory,
 } from '@/domain/expenses';
+import { AddExpenseFab } from '@/features/expenses/AddExpenseFab';
 import { useExpenseSettings, useExpenses } from '@/features/expenses/hooks';
 import { PeriodBar } from '@/features/expenses/PeriodBar';
 import { SpentCard } from '@/features/expenses/SpentCard';
@@ -21,6 +23,8 @@ import { todayStr } from '@/utils/date';
 /** Màn Tổng quan: chọn kỳ xem, thẻ "Đã chi" và chi tiêu cá nhân theo mục. */
 export default function OverviewScreen() {
   const today = todayStr();
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
   const [view, setView] = useState(() => initialPeriodView(today));
   const [expanded, setExpanded] = useState(false);
   const period = useMemo(() => periodOf(view), [view]);
@@ -36,13 +40,14 @@ export default function OverviewScreen() {
   const periodParams = periodToParams(period);
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.title}>Tổng quan</Text>
+    <View style={[styles.screen, { backgroundColor: colors.bg }]}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: 8 + insets.top, paddingBottom: 92 + insets.bottom }]}>
         <PeriodBar view={view} onChange={setView} today={today} />
         {message ? (
-          <View style={styles.notice}>
-            <Text style={styles.noticeText}>{message}</Text>
+          <View style={[styles.notice, { backgroundColor: colors.dangerSoft }]}>
+            <AppText color={colors.danger} style={styles.noticeText}>
+              {message}
+            </AppText>
           </View>
         ) : (
           <SpentCard
@@ -59,38 +64,18 @@ export default function OverviewScreen() {
         )}
       </ScrollView>
 
-      <Pressable
-        style={styles.fab}
-        accessibilityRole="button"
-        accessibilityLabel="Thêm khoản chi"
-        onPress={() => router.push({ pathname: '/chi-tieu/nhap', params: { d: suggestedDateFor(period, today) } })}>
-        <Text style={styles.fabText}>+ Chi tiêu</Text>
-      </Pressable>
-    </SafeAreaView>
+      <AddExpenseFab
+        onAddPersonal={() =>
+          router.push({ pathname: '/chi-tieu/nhap', params: { ...periodParams, d: suggestedDateFor(period, today) } })
+        }
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: PwaColors.bg },
-  content: { padding: 16, gap: 16, paddingBottom: BottomTabInset + 96 },
-  title: { fontSize: 28, fontWeight: '700', color: PwaColors.ink },
-  notice: { padding: 16, borderRadius: 16, backgroundColor: PwaColors.dangerSoft },
-  noticeText: { color: PwaColors.danger, fontSize: 15 },
-  fab: {
-    position: 'absolute',
-    right: 16,
-    bottom: BottomTabInset + 16,
-    minHeight: 52,
-    paddingHorizontal: 20,
-    borderRadius: 26,
-    backgroundColor: PwaColors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-  },
-  fabText: { color: PwaColors.primaryInk, fontSize: 16, fontWeight: '700' },
+  screen: { flex: 1 },
+  content: { paddingHorizontal: 12, gap: 12 },
+  notice: { padding: 16, borderRadius: 16 },
+  noticeText: { fontSize: 15 },
 });

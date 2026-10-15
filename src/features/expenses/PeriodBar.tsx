@@ -1,11 +1,11 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { DateField } from '@/components/date-field';
+import { useToast } from '@/components/toast';
 import { PwaColors } from '@/constants/theme';
 import { canGoNext, monthHeading, normalizeCustomRange, periodOf, type PeriodView } from '@/domain/expenses';
 import type { DateStr, Period } from '@/types/expense';
 import { addMonths, isValidDateStr } from '@/utils/date';
-import { notify } from '@/utils/dialog';
 
 const MODES: { mode: Period['mode']; label: string }[] = [
   { mode: 'month', label: 'Tháng' },
@@ -23,6 +23,7 @@ interface Props {
 /** Ô chọn thời gian xem: Tháng / Năm / Tất cả / Tuỳ chọn. */
 export function PeriodBar({ view, onChange, today }: Props) {
   const period = periodOf(view);
+  const toast = useToast();
 
   function shift(delta: number) {
     if (view.mode === 'month') onChange({ ...view, month: addMonths(view.month, delta) });
@@ -33,7 +34,7 @@ export function PeriodBar({ view, onChange, today }: Props) {
     if (!isValidDateStr(from) || !isValidDateStr(to)) return;
     const range = normalizeCustomRange(from, to, today);
     onChange({ ...view, from: range.from, to: range.to });
-    if (range.clamped) notify('Xem tối đa 5 năm một lần');
+    if (range.clamped) toast.show('Xem tối đa 5 năm một lần');
   }
 
   return (

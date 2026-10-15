@@ -30,6 +30,7 @@ import type {
   Period,
 } from '@/types/expense';
 import type { Vnd } from '@/types/money';
+import { formatVnd } from '@/utils/format';
 import {
   addDays,
   addMonths,
@@ -330,6 +331,31 @@ export interface NormalizedRange {
   to: DateStr;
   /** true nếu `from` bị đẩy lên vì vượt quá 5 năm. */
   clamped: boolean;
+}
+
+/** Ngày có nằm trong kỳ đang xem không (kỳ Tất cả: luôn có). */
+export function isInPeriod(date: DateStr, period: Period): boolean {
+  switch (period.mode) {
+    case 'all':
+      return true;
+    case 'month':
+      return monthOf(date) === period.month;
+    case 'year':
+      return date.startsWith(`${period.year}-`);
+    case 'custom':
+      return date >= period.from && date <= period.to;
+  }
+}
+
+/**
+ * Thông báo sau khi lưu khoản chi (như PWA): nếu khoản nằm trong kỳ đang xem thì báo "Đã ghi …" / "Đã cập nhật",
+ * ngược lại báo khoản được lưu vào tháng nào để người dùng không tưởng là mất.
+ */
+export function savedMessage(args: { isEdit: boolean; amount: Vnd; date: DateStr; period: Period }): string {
+  if (isInPeriod(args.date, args.period)) {
+    return args.isEdit ? 'Đã cập nhật' : `Đã ghi ${formatVnd(args.amount)}`;
+  }
+  return `Đã lưu vào ${monthHeading(monthOf(args.date)).toLowerCase()}`;
 }
 
 /** Chuẩn hoá khoảng ngày Tuỳ chọn: đến ≤ hôm nay, từ ≤ đến, tối đa 5 năm (hàm `Xt`). */
