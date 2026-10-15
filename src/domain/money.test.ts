@@ -56,6 +56,12 @@ describe('ô nhập theo nghìn đồng (Quỹ nhóm)', () => {
     expect(maskNghinInput('-5')).toBe('5');
   });
 
+  it('maskNghinInput: giới hạn phần nguyên tuỳ chọn (ô mức cố định của Chia bill: 7 chữ số)', () => {
+    expect(maskNghinInput('123456789', 7)).toBe('1.234.567');
+    expect(maskNghinInput('123456789,5', 7)).toBe('1.234.567,5');
+    expect(maskNghinInput('123456789')).toBe('123.456.789'); // mặc định vẫn 9
+  });
+
   it('parseNghinInput: nhập nghìn đồng → lưu ĐỒNG', () => {
     expect(parseNghinInput('7')).toBe(7000);
     expect(parseNghinInput('7,5')).toBe(7500);

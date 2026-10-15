@@ -36,10 +36,10 @@ function groupDigits(digits: string): string {
  * phần nguyên tối đa 9 chữ số (bỏ số 0 đầu), phần thập phân tối đa 3 chữ số, phần nguyên có dấu chấm hàng nghìn.
  * "7," được giữ nguyên dấu phẩy để người dùng gõ tiếp.
  */
-export function maskNghinInput(text: string): string {
+export function maskNghinInput(text: string, maxInt = 9): string {
   const cleaned = String(text).replace(/[^0-9,]/g, '');
   const comma = cleaned.indexOf(',');
-  const integer = (comma < 0 ? cleaned : cleaned.slice(0, comma)).replace(/^0+(?=\d)/, '').slice(0, 9);
+  const integer = (comma < 0 ? cleaned : cleaned.slice(0, comma)).replace(/^0+(?=\d)/, '').slice(0, maxInt);
   if (comma < 0) return groupDigits(integer);
   const decimals = cleaned.slice(comma + 1).replace(/,/g, '').slice(0, 3);
   return `${groupDigits(integer || '0')},${decimals}`;

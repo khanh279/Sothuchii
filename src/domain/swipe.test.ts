@@ -1,4 +1,4 @@
-import { swipeIntent, swipeOffset, swipeSettle } from './swipe';
+import { swipeIntent, swipeOffset, swipeSettle, swipeToggle } from './swipe';
 
 describe('swipeIntent', () => {
   it('chưa đủ 8px thì còn chờ', () => {
@@ -59,5 +59,25 @@ describe('swipeSettle', () => {
     expect(swipeSettle(-74)).toBe('closed');
     expect(swipeSettle(-30)).toBe('closed');
     expect(swipeSettle(0)).toBe('closed');
+  });
+});
+
+describe('swipeToggle (ô trượt không có nút)', () => {
+  it('vuốt trái đủ xa thì mở; chưa đủ xa thì không làm gì', () => {
+    expect(swipeToggle(-60, 5, false)).toBe('open');
+    expect(swipeToggle(-40, 0, false)).toBe('open');
+    expect(swipeToggle(-30, 0, false)).toBeNull();
+  });
+
+  it('vuốt phải chỉ đóng khi đang mở; đang đóng thì bỏ qua', () => {
+    expect(swipeToggle(60, 0, true)).toBe('close');
+    expect(swipeToggle(60, 0, false)).toBeNull();
+    expect(swipeToggle(30, 0, true)).toBeNull();
+  });
+
+  it('cử chỉ chủ yếu là dọc (cuộn danh sách) thì không bật / tắt', () => {
+    expect(swipeToggle(-60, 60, false)).toBeNull();
+    expect(swipeToggle(-45, 40, false)).toBeNull();
+    expect(swipeToggle(5, 5, false)).toBeNull();
   });
 });

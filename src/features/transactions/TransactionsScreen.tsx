@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { AppRadius } from '@/constants/palette';
+import BillCalcScreen from '@/features/bills/BillCalcScreen';
 import FundListScreen from '@/features/funds/FundListScreen';
 import { useColors } from '@/hooks/use-colors';
 
@@ -48,13 +49,15 @@ export default function TransactionsScreen() {
 
       {sub === 'quy' ? (
         <FundListScreen />
+      ) : sub === 'bill' ? (
+        <BillCalcScreen />
       ) : (
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.line }]}>
           <AppText weight="display" style={styles.title}>
             Đang phát triển
           </AppText>
           <AppText color={colors.muted} style={styles.text}>
-            {sub === 'bill' ? 'Chia bill' : 'Chuyển tiền'} chưa có trên bản mobile. Chức năng này sẽ được bổ sung ở giai đoạn sau.
+            Chuyển tiền chưa có trên bản mobile. Chức năng này sẽ được bổ sung ở giai đoạn sau.
           </AppText>
         </View>
       )}
