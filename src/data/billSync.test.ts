@@ -106,12 +106,16 @@ describe('syncBillExpenses', () => {
     expect(await linked('2025-10')).toHaveLength(1);
   });
 
-  it('khoản src:"cb" đang được khoản trả nợ dùng KHÔNG bị xoá; khoản mồ côi thật thì bị xoá', async () => {
-    await createExpense('pay', { a: 7000, c: 'other', n: 'Trả nợ', d: '2025-10-05', t: 1, src: 'cb' });
+  it('khoản chi của khoản trả nợ (đúng phân bổ) KHÔNG bị xoá; khoản mồ côi thật thì bị xoá', async () => {
+    // Tôi nợ An 30 nghìn (bill), đã trả 30 nghìn: khoản chi cá nhân cần có là 30.000 đồng theo bill "Ăn".
+    await createExpense('pay', { a: 30_000, c: 'food', n: 'Ăn', i: 'Trả An · bill 01/10', d: '2025-10-05', t: 1, src: 'cb' });
     await createExpense('orphan', { a: 1000, c: 'food', n: 'Mồ côi', d: '2025-10-05', t: 1, src: 'cb' });
-    await AsyncStorage.setItem('chiabill:v2:pays', JSON.stringify([{ id: 'p1', exp: [{ m: '2025-10', id: 'pay' }] }]));
-    await AsyncStorage.setItem(KEY, '[]');
-    expect(await syncBillExpenses()).toMatchObject({ orphansRemoved: 1 });
+    await AsyncStorage.setItem(
+      KEY,
+      JSON.stringify([{ id: 'b1', title: 'Ăn', date: '2025-10-01', cat: 'food', createdAt: 1, people: [p('Tôi', 0), p('An', 60)] }]),
+    );
+    await AsyncStorage.setItem('chiabill:v2:pays', JSON.stringify([{ id: 'p1', createdAt: 2, date: '2025-10-05', note: '', from: 'Tôi', to: 'An', amt: 30, kind: 'billpay', exp: [{ m: '2025-10', id: 'pay' }] }]));
+    expect(await syncBillExpenses()).toMatchObject({ orphansRemoved: 1, paysReplaced: 0 });
     const entries = Object.fromEntries(await month('2025-10'));
     expect(Object.keys(entries)).toEqual(['pay']);
   });
