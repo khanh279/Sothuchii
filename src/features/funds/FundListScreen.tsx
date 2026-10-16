@@ -3,6 +3,7 @@ import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, TextInput,
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
+import { SecondaryButton } from '@/components/design';
 import { SvgIcon } from '@/components/svg-icon';
 import { SwipeRow } from '@/components/swipe-row';
 import { useToast } from '@/components/toast';
@@ -16,7 +17,7 @@ import { describeFundError, useFundData } from '@/features/funds/hooks';
 import { useChromeScroll } from '@/hooks/use-chrome';
 import { useColors } from '@/hooks/use-colors';
 import type { Fund } from '@/types/fund';
-import { withAlpha } from '@/utils/color';
+import { formatVnd } from '@/utils/format';
 
 /** Đang soạn tên quỹ: thêm mới, hoặc đổi tên một quỹ có sẵn. */
 type Editing = { mode: 'add' } | { mode: 'edit'; id: string };
@@ -102,7 +103,7 @@ export default function FundListScreen() {
           return (
             <View
               key={fund.id}
-              style={[styles.row, { backgroundColor: colors.surface, borderColor: expanded ? colors.primary : colors.line }]}>
+              style={[styles.row, { backgroundColor: colors.surface, borderColor: expanded ? colors.primary : 'transparent' }]}>
               <SwipeRow
                 open={openId === fund.id}
                 onOpen={() => setOpenId(fund.id)}
@@ -117,8 +118,16 @@ export default function FundListScreen() {
                 radius={13}
                 accessibilityLabel={fund.name}>
                 <View style={styles.head}>
-                  <AppText weight="bold" style={styles.name}>
-                    {fund.name}
+                  <View style={styles.nameCol}>
+                    <AppText weight="bold" style={styles.name} numberOfLines={1}>
+                      {fund.name}
+                    </AppText>
+                    <AppText color={colors.muted} style={styles.balanceLabel}>
+                      Số dư
+                    </AppText>
+                  </View>
+                  <AppText weight="bold" color={fundBalance(data, fund.id) < 0 ? colors.danger : colors.success} style={styles.balance}>
+                    {formatVnd(fundBalance(data, fund.id))}
                   </AppText>
                   <View style={{ transform: [{ rotate: expanded ? '-90deg' : '90deg' }] }}>
                     <SvgIcon name="chevronRight" size={18} color={colors.muted} />
@@ -162,17 +171,13 @@ export default function FundListScreen() {
           />
         )}
 
-        <Pressable
-          accessibilityRole="button"
+        <SecondaryButton
+          label="+ Quỹ mới"
           onPress={() => {
             setOpenId(null);
             setEditing({ mode: 'add' });
           }}
-          style={[styles.addButton, { backgroundColor: colors.surface, borderColor: colors.line }]}>
-          <AppText weight="semibold" color={colors.primary} style={styles.addText}>
-            + Quỹ mới
-          </AppText>
-        </Pressable>
+        />
       </ScrollView>
 
       {data.funds.length > 0 && (
@@ -192,7 +197,7 @@ export default function FundListScreen() {
 
       {sheetOpen && sheetFund && (
         <Modal transparent animationType="fade" visible onRequestClose={() => setSheetOpen(false)}>
-          <View style={[styles.scrim, { backgroundColor: withAlpha('#000000', 0.45) }]}>
+          <View style={[styles.scrim, { backgroundColor: colors.scrim }]}>
             <Pressable style={styles.flex} onPress={() => setSheetOpen(false)} accessibilityLabel="Đóng" />
             <View style={[styles.sheet, { backgroundColor: colors.surface, paddingBottom: 16 + insets.bottom }]}>
               <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.sheetContent}>
@@ -318,11 +323,14 @@ function NameForm({ label, initial, busy, onSave, onCancel, style }: NameFormPro
 // nút nhỏ cao 36, chữ 13.5; nút "+ Quỹ mới" viền nét đứt cao 46, bo 10; các dòng cách nhau 10.
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  list: { paddingHorizontal: 12, paddingTop: 4, paddingBottom: 24, gap: 10 },
+  list: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 24, gap: 12 },
   listWithFab: { paddingBottom: 90 },
-  row: { borderWidth: 1, borderRadius: 14, overflow: 'hidden' },
+  row: { borderWidth: 1, borderRadius: 16, overflow: 'hidden' },
   head: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16 },
-  name: { fontSize: 16, flex: 1 },
+  nameCol: { flex: 1, minWidth: 0 },
+  name: { fontSize: 16 },
+  balanceLabel: { fontSize: 12 },
+  balance: { fontSize: 16 },
   body: { padding: 14, gap: 12, borderTopWidth: 1 },
   tabs: { flexDirection: 'row', gap: 4, padding: 4, borderWidth: 1, borderRadius: 12 },
   tab: { flex: 1, minHeight: 38, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
@@ -343,6 +351,11 @@ const styles = StyleSheet.create({
     height: 48,
     paddingHorizontal: 18,
     borderRadius: 24,
+    shadowColor: '#0B2A4A',
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,

@@ -4,7 +4,7 @@ import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } fro
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { EmptyState } from '@/components/design';
+import { EmptyState, TransactionRow } from '@/components/design';
 import { SwipeRow } from '@/components/swipe-row';
 import { TOAST_BOTTOM_HISTORY, useToast } from '@/components/toast';
 import { AppRadius } from '@/constants/palette';
@@ -143,25 +143,20 @@ export default function FundHistoryScreen() {
                             background={colors.bg}
                             radius={AppRadius.field}
                             accessibilityLabel={`${entry.title}, ${incoming ? '+' : '-'}${formatVnd(entry.amount)}`}>
-                            <View style={styles.row}>
-                              <View style={[styles.icon, { backgroundColor: withAlpha(incoming ? IN_COLOR : OUT_COLOR, 0.14) }]}>
-                                <AppText weight="bold" color={incoming ? IN_COLOR : OUT_COLOR} style={styles.iconText}>
-                                  {incoming ? '+' : '−'}
-                                </AppText>
-                              </View>
-                              <View style={styles.rowText}>
-                                <AppText weight="semibold" style={styles.rowTitle} numberOfLines={1}>
-                                  {entry.title}
-                                </AppText>
-                                <AppText color={colors.muted} style={styles.rowSub} numberOfLines={1}>
-                                  {name ? `${name} · ${entry.meta}` : entry.meta}
-                                </AppText>
-                              </View>
-                              <AppText weight="bold" color={incoming ? IN_COLOR : OUT_COLOR} style={styles.rowAmount}>
-                                {incoming ? '+' : '−'}
-                                {formatVnd(entry.amount)}
-                              </AppText>
-                            </View>
+                            <TransactionRow
+                              bare
+                              icon={
+                                <View style={[styles.icon, { backgroundColor: withAlpha(incoming ? IN_COLOR : OUT_COLOR, 0.14) }]}>
+                                  <AppText weight="bold" color={incoming ? IN_COLOR : OUT_COLOR} style={styles.iconText}>
+                                    {incoming ? '+' : '−'}
+                                  </AppText>
+                                </View>
+                              }
+                              title={entry.title}
+                              subtitle={name ? `${name} · ${entry.meta}` : entry.meta}
+                              amount={`${incoming ? '+' : '−'}${formatVnd(entry.amount)}`}
+                              tone={incoming ? 'get' : 'owe'}
+                            />
                           </SwipeRow>
                         );
                       })}
