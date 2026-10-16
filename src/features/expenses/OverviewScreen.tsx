@@ -15,10 +15,9 @@ import {
 import { averagePerDay } from '@/domain/overviewStats';
 import { AddExpenseFab } from '@/features/expenses/AddExpenseFab';
 import { useExpenseSettings, useExpenses } from '@/features/expenses/hooks';
-import { BillDetailSection, BillStatCard } from '@/features/bills/BillOverviewCard';
-import { DebtPeopleSection, DebtStatCard, PaysEntry } from '@/features/debts/DebtOverviewCards';
+import { BillStatCard } from '@/features/bills/BillOverviewCard';
+import { DebtStatCard } from '@/features/debts/DebtOverviewCards';
 import { useDebtData } from '@/features/debts/hooks';
-import { FundOverviewCard } from '@/features/funds/FundOverviewCard';
 import { useFundData } from '@/features/funds/hooks';
 import { PeriodBar } from '@/features/expenses/PeriodBar';
 import { RecentTransactions } from '@/features/expenses/RecentTransactions';
@@ -89,26 +88,8 @@ export default function OverviewScreen() {
                 <NavTile icon="people" tint="teal" label="Quỹ nhóm" caption="Đóng quỹ, chi quỹ" style={styles.gridItem} onPress={() => router.push('/quy')} />
               </View>
               <RecentTransactions pays={debt.pays} paysLoaded={debt.loaded} paysError={debt.error} />
-              <BillDetailSection
-                bills={debt.bills}
-                pays={debt.pays}
-                period={period}
-                onOpenPerson={(name) => router.push({ pathname: '/chia-bill/nguoi', params: { ...periodParams, name } })}
-                onOpenHistory={() => router.push({ pathname: '/chia-bill/lich-su', params: periodParams })}
-              />
-              <DebtPeopleSection
-                bills={debt.bills}
-                pays={debt.pays}
-                period={period}
-                onOpenPerson={(name) => router.push({ pathname: '/cong-no/chi-tiet', params: { ...periodParams, name } })}
-              />
-              <PaysEntry bills={debt.bills} pays={debt.pays} period={period} onOpen={() => router.push({ pathname: '/cong-no/lich-su', params: periodParams })} />
             </>
           )}
-          <FundOverviewCard
-            period={period}
-            onOpenFund={(fund) => router.push({ pathname: '/quy/lich-su', params: { ...periodParams, fund } })}
-          />
         </View>
       </ScrollView>
 
