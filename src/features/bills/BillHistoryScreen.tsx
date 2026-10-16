@@ -30,8 +30,6 @@ export interface BillHistoryTabMode {
   period: Period;
   /** Đầu trang (tiêu đề + bộ chọn kỳ). */
   header: ReactNode;
-  /** Khu vực hành động đầu danh sách (nút "Tạo bill"). */
-  top?: ReactNode;
 }
 
 export default function BillHistoryScreen({ tab }: { tab?: BillHistoryTabMode } = {}) {
@@ -75,7 +73,6 @@ export default function BillHistoryScreen({ tab }: { tab?: BillHistoryTabMode } 
         <ActivityIndicator style={styles.loading} color={colors.primary} />
       ) : (
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: (tab ? 110 : 24) + insets.bottom }]} onScrollBeginDrag={closeAll}>
-          {tab?.top}
           <View style={[styles.card, { backgroundColor: colors.surface }]}>
             <View style={styles.summary}>
               <View style={styles.summaryLeft}>
@@ -98,7 +95,7 @@ export default function BillHistoryScreen({ tab }: { tab?: BillHistoryTabMode } 
 
             <View style={styles.body}>
               {history.days.length === 0 ? (
-                <EmptyState text="Không có bill trong khoảng này" icon="check" action={{ label: 'Tạo bill', onPress: () => router.push('/chia-bill/tao') }} />
+                <EmptyState text="Không có bill trong khoảng này" icon="check" />
               ) : (
                 history.days.map((day) => (
                   <View key={day.date} style={styles.day}>

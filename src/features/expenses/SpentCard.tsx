@@ -1,10 +1,9 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
-import { CategoryIcon } from '@/components/category-icon';
 import { SvgIcon } from '@/components/svg-icon';
 import { AppRadius } from '@/constants/palette';
-import { periodTitle, type BudgetSummary, type CategorySummary } from '@/domain/expenses';
+import { periodTitle, type BudgetSummary } from '@/domain/expenses';
 import { useColors } from '@/hooks/use-colors';
 import type { Period } from '@/types/expense';
 import { formatGrouped, formatVnd } from '@/utils/format';
@@ -17,29 +16,21 @@ interface Props {
   count: number;
   average: number | null;
   budget: BudgetSummary | null;
-  summaries: CategorySummary[];
-  expanded: boolean;
-  onToggle: () => void;
-  onOpenCategory: (categoryId: string) => void;
-  onOpenAll: () => void;
+  /** Mở Cài đặt (biểu tượng bánh răng ở góc phải thẻ). */
+  onSettings: () => void;
 }
 
 /**
- * Thẻ "Tổng chi tiêu" nổi bật ở đầu Tổng quan (nền navy, chữ trắng): tổng chi của kỳ đang chọn, ngân sách nếu có, và khi bấm thì
- * hiện chi tiêu cá nhân theo từng mục ngay dưới (nền trắng), trong cùng một khung. Chỉ dùng số liệu chi tiêu cá nhân sẵn có.
+ * Thẻ "Tổng chi tiêu" nổi bật ở đầu Tổng quan (nền navy, chữ trắng): tổng chi của kỳ đang chọn, số khoản chi, trung bình/ngày và ngân sách
+ * nếu có. Thẻ CHỈ để xem (không bấm được); riêng biểu tượng bánh răng ở góc phải mở Cài đặt. Chỉ dùng số liệu chi tiêu cá nhân sẵn có.
  */
-export function SpentCard({ period, loaded, total, count, average, budget, summaries, expanded, onToggle, onOpenCategory, onOpenAll }: Props) {
+export function SpentCard({ period, loaded, total, count, average, budget, onSettings }: Props) {
   const colors = useColors();
 
   return (
-    <View style={[styles.card, { backgroundColor: colors.surface }]}>
-      <Pressable
-        onPress={onToggle}
-        style={[styles.hero, { backgroundColor: colors.heroBg }]}
-        accessibilityRole="button"
-        accessibilityState={{ expanded }}
-        accessibilityLabel={`Tổng chi tiêu ${periodTitle(period)}: ${formatVnd(total)}`}>
-        <View>
+    <View style={[styles.card, { backgroundColor: colors.heroBg }]}>
+      <View style={styles.hero} accessible accessibilityLabel={`Tổng chi tiêu ${periodTitle(period)}: ${formatVnd(total)}`}>
+        <View style={styles.head}>
           <AppText weight="medium" color={colors.heroSoft} style={styles.label}>
             {loaded ? 'Tổng chi tiêu' : 'Đang mở sổ…'}
           </AppText>
@@ -104,61 +95,10 @@ export function SpentCard({ period, loaded, total, count, average, budget, summa
             )}
           </>
         )}
-
-        <View pointerEvents="none" style={[styles.chevron, { borderColor: colors.heroSoft, transform: [{ rotate: expanded ? '225deg' : '45deg' }] }]} />
+      </View>
+      <Pressable accessibilityRole="button" accessibilityLabel="Cài đặt" hitSlop={6} onPress={onSettings} style={[styles.gear, { backgroundColor: colors.heroTrack }]}>
+        <SvgIcon name="gear" size={18} color={colors.heroInk} strokeWidth={1.9} />
       </Pressable>
-
-      {expanded && (
-        <View style={[styles.section, { backgroundColor: colors.surface }]}>
-          <Pressable style={styles.sectionHeader} onPress={onOpenAll} accessibilityRole="button" accessibilityLabel="Xem lịch sử chi tiêu cá nhân">
-            <View style={styles.sectionHeaderText}>
-              <AppText weight="bold" style={styles.sectionTitle}>
-                Chi tiêu cá nhân
-              </AppText>
-              <AppText weight="medium" color={colors.muted} style={styles.sectionPeriod}>
-                {periodTitle(period)}
-              </AppText>
-            </View>
-            <SvgIcon name="chevronRight" size={20} color={colors.muted} strokeWidth={2.2} />
-          </Pressable>
-          {summaries.map((item, index) => (
-            <Pressable
-              key={item.category.id}
-              style={[
-                styles.cat,
-                { paddingTop: index === 0 ? 4 : 12, paddingBottom: index === summaries.length - 1 ? 0 : 12 },
-                index < summaries.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.line },
-                item.sum === 0 && styles.catZero,
-              ]}
-              disabled={item.sum === 0}
-              accessibilityRole="button"
-              accessibilityLabel={`${item.category.name}, ${formatVnd(item.sum)}`}
-              accessibilityState={{ disabled: item.sum === 0 }}
-              onPress={() => onOpenCategory(item.category.id)}>
-              <CategoryIcon category={item.category} />
-              <View style={styles.catBody}>
-                <View style={styles.catTop}>
-                  <AppText weight="semibold" style={styles.catName} numberOfLines={1}>
-                    {item.category.name}
-                    {item.n > 0 && (
-                      <AppText color={colors.muted} style={styles.catMeta}>
-                        {' '}
-                        · {item.n} khoản
-                      </AppText>
-                    )}
-                  </AppText>
-                  <AppText weight="semibold" style={styles.catAmount}>
-                    {formatVnd(item.sum)}
-                  </AppText>
-                </View>
-                <View style={[styles.catTrack, { backgroundColor: colors.surface2 }]}>
-                  <View style={[styles.catFill, { width: `${total ? (item.sum / total) * 100 : 0}%`, backgroundColor: item.category.color }]} />
-                </View>
-              </View>
-            </Pressable>
-          ))}
-        </View>
-      )}
     </View>
   );
 }
@@ -178,20 +118,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
   rowText: { fontSize: 13, lineHeight: 19, flexShrink: 1 },
   dayText: { fontSize: 12.2, lineHeight: 18 },
-  chevron: { position: 'absolute', top: 24, right: 20, width: 8, height: 8, borderRightWidth: 2, borderBottomWidth: 2 },
-  section: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 14 },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 9 },
-  sectionHeaderText: { flex: 1 },
-  sectionTitle: { fontSize: 17, lineHeight: 28 },
-  sectionPeriod: { fontSize: 12, lineHeight: 17 },
-  cat: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  catZero: { opacity: 0.55 },
-  /* Cột chữ bắt đầu thấp hơn đỉnh biểu tượng 9px, thanh cách tên 15px (đo từ PWA). */
-  catBody: { flex: 1, gap: 15, marginTop: 9, minWidth: 0 },
-  catTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
-  catName: { flex: 1, fontSize: 15, lineHeight: 22 },
-  catMeta: { fontSize: 12 },
-  catAmount: { fontSize: 15, lineHeight: 22 },
-  catTrack: { height: 5, borderRadius: 99, overflow: 'hidden' },
-  catFill: { height: '100%', borderRadius: 99 },
+  head: { paddingRight: 40 },
+  /** Biểu tượng bánh răng ở góc phải trên của thẻ. */
+  gear: { position: 'absolute', top: 14, right: 14, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
 });

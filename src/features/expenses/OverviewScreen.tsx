@@ -1,10 +1,11 @@
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { NavTile } from '@/components/design';
+import { SvgIcon } from '@/components/svg-icon';
 import {
   budgetSummary,
   initialPeriodView,
@@ -12,7 +13,6 @@ import {
   periodToParams,
   sumAmounts,
   suggestedDateFor,
-  summarizeByCategory,
 } from '@/domain/expenses';
 import { averagePerDay } from '@/domain/overviewStats';
 import { AddExpenseFab } from '@/features/expenses/AddExpenseFab';
@@ -39,7 +39,6 @@ export default function OverviewScreen() {
   const insets = useSafeAreaInsets();
   const { ref: scrollRef, props: scrollProps } = useChromeScroll();
   const [view, setView] = useState(() => initialPeriodView(today));
-  const [expanded, setExpanded] = useState(false);
   const period = useMemo(() => periodOf(view), [view]);
 
   const { settings, error: settingsError } = useExpenseSettings();
@@ -48,7 +47,6 @@ export default function OverviewScreen() {
   const debt = useDebtData();
 
   const total = useMemo(() => sumAmounts(items), [items]);
-  const summaries = useMemo(() => summarizeByCategory(items, settings), [items, settings]);
   const average = useMemo(() => averagePerDay(total, period), [total, period]);
   const budget = useMemo(() => budgetSummary(total, period, settings, today), [total, period, settings, today]);
   const message = settingsError ?? error;
@@ -59,13 +57,17 @@ export default function OverviewScreen() {
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
       {/* Phần tử đầu tiên là ô chọn kỳ và được ghim lại khi cuộn (sticky). */}
       <ScrollView ref={scrollRef} {...scrollProps} stickyHeaderIndices={[0]} contentContainerStyle={{ paddingBottom: 110 + insets.bottom }}>
-        <PeriodBar title="Tổng quan" onSettings={() => router.push('/thiet-lap')} view={view} onChange={setView} today={today} />
+        <PeriodBar title="Tổng quan" view={view} onChange={setView} today={today} />
         <View style={styles.body}>
           {message ? (
             <View style={[styles.notice, { backgroundColor: colors.dangerSoft }]}>
               <AppText color={colors.danger} style={styles.noticeText}>
                 {message}
               </AppText>
+              {/* Khi thẻ tổng chi không hiện được vì lỗi, vẫn còn lối vào Cài đặt. */}
+              <Pressable accessibilityRole="button" accessibilityLabel="Cài đặt" hitSlop={8} onPress={() => router.push('/thiet-lap')}>
+                <SvgIcon name="gear" size={20} color={colors.danger} strokeWidth={1.9} />
+              </Pressable>
             </View>
           ) : (
             <SpentCard
@@ -75,11 +77,7 @@ export default function OverviewScreen() {
               count={items.length}
               average={average}
               budget={budget}
-              summaries={summaries}
-              expanded={expanded}
-              onToggle={() => setExpanded((open) => !open)}
-              onOpenCategory={(cat) => router.push({ pathname: '/lich-su', params: { ...periodParams, cat } })}
-              onOpenAll={() => router.push({ pathname: '/lich-su', params: periodParams })}
+              onSettings={() => router.push('/thiet-lap')}
             />
           )}
           {debt.loaded && !debt.error && (
@@ -134,6 +132,6 @@ const styles = StyleSheet.create({
   body: { paddingHorizontal: 16, paddingTop: 6, gap: 12 },
   grid: { flexDirection: 'row', gap: 12 },
   gridItem: { flex: 1, minWidth: 0 },
-  notice: { padding: 16, borderRadius: 16 },
-  noticeText: { fontSize: 15 },
+  notice: { padding: 16, borderRadius: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  noticeText: { flex: 1, fontSize: 15 },
 });
