@@ -1,6 +1,6 @@
 /**
- * Bộ màu của PWA Sổ Thu Chi, lấy nguyên từ biến `--st-*` trong index.html
- * (sáng: khối `:root`; tối: `@media (prefers-color-scheme: dark)`).
+ * Bộ màu "Minimal Finance" của ứng dụng: nền trắng / xám rất nhạt, xanh navy đậm là màu chủ đạo (thẻ số liệu, nút chính),
+ * xanh teal nhẹ làm màu nhấn, xanh lá cho tiền nhận, đỏ cho tiền phải trả / cảnh báo, còn lại là màu trung tính.
  * Dùng `useColors()` để lấy bộ màu theo chế độ sáng/tối của thiết bị.
  */
 export interface SoTienPalette {
@@ -19,44 +19,58 @@ export interface SoTienPalette {
   heroTrack: string;
   danger: string;
   dangerSoft: string;
+  /** Màu nhấn teal nhẹ (biểu tượng lối vào, chip đang chọn). */
+  accent: string;
+  accentSoft: string;
+  /** Tiền nhận / trạng thái tích cực. */
+  success: string;
+  successSoft: string;
   scrim: string;
 }
 
 export const SoTienColors: { light: SoTienPalette; dark: SoTienPalette } = {
   light: {
-    bg: '#F0F2F5',
+    bg: '#F5F7FA',
     surface: '#FFFFFF',
-    surface2: '#E4E6EB',
-    ink: '#1C1E21',
-    muted: '#65676B',
-    line: '#DADDE1',
-    primary: '#1877F2',
+    surface2: '#EBEFF5',
+    ink: '#0F1B2D',
+    muted: '#6B7789',
+    line: '#E8ECF2',
+    primary: '#0B2A4A',
     primaryInk: '#FFFFFF',
-    primarySoft: '#E7F3FF',
-    heroBg: '#A50064',
+    primarySoft: '#E6EDF6',
+    heroBg: '#0B2A4A',
     heroInk: '#FFFFFF',
-    heroSoft: 'rgba(255,255,255,0.78)',
-    heroTrack: 'rgba(255,255,255,0.26)',
-    danger: '#C9302C',
-    dangerSoft: '#FDE7E6',
+    heroSoft: 'rgba(255,255,255,0.72)',
+    heroTrack: 'rgba(255,255,255,0.22)',
+    danger: '#D64545',
+    dangerSoft: '#FCEBEB',
+    accent: '#0E8F9B',
+    accentSoft: '#E2F4F5',
+    success: '#0F8A4B',
+    successSoft: '#E3F5EA',
     scrim: 'rgba(0,0,0,0.48)',
   },
   dark: {
-    bg: '#18191A',
-    surface: '#242526',
-    surface2: '#3A3B3C',
-    ink: '#E4E6EB',
-    muted: '#B0B3B8',
-    line: '#3E4042',
-    primary: '#2D88FF',
+    bg: '#0A1220',
+    surface: '#121C2E',
+    surface2: '#1A2740',
+    ink: '#E8EEF7',
+    muted: '#93A0B5',
+    line: '#22304A',
+    primary: '#4F83E8',
     primaryInk: '#FFFFFF',
-    primarySoft: '#263951',
-    heroBg: '#8E0A5C',
+    primarySoft: '#1B2B4A',
+    heroBg: '#143A66',
     heroInk: '#FFFFFF',
-    heroSoft: 'rgba(255,255,255,0.76)',
+    heroSoft: 'rgba(255,255,255,0.74)',
     heroTrack: 'rgba(255,255,255,0.22)',
-    danger: '#F0807A',
-    dangerSoft: '#3D2221',
+    danger: '#F08A84',
+    dangerSoft: '#3A2224',
+    accent: '#3DC1CC',
+    accentSoft: '#143338',
+    success: '#4CC38A',
+    successSoft: '#163A2A',
     scrim: 'rgba(0,0,0,0.62)',
   },
 };
@@ -73,7 +87,7 @@ export const AppRadius = {
   field: 14,
   /** Thẻ thường (lịch sử, bảng mục) */
   card: 16,
-  /** Thẻ Đã chi, form nhập, tờ nổi */
+  /** Thẻ tổng chi tiêu, form nhập, tờ nổi */
   hero: 22,
   /** Thanh phân đoạn */
   segment: 12,

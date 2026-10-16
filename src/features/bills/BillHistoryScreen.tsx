@@ -4,6 +4,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
+import { EmptyState } from '@/components/design';
 import { CategoryIcon } from '@/components/category-icon';
 import { SwipeRow } from '@/components/swipe-row';
 import { TOAST_BOTTOM_HISTORY, useToast } from '@/components/toast';
@@ -84,9 +85,7 @@ export default function BillHistoryScreen() {
 
             <View style={styles.body}>
               {history.days.length === 0 ? (
-                <AppText color={colors.muted} style={styles.empty}>
-                  Không có bill trong khoảng này
-                </AppText>
+                <EmptyState text="Không có bill trong khoảng này" icon="check" />
               ) : (
                 history.days.map((day) => (
                   <View key={day.date} style={styles.day}>

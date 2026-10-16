@@ -1,9 +1,10 @@
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
+import { ConfirmDialog, EmptyState, PrimaryButton } from '@/components/design';
 import { SvgIcon } from '@/components/svg-icon';
 import { useToast } from '@/components/toast';
 import { AppFonts } from '@/constants/fonts';
@@ -18,7 +19,6 @@ import { maskPayAmount, parsePayAmount } from '@/domain/payForm';
 import { describeDebtError, useDebtData } from '@/features/debts/hooks';
 import { useColors } from '@/hooks/use-colors';
 import { formatVnDate, todayStr } from '@/utils/date';
-import { withAlpha } from '@/utils/color';
 
 const GET = '#0F8A4B';
 const OWE = '#D64545';
@@ -131,9 +131,7 @@ export default function PersonBillsScreen() {
           </View>
 
           {data.rows.length === 0 ? (
-            <AppText color={colors.muted} style={styles.empty}>
-              Không có bill nào của {name} trong khoảng này
-            </AppText>
+            <EmptyState text={`Không có bill nào của ${name} trong khoảng này`} />
           ) : (
             data.rows.map((row, index) => (
               <Pressable
@@ -168,16 +166,7 @@ export default function PersonBillsScreen() {
         </View>
 
         <View style={styles.payArea}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ disabled: !canPay || busy, expanded: panelOpen }}
-            disabled={!canPay || busy}
-            onPress={() => (panelOpen ? resetPanel() : setPanelOpen(true))}
-            style={[styles.payButton, { backgroundColor: colors.primary, opacity: canPay ? 1 : 0.45 }]}>
-            <AppText weight="bold" color={colors.primaryInk} style={styles.payText}>
-              Thanh toán
-            </AppText>
-          </Pressable>
+          <PrimaryButton label="Thanh toán" disabled={!canPay || busy} onPress={() => (panelOpen ? resetPanel() : setPanelOpen(true))} />
           {!canPay && (
             <AppText color={colors.muted} style={styles.centerNote}>
               Không còn khoản nào phải thanh toán
@@ -268,36 +257,15 @@ export default function PersonBillsScreen() {
       {body}
 
       {confirmAmount !== null && (
-        <Modal transparent animationType="fade" visible onRequestClose={() => !busy && setConfirmAmount(null)}>
-          <View style={[styles.scrim, { backgroundColor: withAlpha('#000000', 0.5) }]}>
-            <View style={[styles.dialog, { backgroundColor: colors.surface }]} accessibilityViewIsModal>
-              <AppText weight="display" style={styles.dialogTitle}>
-                Xác nhận thanh toán
-              </AppText>
-              <AppText style={styles.dialogText}>
-                {payer} trả {receiver}
-              </AppText>
-              <AppText weight="display" style={styles.dialogAmount}>
-                {formatMoney(confirmAmount)}
-              </AppText>
-              <AppText color={colors.muted} style={styles.small}>
-                Trừ vào các bill còn nợ từ cũ đến mới.
-              </AppText>
-              <View style={styles.dialogButtons}>
-                <Pressable accessibilityRole="button" disabled={busy} onPress={() => setConfirmAmount(null)} style={[styles.dialogBtn, { borderColor: colors.line, backgroundColor: colors.surface }]}>
-                  <AppText weight="semibold" color={colors.muted} style={styles.choiceTitle}>
-                    Huỷ
-                  </AppText>
-                </Pressable>
-                <Pressable accessibilityRole="button" disabled={busy} onPress={() => void confirm()} style={[styles.dialogBtn, { borderColor: colors.primary, backgroundColor: colors.primary, opacity: busy ? 0.6 : 1 }]}>
-                  <AppText weight="semibold" color={colors.primaryInk} style={styles.choiceTitle}>
-                    Xác nhận
-                  </AppText>
-                </Pressable>
-              </View>
-            </View>
-          </View>
-        </Modal>
+        <ConfirmDialog
+          title="Xác nhận thanh toán"
+          message={`${payer} trả ${receiver}`}
+          amountText={formatMoney(confirmAmount)}
+          note="Trừ vào các bill còn nợ từ cũ đến mới."
+          busy={busy}
+          onCancel={() => setConfirmAmount(null)}
+          onConfirm={() => void confirm()}
+        />
       )}
     </View>
   );
@@ -332,11 +300,4 @@ const styles = StyleSheet.create({
   input: { minHeight: 52, borderWidth: 1, borderRadius: 12, paddingLeft: 12, paddingRight: 62, fontSize: 18, textAlign: 'right' },
   suffix: { position: 'absolute', right: 12, fontSize: 13 },
   continue: { minHeight: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  scrim: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  dialog: { width: '100%', maxWidth: 360, borderRadius: 20, padding: 20, gap: 8 },
-  dialogTitle: { fontSize: 18 },
-  dialogText: { fontSize: 15.5 },
-  dialogAmount: { fontSize: 28, lineHeight: 34 },
-  dialogButtons: { flexDirection: 'row', gap: 10, marginTop: 8 },
-  dialogBtn: { flex: 1, minHeight: 46, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
 });

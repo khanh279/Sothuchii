@@ -4,7 +4,7 @@ import { AppText } from '@/components/app-text';
 import { CategoryIcon } from '@/components/category-icon';
 import { SvgIcon } from '@/components/svg-icon';
 import { AppRadius } from '@/constants/palette';
-import { periodTitle, spentLabel, type BudgetSummary, type CategorySummary } from '@/domain/expenses';
+import { periodTitle, type BudgetSummary, type CategorySummary } from '@/domain/expenses';
 import { useColors } from '@/hooks/use-colors';
 import type { Period } from '@/types/expense';
 import { formatGrouped, formatVnd } from '@/utils/format';
@@ -22,56 +22,59 @@ interface Props {
 }
 
 /**
- * Thẻ "Đã chi" của PWA (`.hero` + `.ovsec`): tổng chi, ngân sách, và khi bấm thì hiện
- * chi tiêu cá nhân theo từng mục ngay dưới, trong cùng một khung.
+ * Thẻ "Tổng chi tiêu" nổi bật ở đầu Tổng quan (nền navy, chữ trắng): tổng chi của kỳ đang chọn, ngân sách nếu có, và khi bấm thì
+ * hiện chi tiêu cá nhân theo từng mục ngay dưới (nền trắng), trong cùng một khung. Chỉ dùng số liệu chi tiêu cá nhân sẵn có.
  */
 export function SpentCard({ period, loaded, total, budget, summaries, expanded, onToggle, onOpenCategory, onOpenAll }: Props) {
   const colors = useColors();
 
   return (
-    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.line }]}>
+    <View style={[styles.card, { backgroundColor: colors.surface }]}>
       <Pressable
         onPress={onToggle}
-        style={styles.hero}
+        style={[styles.hero, { backgroundColor: colors.heroBg }]}
         accessibilityRole="button"
         accessibilityState={{ expanded }}
-        accessibilityLabel={`${spentLabel(period)}: ${formatVnd(total)}`}>
+        accessibilityLabel={`Tổng chi tiêu ${periodTitle(period)}: ${formatVnd(total)}`}>
         <View>
-          <AppText color={colors.muted} style={styles.label}>
-            {loaded ? spentLabel(period) : 'Đang mở sổ…'}
+          <AppText weight="medium" color={colors.heroSoft} style={styles.label}>
+            {loaded ? 'Tổng chi tiêu' : 'Đang mở sổ…'}
           </AppText>
-          <AppText weight="display" style={styles.total} adjustsFontSizeToFit numberOfLines={1}>
+          <AppText weight="display" color={colors.heroInk} style={styles.total} adjustsFontSizeToFit numberOfLines={1}>
             {formatGrouped(total)}
-            <AppText weight="display" style={styles.currency}>
+            <AppText weight="display" color={colors.heroInk} style={styles.currency}>
               {' '}
               ₫
             </AppText>
+          </AppText>
+          <AppText color={colors.heroSoft} style={styles.period}>
+            {periodTitle(period)}
           </AppText>
         </View>
 
         {budget && (
           <>
-            <View style={[styles.track, { backgroundColor: colors.line }]}>
-              <View style={[styles.fill, { width: `${budget.usedPercent}%`, backgroundColor: budget.over ? colors.danger : colors.primary }]} />
+            <View style={[styles.track, { backgroundColor: colors.heroTrack }]}>
+              <View style={[styles.fill, { width: `${budget.usedPercent}%`, backgroundColor: budget.over ? '#FF9A94' : colors.heroInk }]} />
             </View>
             <View style={styles.row}>
-              <AppText color={colors.muted} style={styles.rowText} numberOfLines={1} adjustsFontSizeToFit>
+              <AppText color={colors.heroSoft} style={styles.rowText} numberOfLines={1} adjustsFontSizeToFit>
                 {budget.over ? 'Vượt ngân sách' : 'Còn lại'}{' '}
-                <AppText weight="semibold" style={styles.rowText}>
+                <AppText weight="semibold" color={colors.heroInk} style={styles.rowText}>
                   {formatVnd(Math.abs(budget.remaining))}
                 </AppText>
               </AppText>
-              <AppText color={colors.muted} style={styles.rowText} numberOfLines={1} adjustsFontSizeToFit>
+              <AppText color={colors.heroSoft} style={styles.rowText} numberOfLines={1} adjustsFontSizeToFit>
                 {period.mode === 'year' ? 'Ngân sách năm' : 'Ngân sách'}{' '}
-                <AppText weight="semibold" style={styles.rowText}>
+                <AppText weight="semibold" color={colors.heroInk} style={styles.rowText}>
                   {formatVnd(budget.budget)}
                 </AppText>
               </AppText>
             </View>
             {budget.perDay !== null && (
-              <AppText color={colors.muted} style={styles.dayText} numberOfLines={1} adjustsFontSizeToFit>
+              <AppText color={colors.heroSoft} style={styles.dayText} numberOfLines={1} adjustsFontSizeToFit>
                 Còn {budget.daysLeft} ngày · mỗi ngày chi được khoảng{' '}
-                <AppText weight="semibold" style={styles.dayText}>
+                <AppText weight="semibold" color={colors.heroInk} style={styles.dayText}>
                   {formatVnd(budget.perDay)}
                 </AppText>
               </AppText>
@@ -79,11 +82,11 @@ export function SpentCard({ period, loaded, total, budget, summaries, expanded, 
           </>
         )}
 
-        <View pointerEvents="none" style={[styles.chevron, { borderColor: colors.muted, transform: [{ rotate: expanded ? '225deg' : '45deg' }] }]} />
+        <View pointerEvents="none" style={[styles.chevron, { borderColor: colors.heroSoft, transform: [{ rotate: expanded ? '225deg' : '45deg' }] }]} />
       </Pressable>
 
       {expanded && (
-        <View style={[styles.section, { borderTopColor: colors.line }]}>
+        <View style={[styles.section, { backgroundColor: colors.surface }]}>
           <Pressable style={styles.sectionHeader} onPress={onOpenAll} accessibilityRole="button" accessibilityLabel="Xem lịch sử chi tiêu cá nhân">
             <View style={styles.sectionHeaderText}>
               <AppText weight="bold" style={styles.sectionTitle}>
@@ -138,19 +141,20 @@ export function SpentCard({ period, loaded, total, budget, summaries, expanded, 
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: AppRadius.hero, borderWidth: 1, overflow: 'hidden' },
-  hero: { paddingTop: 18, paddingHorizontal: 18, paddingBottom: 16, gap: 12 },
+  card: { borderRadius: AppRadius.hero, overflow: 'hidden' },
+  hero: { paddingTop: 20, paddingHorizontal: 20, paddingBottom: 18, gap: 12 },
   label: { fontSize: 13.5, lineHeight: 20 },
-  total: { fontSize: 43, lineHeight: 45, letterSpacing: -0.86, marginTop: 1 },
+  period: { fontSize: 12.5, lineHeight: 18, marginTop: 2 },
+  total: { fontSize: 40, lineHeight: 46, letterSpacing: -0.8, marginTop: 2 },
   currency: { fontSize: 21.5, lineHeight: 24, letterSpacing: 0 },
   track: { height: 8, borderRadius: 99, overflow: 'hidden', marginTop: 1 },
   fill: { height: '100%', borderRadius: 99 },
   row: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
   rowText: { fontSize: 13, lineHeight: 19, flexShrink: 1 },
   dayText: { fontSize: 12.2, lineHeight: 18 },
-  chevron: { position: 'absolute', top: 20, right: 18, width: 8, height: 8, borderRightWidth: 2, borderBottomWidth: 2 },
-  section: { borderTopWidth: 1, paddingHorizontal: 14, paddingBottom: 14 },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 1, paddingBottom: 9 },
+  chevron: { position: 'absolute', top: 24, right: 20, width: 8, height: 8, borderRightWidth: 2, borderBottomWidth: 2 },
+  section: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 14 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 9 },
   sectionHeaderText: { flex: 1 },
   sectionTitle: { fontSize: 17, lineHeight: 28 },
   sectionPeriod: { fontSize: 12, lineHeight: 17 },

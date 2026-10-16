@@ -3,7 +3,7 @@ import { PwaColors, SoTienColors } from './palette';
 
 const COLOR = /^(#[0-9A-Fa-f]{6}|rgba\(\d{1,3},\d{1,3},\d{1,3},\d?\.?\d+\))$/;
 
-describe('bộ màu PWA', () => {
+describe('bộ màu Minimal Finance', () => {
   it('sáng và tối có cùng danh sách khóa', () => {
     expect(Object.keys(SoTienColors.dark).sort()).toEqual(Object.keys(SoTienColors.light).sort());
   });
@@ -16,9 +16,9 @@ describe('bộ màu PWA', () => {
     }
   });
 
-  it('khớp các giá trị đo được từ PWA (--st-*)', () => {
-    expect(SoTienColors.light).toMatchObject({ bg: '#F0F2F5', surface: '#FFFFFF', ink: '#1C1E21', primary: '#1877F2', line: '#DADDE1', danger: '#C9302C' });
-    expect(SoTienColors.dark).toMatchObject({ bg: '#18191A', surface: '#242526', ink: '#E4E6EB', primary: '#2D88FF', line: '#3E4042', danger: '#F0807A' });
+  it('màu chủ đạo là navy, nền trắng / xám nhạt, tiền nhận xanh lá, tiền trả đỏ', () => {
+    expect(SoTienColors.light).toMatchObject({ bg: '#F5F7FA', surface: '#FFFFFF', primary: '#0B2A4A', heroBg: '#0B2A4A', success: '#0F8A4B', danger: '#D64545', accent: '#0E8F9B' });
+    expect(SoTienColors.dark).toMatchObject({ bg: '#0A1220', surface: '#121C2E', primary: '#4F83E8', success: '#4CC38A', danger: '#F08A84' });
   });
 
   it('PwaColors là bộ màu sáng', () => {

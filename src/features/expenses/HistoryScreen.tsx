@@ -4,6 +4,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View, useWindowDi
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
+import { EmptyState } from '@/components/design';
 import { CategoryIcon } from '@/components/category-icon';
 import { SwipeRow } from '@/components/swipe-row';
 import { TOAST_BOTTOM_HISTORY, useToast } from '@/components/toast';
@@ -123,14 +124,7 @@ export default function HistoryScreen() {
 
             <View style={styles.body}>
               {groups.length === 0 ? (
-                <View style={styles.empty}>
-                  <AppText weight="display" style={styles.emptyTitle}>
-                    Chưa có khoản chi nào trong kỳ này
-                  </AppText>
-                  <AppText color={colors.muted} style={styles.emptyText}>
-                    Mỗi khoản bạn ghi sẽ hiện ở đây, xếp theo ngày. Thêm khoản chi bằng nút + Chi tiêu.
-                  </AppText>
-                </View>
+                <EmptyState text="Chưa có khoản chi nào trong kỳ này. Mỗi khoản bạn ghi sẽ hiện ở đây, xếp theo ngày; thêm khoản chi bằng nút + Chi tiêu." icon="check" />
               ) : (
                 <>
                   {!fixedCategory && inUse.length > 0 && (

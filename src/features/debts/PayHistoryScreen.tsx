@@ -4,6 +4,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
+import { EmptyState } from '@/components/design';
 import { SvgIcon } from '@/components/svg-icon';
 import { SwipeRow } from '@/components/swipe-row';
 import { TOAST_BOTTOM_HISTORY, useToast } from '@/components/toast';
@@ -89,9 +90,7 @@ export default function PayHistoryScreen() {
 
             <View style={styles.body}>
               {history.days.length === 0 ? (
-                <AppText color={colors.muted} style={styles.empty}>
-                  Không có khoản nào trong khoảng này
-                </AppText>
+                <EmptyState text="Không có khoản nào trong khoảng này" icon="check" />
               ) : (
                 history.days.map((day) => (
                   <View key={day.date} style={styles.day}>

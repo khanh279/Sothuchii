@@ -21,16 +21,18 @@ const MODES: { mode: Period['mode']; label: string }[] = [
 ];
 
 interface Props {
+  /** Tiêu đề màn hình hiện phía trên bộ chọn (ví dụ "Tổng quan"). */
+  title?: string;
   view: PeriodView;
   onChange: (view: PeriodView) => void;
   today: DateStr;
 }
 
 /**
- * Ô chọn thời gian xem của Tổng quan (`#periodBar`): nền trang, đệm 8 trên/dưới, cao 110 với
- * thanh phân đoạn 42 + khoảng 10 + hàng 42. Được đặt làm phần tử dính ở đầu trang cuộn.
+ * Đầu trang Tổng quan: tiêu đề và bộ chọn thời gian gọn (Tháng / Năm / Tất cả / Tuỳ chọn + mũi tên kỳ trước / sau). Nền trang xám nhạt,
+ * được đặt làm phần tử dính ở đầu trang cuộn; mục đang chọn nền navy chữ trắng.
  */
-export function PeriodBar({ view, onChange, today }: Props) {
+export function PeriodBar({ title, view, onChange, today }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const toast = useToast();
@@ -50,21 +52,26 @@ export function PeriodBar({ view, onChange, today }: Props) {
     if (range.clamped) toast.show('Xem tối đa 5 năm một lần');
   }
 
-  const pill = [styles.pillRow, { backgroundColor: colors.surface, borderColor: colors.line }];
+  const pill = [styles.pillRow, { backgroundColor: colors.surface }];
 
   return (
     <View style={[styles.wrap, { backgroundColor: colors.bg, paddingTop: 8 + insets.top }]}>
+      {!!title && (
+        <AppText weight="display" style={styles.title} accessibilityRole="header">
+          {title}
+        </AppText>
+      )}
       <View style={[styles.segment, { backgroundColor: colors.surface2 }]} accessibilityRole="tablist">
         {MODES.map((item) => {
           const selected = item.mode === view.mode;
           return (
             <Pressable
               key={item.mode}
-              style={[styles.segmentItem, selected && [styles.segmentItemOn, { backgroundColor: colors.surface }]]}
+              style={[styles.segmentItem, selected && { backgroundColor: colors.primary }]}
               accessibilityRole="tab"
               accessibilityState={{ selected }}
               onPress={() => onChange({ ...view, mode: item.mode })}>
-              <AppText weight="semibold" color={selected ? colors.ink : colors.muted} style={styles.segmentText}>
+              <AppText weight="semibold" color={selected ? colors.primaryInk : colors.muted} style={styles.segmentText}>
                 {item.label}
               </AppText>
             </Pressable>
@@ -129,16 +136,15 @@ export function PeriodBar({ view, onChange, today }: Props) {
 }
 
 const styles = StyleSheet.create({
-  wrap: { paddingHorizontal: 12, paddingBottom: 8, gap: 10 },
-  segment: { flexDirection: 'row', padding: 3, borderRadius: AppRadius.segment },
-  segmentItem: { flex: 1, height: 36, borderRadius: AppRadius.segmentItem, alignItems: 'center', justifyContent: 'center' },
-  segmentItemOn: { shadowColor: '#12211D', shadowOpacity: 0.12, shadowRadius: 1.5, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
+  wrap: { paddingHorizontal: 16, paddingBottom: 10, gap: 10 },
+  title: { fontSize: 26, lineHeight: 32, letterSpacing: -0.4 },
+  segment: { flexDirection: 'row', padding: 3, borderRadius: AppRadius.pill },
+  segmentItem: { flex: 1, height: 36, borderRadius: AppRadius.pill, alignItems: 'center', justifyContent: 'center' },
   segmentText: { fontSize: 13 },
   row: { height: 42 },
   pillRow: {
     height: 42,
     borderRadius: AppRadius.pill,
-    borderWidth: 1,
     padding: 3,
     flexDirection: 'row',
     alignItems: 'center',

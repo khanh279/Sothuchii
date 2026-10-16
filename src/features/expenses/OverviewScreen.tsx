@@ -4,6 +4,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
+import { NavTile } from '@/components/design';
 import {
   budgetSummary,
   initialPeriodView,
@@ -15,8 +16,9 @@ import {
 } from '@/domain/expenses';
 import { AddExpenseFab } from '@/features/expenses/AddExpenseFab';
 import { useExpenseSettings, useExpenses } from '@/features/expenses/hooks';
-import { BillOverviewCard } from '@/features/bills/BillOverviewCard';
-import { DebtOverviewCards } from '@/features/debts/DebtOverviewCards';
+import { BillDetailSection, BillStatCard } from '@/features/bills/BillOverviewCard';
+import { DebtPeopleSection, DebtStatCard, PaysEntry } from '@/features/debts/DebtOverviewCards';
+import { useDebtData } from '@/features/debts/hooks';
 import { FundOverviewCard } from '@/features/funds/FundOverviewCard';
 import { useFundData } from '@/features/funds/hooks';
 import { PeriodBar } from '@/features/expenses/PeriodBar';
@@ -41,6 +43,7 @@ export default function OverviewScreen() {
   const { settings, error: settingsError } = useExpenseSettings();
   const { items, loaded, error } = useExpenses(period);
   const hasFunds = useFundData().data.funds.length > 0;
+  const debt = useDebtData();
 
   const total = useMemo(() => sumAmounts(items), [items]);
   const summaries = useMemo(() => summarizeByCategory(items, settings), [items, settings]);
@@ -52,8 +55,8 @@ export default function OverviewScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
       {/* Phần tử đầu tiên là ô chọn kỳ và được ghim lại khi cuộn (sticky). */}
-      <ScrollView ref={scrollRef} {...scrollProps} stickyHeaderIndices={[0]} contentContainerStyle={{ paddingBottom: 92 + insets.bottom }}>
-        <PeriodBar view={view} onChange={setView} today={today} />
+      <ScrollView ref={scrollRef} {...scrollProps} stickyHeaderIndices={[0]} contentContainerStyle={{ paddingBottom: 110 + insets.bottom }}>
+        <PeriodBar title="Tổng quan" view={view} onChange={setView} today={today} />
         <View style={styles.body}>
           {message ? (
             <View style={[styles.notice, { backgroundColor: colors.dangerSoft }]}>
@@ -74,16 +77,32 @@ export default function OverviewScreen() {
               onOpenAll={() => router.push({ pathname: '/lich-su', params: periodParams })}
             />
           )}
-          <DebtOverviewCards
-            period={period}
-            onOpenPerson={(name) => router.push({ pathname: '/cong-no/chi-tiet', params: { ...periodParams, name } })}
-            onOpenPays={() => router.push({ pathname: '/cong-no/lich-su', params: periodParams })}
-          />
-          <BillOverviewCard
-            period={period}
-            onOpen={() => router.push({ pathname: '/chia-bill/lich-su', params: periodParams })}
-            onOpenPerson={(name) => router.push({ pathname: '/chia-bill/nguoi', params: { ...periodParams, name } })}
-          />
+          {debt.loaded && !debt.error && (
+            <>
+              <View style={styles.grid}>
+                <BillStatCard bills={debt.bills} period={period} style={styles.gridItem} />
+                <DebtStatCard bills={debt.bills} pays={debt.pays} period={period} style={styles.gridItem} />
+              </View>
+              <View style={styles.grid}>
+                <NavTile icon="tabOverview" label="Chi tiêu" caption="Lịch sử chi tiêu" style={styles.gridItem} onPress={() => router.push({ pathname: '/lich-su', params: periodParams })} />
+                <NavTile icon="people" label="Quỹ nhóm" caption="Đóng quỹ, chi quỹ" style={styles.gridItem} onPress={() => router.push('/giao-dich')} />
+              </View>
+              <BillDetailSection
+                bills={debt.bills}
+                pays={debt.pays}
+                period={period}
+                onOpenPerson={(name) => router.push({ pathname: '/chia-bill/nguoi', params: { ...periodParams, name } })}
+                onOpenHistory={() => router.push({ pathname: '/chia-bill/lich-su', params: periodParams })}
+              />
+              <DebtPeopleSection
+                bills={debt.bills}
+                pays={debt.pays}
+                period={period}
+                onOpenPerson={(name) => router.push({ pathname: '/cong-no/chi-tiet', params: { ...periodParams, name } })}
+              />
+              <PaysEntry bills={debt.bills} pays={debt.pays} period={period} onOpen={() => router.push({ pathname: '/cong-no/lich-su', params: periodParams })} />
+            </>
+          )}
           <FundOverviewCard
             period={period}
             onOpenFund={(fund) => router.push({ pathname: '/quy/lich-su', params: { ...periodParams, fund } })}
@@ -103,7 +122,9 @@ export default function OverviewScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  body: { paddingHorizontal: 12, paddingTop: 12, gap: 12 },
+  body: { paddingHorizontal: 16, paddingTop: 6, gap: 12 },
+  grid: { flexDirection: 'row', gap: 12 },
+  gridItem: { flex: 1, minWidth: 0 },
   notice: { padding: 16, borderRadius: 16 },
   noticeText: { fontSize: 15 },
 });
