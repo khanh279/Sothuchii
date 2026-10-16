@@ -115,6 +115,7 @@ export default function OverviewScreen() {
       <AddExpenseFab
         hasFunds={hasFunds}
         onTransfer={() => router.push('/cong-no/ghi-nhan')}
+        onCreateBill={() => router.push('/chia-bill/tao')}
         onAddFund={() => router.push('/quy/chi-tieu')}
         onAddPersonal={() =>
           router.push({ pathname: '/chi-tieu/nhap', params: { ...periodParams, d: suggestedDateFor(period, today) } })

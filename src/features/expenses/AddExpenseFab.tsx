@@ -15,20 +15,22 @@ interface Props {
   onAddFund: () => void;
   /** Mở luồng ghi nhận chuyển tiền. */
   onTransfer: () => void;
+  /** Mở màn tạo bill để chia tiền. */
+  onCreateBill: () => void;
   /** Đã có ít nhất một quỹ nhóm; chưa có thì mục "Chi quỹ nhóm" mờ đi kèm lời nhắc. */
   hasFunds: boolean;
 }
 
 const USE_NATIVE = Platform.OS !== 'web';
-const SHEET_OFFSET = 360;
+const SHEET_OFFSET = 440;
 const OPEN_MS = 260;
 const CLOSE_MS = 200;
 
 /**
- * Nút nổi "+" ở Tổng quan. Bấm thì mở bottom sheet đúng ba lựa chọn: Chi tiêu cá nhân, Chi quỹ nhóm, Chuyển tiền — mỗi lựa
+ * Nút nổi "+" ở Tổng quan. Bấm thì mở bottom sheet bốn lựa chọn: Chi tiêu cá nhân, Chi quỹ nhóm, Chuyển tiền, Tạo bill — mỗi lựa
  * chọn mở thẳng luồng nghiệp vụ hiện có (không tạo luồng mới). Đóng bằng chạm nền mờ, nút Back hoặc chọn một mục.
  */
-export function AddExpenseFab({ onAddPersonal, onAddFund, onTransfer, hasFunds }: Props) {
+export function AddExpenseFab({ onAddPersonal, onAddFund, onTransfer, onCreateBill, hasFunds }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { hidden } = useChrome();
@@ -65,6 +67,7 @@ export function AddExpenseFab({ onAddPersonal, onAddFund, onTransfer, hasFunds }
     { icon: 'person', label: 'Chi tiêu cá nhân', hint: 'Ghi một khoản chi của bạn', onPress: onAddPersonal },
     { icon: 'people', label: 'Chi quỹ nhóm', hint: hasFunds ? 'Ghi khoản chi từ một quỹ' : 'Chưa có quỹ — tạo quỹ ở tab Quỹ nhóm', disabled: !hasFunds, onPress: onAddFund },
     { icon: 'tabTransactions', label: 'Chuyển tiền', hint: 'Ghi nhận chuyển tiền hoặc trả nợ giữa hai người', onPress: onTransfer },
+    { icon: 'receipt', label: 'Tạo bill', hint: 'Tạo bill và chia tiền cho mọi người', onPress: onCreateBill },
   ];
 
   return (

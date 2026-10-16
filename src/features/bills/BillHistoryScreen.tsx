@@ -4,7 +4,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { EmptyState } from '@/components/design';
+import { EmptyState, TransactionRow } from '@/components/design';
 import { CategoryIcon } from '@/components/category-icon';
 import { SwipeRow } from '@/components/swipe-row';
 import { TOAST_BOTTOM_HISTORY, useToast } from '@/components/toast';
@@ -130,20 +130,13 @@ export default function BillHistoryScreen({ tab }: { tab?: BillHistoryTabMode } 
                             background={colors.bg}
                             radius={AppRadius.field}
                             accessibilityLabel={`${bill.title || 'Không tên'}, ${formatMoney(billTotal(bill))}`}>
-                            <View style={styles.row}>
-                              <CategoryIcon category={category} />
-                              <View style={styles.rowText}>
-                                <AppText weight="semibold" style={styles.rowTitle} numberOfLines={1}>
-                                  {bill.title || 'Không tên'}
-                                </AppText>
-                                <AppText color={colors.muted} style={styles.rowSub} numberOfLines={1}>
-                                  {category.name} · {bill.people.length} người
-                                </AppText>
-                              </View>
-                              <AppText weight="bold" style={styles.rowAmount}>
-                                {formatMoney(billTotal(bill))}
-                              </AppText>
-                            </View>
+                            <TransactionRow
+                              bare
+                              icon={<CategoryIcon category={category} />}
+                              title={bill.title || 'Không tên'}
+                              subtitle={`${category.name} · ${bill.people.length} người`}
+                              amount={formatMoney(billTotal(bill))}
+                            />
                           </SwipeRow>
                         );
                       })}

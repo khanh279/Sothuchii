@@ -4,11 +4,10 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View }
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { ConfirmDialog, EmptyState, PrimaryButton } from '@/components/design';
+import { ConfirmDialog, EmptyState, Panel, PrimaryButton, ScreenTitle, TransactionRow } from '@/components/design';
 import { SvgIcon } from '@/components/svg-icon';
 import { useToast } from '@/components/toast';
 import { AppFonts } from '@/constants/fonts';
-import { AppRadius } from '@/constants/palette';
 import { PayInputError } from '@/data/payRepository';
 import { recordPersonBillPaymentSynced } from '@/data/payService';
 import { formatMoney } from '@/domain/billForm';
@@ -19,9 +18,6 @@ import { maskPayAmount, parsePayAmount } from '@/domain/payForm';
 import { describeDebtError, useDebtData } from '@/features/debts/hooks';
 import { useColors } from '@/hooks/use-colors';
 import { formatVnDate, todayStr } from '@/utils/date';
-
-const GET = '#0F8A4B';
-const OWE = '#D64545';
 
 type PayMode = 'all' | 'partial' | 'number';
 
@@ -52,7 +48,6 @@ export default function PersonBillsScreen() {
 
   const canPay = data.remaining >= DEBT_ZERO;
   const signed = data.net;
-  const tone = signed > 0 ? GET : signed < 0 ? OWE : colors.muted;
   const sign = signed > 0 ? '+' : signed < 0 ? '−' : '';
 
   function resetPanel() {
@@ -114,56 +109,43 @@ export default function PersonBillsScreen() {
   } else {
     body = (
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.line }]}>
-          <View style={styles.head}>
-            <View style={styles.flex}>
-              <AppText weight="semibold" style={styles.title} numberOfLines={2}>
-                {name}
-              </AppText>
-              <AppText color={colors.muted} style={styles.small}>
-                {periodTitle(period)} · Còn phải thanh toán
-              </AppText>
-            </View>
-            <AppText weight="bold" color={tone} style={styles.headAmount}>
-              {sign}
-              {formatMoney(Math.abs(signed))}
-            </AppText>
-          </View>
+        <View style={[styles.hero, { backgroundColor: colors.heroBg }]}>
+          <AppText weight="medium" color={colors.heroSoft} style={styles.heroLabel}>
+            {periodTitle(period)} · Còn phải thanh toán
+          </AppText>
+          <AppText weight="display" color={colors.heroInk} style={styles.heroAmount} numberOfLines={1} adjustsFontSizeToFit>
+            {sign}
+            {formatMoney(Math.abs(signed))}
+          </AppText>
+          <AppText color={colors.heroSoft} style={styles.heroCaption}>
+            {signed < 0 ? `Tôi nợ ${name}` : signed > 0 ? `${name} nợ tôi` : `Không còn khoản nào với ${name}`}
+          </AppText>
+        </View>
 
+        <Panel>
           {data.rows.length === 0 ? (
             <EmptyState text={`Không có bill nào của ${name} trong khoảng này`} />
           ) : (
             data.rows.map((row, index) => (
-              <Pressable
+              <TransactionRow
                 key={row.id}
-                accessibilityRole="button"
+                first={index === 0}
+                icon={
+                  <View style={[styles.billIcon, { backgroundColor: colors.primarySoft }]}>
+                    <SvgIcon name="receipt" size={20} color={colors.primary} strokeWidth={1.8} />
+                  </View>
+                }
+                title={row.title}
+                subtitle={`${formatVnDate(row.date)} · ${row.dir < 0 ? 'Tôi nợ' : `${name} nợ tôi`} ${formatMoney(Math.abs(row.amount))} · Đã trả ${formatMoney(row.paid)}`}
+                amount={formatMoney(row.remaining)}
+                tone={row.remaining < DEBT_ZERO ? 'mid' : row.dir < 0 ? 'owe' : 'get'}
+                meta="Còn lại"
                 accessibilityLabel={`Chi tiết bill ${row.title}, ${formatMoney(Math.abs(row.amount))}`}
                 onPress={() => router.push({ pathname: '/chia-bill/chi-tiet', params: { id: row.id } })}
-                style={[styles.row, index > 0 && { borderTopWidth: 1, borderTopColor: colors.line }]}>
-                <View style={styles.flex}>
-                  <AppText weight="semibold" style={styles.rowTitle} numberOfLines={1}>
-                    {row.title}
-                  </AppText>
-                  <AppText color={colors.muted} style={styles.small}>
-                    {formatVnDate(row.date)} · {row.dir < 0 ? 'Tôi nợ' : `${name} nợ tôi`} {formatMoney(Math.abs(row.amount))}
-                  </AppText>
-                  <AppText color={colors.muted} style={styles.small}>
-                    Đã thanh toán {formatMoney(row.paid)}
-                  </AppText>
-                </View>
-                <View style={styles.rowRight}>
-                  <AppText color={colors.muted} style={styles.small}>
-                    Còn lại
-                  </AppText>
-                  <AppText weight="bold" color={row.remaining < DEBT_ZERO ? colors.muted : row.dir < 0 ? OWE : GET} style={styles.rowAmount}>
-                    {formatMoney(row.remaining)}
-                  </AppText>
-                </View>
-                <SvgIcon name="chevronRight" size={16} color={colors.muted} />
-              </Pressable>
+              />
             ))
           )}
-        </View>
+        </Panel>
 
         <View style={styles.payArea}>
           <PrimaryButton label="Thanh toán" disabled={!canPay || busy} onPress={() => (panelOpen ? resetPanel() : setPanelOpen(true))} />
@@ -252,8 +234,9 @@ export default function PersonBillsScreen() {
   }
 
   return (
-    <View style={[styles.screen, { backgroundColor: colors.bg, paddingTop: 12 + insets.top }]}>
+    <View style={[styles.screen, { backgroundColor: colors.bg }]}>
       <Stack.Screen options={{ title: 'Bill của người', headerShown: false }} />
+      <ScreenTitle title={name} topInset={insets.top} />
       {body}
 
       {confirmAmount !== null && (
@@ -278,7 +261,11 @@ const styles = StyleSheet.create({
   loading: { marginTop: 48 },
   notice: { marginHorizontal: 12, marginTop: 8, padding: 16, borderRadius: 16 },
   noticeText: { fontSize: 15 },
-  card: { borderRadius: AppRadius.card, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 8 },
+  hero: { borderRadius: 22, padding: 20, gap: 4 },
+  heroLabel: { fontSize: 12.5 },
+  heroAmount: { fontSize: 34, lineHeight: 42, letterSpacing: -0.6 },
+  heroCaption: { fontSize: 13 },
+  billIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   head: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 64 },
   title: { fontSize: 18, lineHeight: 24 },
   small: { fontSize: 12.5, lineHeight: 17 },

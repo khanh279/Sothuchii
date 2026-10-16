@@ -4,20 +4,20 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { CategoryIcon } from '@/components/category-icon';
-import { AppRadius } from '@/constants/palette';
-import { computeSplit } from '@/domain/bills';
+import { Panel, PersonAmountRow, ScreenTitle, SectionHeader } from '@/components/design';
+import { computeSplit, describeSplitProblem } from '@/domain/bills';
+import { formatMoney, rowMeta, rowStatus } from '@/domain/billForm';
 import { findBillById } from '@/domain/billHistory';
 import { dayHeading, resolveCategory } from '@/domain/expenses';
 import { useBills } from '@/features/bills/hooks';
-import { SplitReceipt } from '@/features/bills/SplitReceipt';
 import { useExpenseSettings } from '@/features/expenses/hooks';
 import { useColors } from '@/hooks/use-colors';
 import { formatVnDate, todayStr } from '@/utils/date';
 
 /**
- * Chi tiết MỘT bill đã chia (tham số route `id` = mã bill, không dùng tên/ngày/số tiền): tên, ngày, mục, số người và biên lai
- * (Tổng bill, phần mỗi người, ai nhận lại / còn thiếu, các khoản cần chuyển). Dùng chung cho Lịch sử chia bill và mục "Chi tiết"
- * ở Tổng quan. Chỉ xem: sửa / xóa bill làm ở Lịch sử chia bill (vuốt dòng).
+ * Chi tiết MỘT bill đã chia (tham số route `id` = mã bill, không dùng tên/ngày/số tiền). Chỉ xem: tổng bill, phần mỗi người, từng
+ * người chi bao nhiêu và nhận lại / còn thiếu bao nhiêu, các khoản cần chuyển — tính bằng `computeSplit` (không có logic chia riêng).
+ * Dùng chung cho Lịch sử chia bill, mục Chi tiết ở Tổng quan và màn người–bill. Sửa / xóa bill làm ở Lịch sử chia bill (vuốt dòng).
  */
 export default function BillDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -31,72 +31,121 @@ export default function BillDetailScreen() {
   const category = bill ? resolveCategory(settings, bill.cat) : null;
 
   let body;
-  if (error) {
-    body = (
-      <View style={[styles.notice, { backgroundColor: colors.dangerSoft }]}>
-        <AppText color={colors.danger} style={styles.noticeText}>
-          {error}
-        </AppText>
-      </View>
-    );
-  } else if (!loaded) {
-    body = <ActivityIndicator style={styles.loading} color={colors.primary} />;
-  } else if (!bill || !category) {
-    body = (
-      <View style={[styles.notice, { backgroundColor: colors.dangerSoft }]}>
-        <AppText color={colors.danger} style={styles.noticeText}>
-          Không tìm thấy bill này. Có thể nó đã bị xoá.
-        </AppText>
-      </View>
-    );
-  } else {
+  if (error) body = <Notice text={error} />;
+  else if (!loaded) body = <ActivityIndicator style={styles.loading} color={colors.primary} />;
+  else if (!bill || !category) body = <Notice text="Không tìm thấy bill này. Có thể nó đã bị xoá." />;
+  else {
+    const split = computeSplit(bill.people);
     body = (
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]}>
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.line }]}>
-          <View style={styles.head}>
+        <View style={[styles.hero, { backgroundColor: colors.heroBg }]}>
+          <View style={styles.heroTop}>
             <CategoryIcon category={category} />
-            <View style={styles.headText}>
-              <AppText weight="semibold" style={styles.title}>
+            <View style={styles.flex}>
+              <AppText weight="semibold" color={colors.heroInk} style={styles.heroTitle} numberOfLines={2}>
                 {bill.title || 'Không tên'}
               </AppText>
-              <AppText color={colors.muted} style={styles.sub}>
+              <AppText color={colors.heroSoft} style={styles.heroSub}>
                 {dayHeading(bill.date, today)}, {formatVnDate(bill.date)} · {category.name} · {bill.people.length} người
               </AppText>
             </View>
           </View>
-          <SplitReceipt split={computeSplit(bill.people)} showTotal framed={false} />
+          <View style={styles.heroNumbers}>
+            <View style={styles.flex}>
+              <AppText weight="medium" color={colors.heroSoft} style={styles.heroLabel}>
+                Tổng bill
+              </AppText>
+              <AppText weight="display" color={colors.heroInk} style={styles.heroAmount} numberOfLines={1} adjustsFontSizeToFit>
+                {formatMoney(split.total)}
+              </AppText>
+            </View>
+            {split.total > 0 && !split.bad && (
+              <View style={styles.heroRight}>
+                <AppText weight="medium" color={colors.heroSoft} style={styles.heroLabel}>
+                  {split.even ? 'Mỗi người' : 'Mỗi phần'}
+                </AppText>
+                <AppText weight="bold" color={colors.heroInk} style={styles.heroShare}>
+                  {formatMoney(split.share)}
+                </AppText>
+              </View>
+            )}
+          </View>
         </View>
+
+        {split.bad ? (
+          <Notice text={describeSplitProblem(split)} />
+        ) : (
+          <>
+            <View>
+              <SectionHeader title="Thành viên" subtitle="Chi, phần phải trả và chênh lệch của từng người" />
+              <Panel>
+                {split.rows.map((row, index) => {
+                  const status = rowStatus(row);
+                  const tone = status.kind === 'get' ? 'get' : status.kind === 'owe' ? 'owe' : 'mid';
+                  const amount = status.kind === 'even' ? 'Đã đủ' : `${status.kind === 'get' ? '+' : '−'}${formatMoney(status.amount / 1e3)}`;
+                  return (
+                    <PersonAmountRow
+                      key={row.index}
+                      first={index === 0}
+                      name={row.name}
+                      caption={`${rowMeta(row)}${status.kind === 'even' ? '' : status.kind === 'get' ? ' · Nhận lại' : ' · Còn thiếu'}`}
+                      amount={amount}
+                      tone={tone}
+                    />
+                  );
+                })}
+              </Panel>
+            </View>
+            {split.transfers.length > 0 && (
+              <View>
+                <SectionHeader title="Cần chuyển" subtitle="Gợi ý chuyển tiền để mọi người cân bằng" />
+                <Panel>
+                  {split.transfers.map((transfer, index) => (
+                    <PersonAmountRow key={`${transfer.from}>${transfer.to}>${index}`} first={index === 0} name={`${transfer.from} → ${transfer.to}`} amount={formatMoney(transfer.amt)} />
+                  ))}
+                </Panel>
+              </View>
+            )}
+          </>
+        )}
       </ScrollView>
     );
   }
 
   return (
-    <View style={[styles.screen, { backgroundColor: colors.bg, paddingTop: 12 + insets.top }]}>
+    <View style={[styles.screen, { backgroundColor: colors.bg }]}>
       <Stack.Screen options={{ title: 'Chi tiết bill', headerShown: false }} />
-      <View style={styles.bar}>
-        <AppText weight="semibold" style={styles.barTitle}>
-          Chi tiết bill
-        </AppText>
-      </View>
+      <ScreenTitle title="Chi tiết bill" topInset={insets.top} />
       {body}
+    </View>
+  );
+}
+
+function Notice({ text }: { text: string }) {
+  const colors = useColors();
+  return (
+    <View style={[styles.notice, { backgroundColor: colors.dangerSoft }]}>
+      <AppText color={colors.danger} style={styles.noticeText}>
+        {text}
+      </AppText>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  bar: { paddingHorizontal: 16, minHeight: 44, justifyContent: 'center' },
-  barTitle: { fontSize: 17 },
-  content: { paddingHorizontal: 12, paddingTop: 4 },
+  flex: { flex: 1, minWidth: 0 },
+  content: { paddingHorizontal: 16, paddingTop: 4, gap: 16 },
   loading: { marginTop: 48 },
-  notice: { marginHorizontal: 12, marginTop: 8, padding: 16, borderRadius: 16 },
+  notice: { marginHorizontal: 16, padding: 16, borderRadius: 16 },
   noticeText: { fontSize: 15 },
-  card: { borderRadius: AppRadius.card, borderWidth: 1, padding: 16, gap: 14 },
-  head: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  headText: { flex: 1, minWidth: 0 },
-  title: { fontSize: 18, lineHeight: 24 },
-  sub: { fontSize: 13, lineHeight: 18 },
-  actions: { flexDirection: 'row', gap: 8 },
-  action: { flex: 1, minHeight: 44, borderRadius: 14, borderWidth: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  actionText: { fontSize: 14.5 },
+  hero: { borderRadius: 22, padding: 20, gap: 16 },
+  heroTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  heroTitle: { fontSize: 18, lineHeight: 24 },
+  heroSub: { fontSize: 12.5, lineHeight: 17 },
+  heroNumbers: { flexDirection: 'row', alignItems: 'flex-end', gap: 12 },
+  heroLabel: { fontSize: 12.5 },
+  heroAmount: { fontSize: 34, lineHeight: 42, letterSpacing: -0.6 },
+  heroRight: { alignItems: 'flex-end' },
+  heroShare: { fontSize: 18, lineHeight: 26 },
 });

@@ -169,7 +169,7 @@ export function PersonAmountRow({ name, amount, tone, caption, onPress, first, a
           {name}
         </AppText>
         {!!caption && (
-          <AppText color={colors.muted} style={styles.caption} numberOfLines={1}>
+          <AppText color={colors.muted} style={styles.caption} numberOfLines={2}>
             {caption}
           </AppText>
         )}
