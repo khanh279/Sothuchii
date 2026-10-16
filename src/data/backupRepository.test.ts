@@ -1,7 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { createBackupDocument, createBackupText, restoreFromText, wipeSection } from './backupRepository';
+import { loadBills } from './billRepository';
 import { syncBillExpenses } from './billSync';
+import { loadPays } from './payRepository';
+import { checkUndoMerge, debtEvents, personLedger } from '@/domain/ledger';
 import { createExpense } from './expenseRepository';
 import { StorageCorruptError } from './storage';
 
@@ -229,6 +232,32 @@ describe('khoản trả (Công nợ)', () => {
     const month = await raw('sct:m:2025-10');
     expect(Object.values(month)).toHaveLength(1);
     expect(Object.values(month)[0]).toMatchObject({ a: 30_000, src: 'cb', i: 'Trả An · bill 01/10' });
+  });
+
+  it('gộp nợ (nhóm bt) và khoản "Trả dư": sao lưu → khôi phục giữ nguyên từng chữ, số dư và khả năng hoàn tác không đổi', async () => {
+    await put('chiabill:v2:bills', [{ id: 'b1', title: 'Ăn', date: '2025-10-01', cat: 'food', createdAt: 1, people: [{ name: 'Tôi', paid: 0, w: 1 }, { name: 'An', paid: 60, w: 1 }] }]); // tôi nợ An 30 (bill)
+    await put(PAYS, [
+      { id: 'l1', createdAt: 2, date: '2025-10-02', note: '', from: 'Tôi', to: 'An', amt: 50, kind: 'vay', zz: 1 },
+      { id: 'm1', createdAt: 20, date: '2025-10-05', note: '', from: 'An', to: 'Tôi', amt: 30, kind: 'bt', led: 'loan', grp: 'g1' },
+      { id: 'm2', createdAt: 21, date: '2025-10-05', note: '', from: 'Tôi', to: 'An', amt: 30, kind: 'bt', led: 'bill', grp: 'g1' },
+      { id: 'd1', createdAt: 30, date: '2025-10-06', note: 'Trả dư', from: 'Tôi', to: 'An', amt: 20, kind: 'vay' },
+    ]);
+    const state = async () => {
+      const [bills, pays] = [await loadBills(), await loadPays()];
+      return { ledger: personLedger(debtEvents(bills, pays), 'An'), undoG1: checkUndoMerge(bills, pays, 'g1') };
+    };
+    const before = await AsyncStorage.getItem(PAYS);
+    const stateBefore = await state();
+    const text = await createBackupText(1);
+    await AsyncStorage.clear();
+    expect((await restoreFromText(text)).ok).toBe(true);
+    expect(await AsyncStorage.getItem(PAYS)).toBe(before);
+    expect(await state()).toEqual(stateBefore);
+    expect(stateBefore.undoG1.ok).toBe(false); // đã có khoản "Trả dư" sau lần gộp
+    // Bản sao lưu này chưa có khoản chi cá nhân: lần đồng bộ đầu tạo "Bù trừ nợ" của lần gộp (một khoản), lần sau không đổi gì.
+    expect(await syncBillExpenses()).toMatchObject({ paysReplaced: 1, orphansRemoved: 0 });
+    expect(await syncBillExpenses()).toMatchObject({ added: 0, replaced: 0, paysReplaced: 0, paysUnlinked: 0, orphansRemoved: 0 });
+    expect(Object.values(await raw('sct:m:2025-10'))).toHaveLength(1);
   });
 
   it('khoản trả hỏng → không tạo sao lưu thiếu', async () => {

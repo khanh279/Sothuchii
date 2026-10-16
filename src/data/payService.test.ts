@@ -163,6 +163,25 @@ describe('thanh toán 4 lựa chọn (nợ bill / nợ vay / một phần / toà
     expect((await cbExpenses()).map((e) => e.a)).toEqual([30_000]);
   });
 
+  it('sau khi trả dư, họ nợ tôi 20: thanh toán 20 đưa về 0; khoản "Trả dư" vẫn là một bản ghi, tiền không tính đôi', async () => {
+    await seedOweBoth();
+    await recordDebtPaymentSynced('An', 'partial', 100); // bill 30 + vay 50 + dư 20 → An nợ tôi vay 20
+    expect(await ledger('An')).toMatchObject({ bill: 0, loan: 20 });
+    await recordDebtPaymentSynced('An', 'all'); // An trả tôi 20
+    expect(await ledger('An')).toMatchObject({ bill: 0, loan: 0 });
+    expect((await json(PAYS)).filter((x: { note: string }) => x.note === 'Trả dư')).toHaveLength(1);
+    expect((await cbExpenses()).map((e) => e.a)).toEqual([30_000]);
+  });
+
+  it('xoá khoản "Trả dư" → số dư trở về trước phần dư; chi tiêu cá nhân của khoản trả bill không đổi', async () => {
+    await seedOweBoth();
+    await recordDebtPaymentSynced('An', 'partial', 100);
+    const surplus = (await json(PAYS)).find((x: { note: string }) => x.note === 'Trả dư');
+    await deletePaySynced([surplus.id]);
+    expect(await ledger('An')).toMatchObject({ bill: 0, loan: 0 });
+    expect((await cbExpenses()).map((e) => e.a)).toEqual([30_000]);
+  });
+
   it('hai sổ trái dấu hoặc số tiền ≤ 0 → không ghi gì', async () => {
     await seedBills();
     await AsyncStorage.setItem(PAYS, JSON.stringify([{ id: 'l1', createdAt: 1, date: '2025-10-02', note: '', from: 'Tôi', to: 'An', amt: 50, kind: 'vay' }])); // An nợ tôi vay 50, tôi nợ An bill 30
@@ -207,6 +226,19 @@ describe('gộp nợ và hoàn tác', () => {
     const group = before.find((x: { kind: string }) => x.kind === 'bt').grp as string;
     await expect(undoMergeSynced(group)).rejects.toThrow('Không thể hoàn tác');
     expect(await json(PAYS)).toEqual(before);
+  });
+
+  it('gộp → hoàn tác → gộp lại: số dư và khoản chi cá nhân ổn định, không tạo trùng', async () => {
+    await seedLoanAndBill();
+    await mergeDebtsSynced('An');
+    const group = ((await json(PAYS)).find((x: { kind: string }) => x.kind === 'bt') as { grp: string }).grp;
+    await undoMergeSynced(group);
+    expect(await ledger('An')).toMatchObject({ loan: 50, bill: -30 });
+    expect(await cbExpenses()).toEqual([]);
+    await mergeDebtsSynced('An');
+    expect(await ledger('An')).toMatchObject({ loan: 20, bill: 0 });
+    expect((await cbExpenses()).map((e) => e.a)).toEqual([30_000]);
+    expect((await json(PAYS)).filter((x: { kind: string }) => x.kind === 'bt')).toHaveLength(2);
   });
 
   it('không gộp được (cùng dấu hoặc một sổ bằng 0) → không ghi gì', async () => {
