@@ -186,6 +186,28 @@ export function deleteExpense(ref: ExpenseRef): Promise<boolean> {
   });
 }
 
+/**
+ * Xoá khoản chi như `deleteExpense` nhưng trả về hàm hoàn tác (ghi lại đúng bản ghi thô, cùng id và tháng).
+ * Trả về null nếu không có gì để xoá. Hoàn tác không ghi đè nếu id đã được dùng lại.
+ */
+export function deleteExpenseUndoable(ref: ExpenseRef): Promise<(() => Promise<boolean>) | null> {
+  return serial(async () => {
+    const data = await readMonthRaw(ref.m);
+    if (!(ref.id in data)) return null;
+    const removed = data[ref.id];
+    const { [ref.id]: _removed, ...rest } = data;
+    void _removed;
+    await saveJsonStrict(monthKeyOf(ref.m), rest);
+    return () =>
+      serial(async () => {
+        const current = await readMonthRaw(ref.m);
+        if (ref.id in current) return false;
+        await saveJsonStrict(monthKeyOf(ref.m), { ...current, [ref.id]: removed });
+        return true;
+      });
+  });
+}
+
 /** Tìm mọi khoản có `src` cho trước, trên tất cả các tháng. */
 export function listBySource(src: string): Promise<ExpenseRef[]> {
   return serial(async () => {

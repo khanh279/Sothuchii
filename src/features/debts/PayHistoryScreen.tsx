@@ -89,7 +89,7 @@ export default function PayHistoryScreen() {
 
             <View style={styles.body}>
               {history.days.length === 0 ? (
-                <EmptyState text="Không có khoản nào trong khoảng này" icon="check" />
+                <EmptyState text="Không có khoản nào trong khoảng này" icon="check" action={{ label: 'Ghi nhận chuyển tiền', onPress: () => router.push('/cong-no/ghi-nhan') }} />
               ) : (
                 history.days.map((day) => (
                   <View key={day.date} style={styles.day}>
@@ -120,7 +120,8 @@ export default function PayHistoryScreen() {
   );
 }
 
-function PayRowView({ row, rowProps, onDelete }: { row: PayRow; rowProps: ReturnType<ReturnType<typeof useSingleOpenRow>['rowProps']>; onDelete: () => void }) {
+/** Một dòng khoản trả (vuốt để Sửa / Xoá); dùng chung với mục Giao dịch của tab Chi tiêu. `badge`: nhãn liên kết nếu có căn cứ. */
+export function PayRowView({ row, rowProps, onDelete, badge }: { row: PayRow; rowProps: ReturnType<ReturnType<typeof useSingleOpenRow>['rowProps']>; onDelete: () => void; badge?: string }) {
   const colors = useColors();
   const tone = row.tone === 'get' ? colors.success : row.tone === 'owe' ? colors.danger : colors.muted;
   const sign = row.tone === 'get' ? '+' : row.tone === 'owe' ? '−' : '';
@@ -142,6 +143,7 @@ function PayRowView({ row, rowProps, onDelete }: { row: PayRow; rowProps: Return
         }
         title={`${row.from} → ${row.to}`}
         subtitle={[row.title, subtitle].filter(Boolean).join(' · ')}
+        badge={badge}
         amount={`${sign}${formatMoney(row.amt)}`}
         tone={row.tone}
       />

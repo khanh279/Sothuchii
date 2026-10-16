@@ -5,6 +5,7 @@ import {
   ExpenseIdExistsError,
   createExpense,
   deleteExpense,
+  deleteExpenseUndoable,
   getExpense,
   listMonthKeys,
   loadMonth,
@@ -63,6 +64,22 @@ describe('đọc / thêm / xoá', () => {
     expect(await deleteExpense({ m: '2030-01', id: 'a' })).toBe(false);
     expect(await raw('sct:m:2025-10')).toEqual({});
     expect(await listMonthKeys()).toEqual(['2025-10']);
+  });
+
+  it('xoá có hoàn tác: khôi phục đúng bản ghi thô (cả trường lạ), không ghi đè id đã dùng lại', async () => {
+    await AsyncStorage.setItem('sct:m:2025-10', JSON.stringify({ a: exp({ lạ: 'giữ', src: 'bill:1' }), b: exp({ a: 7 }) }));
+    const undo = await deleteExpenseUndoable({ m: '2025-10', id: 'a' });
+    expect(undo).not.toBeNull();
+    expect(Object.keys(await raw('sct:m:2025-10'))).toEqual(['b']);
+    expect(await undo!()).toBe(true);
+    expect((await raw('sct:m:2025-10')).a).toEqual(exp({ lạ: 'giữ', src: 'bill:1' }));
+    expect((await raw('sct:m:2025-10')).b).toEqual(exp({ a: 7 }));
+
+    const undo2 = await deleteExpenseUndoable({ m: '2025-10', id: 'a' });
+    await createExpense('a', exp({ a: 999 }));
+    expect(await undo2!()).toBe(false);
+    expect((await raw('sct:m:2025-10')).a.a).toBe(999);
+    expect(await deleteExpenseUndoable({ m: '2025-10', id: 'khong-co' })).toBeNull();
   });
 
   it('view an toàn với bản ghi thiếu trường nhưng không sửa bản thô', async () => {

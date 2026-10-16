@@ -98,7 +98,7 @@ export default function BillHistoryScreen({ tab }: { tab?: BillHistoryTabMode } 
 
             <View style={styles.body}>
               {history.days.length === 0 ? (
-                <EmptyState text="Không có bill trong khoảng này" icon="check" />
+                <EmptyState text="Không có bill trong khoảng này" icon="check" action={{ label: 'Tạo bill', onPress: () => router.push('/chia-bill/tao') }} />
               ) : (
                 history.days.map((day) => (
                   <View key={day.date} style={styles.day}>

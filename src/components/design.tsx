@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Modal, Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { SvgIcon } from '@/components/svg-icon';
@@ -200,6 +200,8 @@ interface TransactionRowProps {
   tone?: AmountTone;
   /** Nhãn nhỏ dưới số tiền (ví dụ ngày hoặc loại giao dịch). */
   meta?: string;
+  /** Nhãn liên kết dạng viên thuốc dưới dòng phụ (ví dụ "Liên kết bill"). */
+  badge?: string;
   first?: boolean;
   onPress?: () => void;
   accessibilityLabel?: string;
@@ -208,7 +210,7 @@ interface TransactionRowProps {
 }
 
 /** Dòng giao dịch: biểu tượng, nội dung + thông tin phụ bên trái, số tiền căn phải kèm nhãn nhỏ. */
-export function TransactionRow({ icon, title, subtitle, amount, tone, meta, first, onPress, accessibilityLabel, bare }: TransactionRowProps) {
+export function TransactionRow({ icon, title, subtitle, amount, tone, meta, badge, first, onPress, accessibilityLabel, bare }: TransactionRowProps) {
   const colors = useColors();
   const toneColor = useToneColor();
   const content = (
@@ -222,6 +224,13 @@ export function TransactionRow({ icon, title, subtitle, amount, tone, meta, firs
           <AppText color={colors.muted} style={styles.caption} numberOfLines={2}>
             {subtitle}
           </AppText>
+        )}
+        {!!badge && (
+          <View style={[styles.badge, { backgroundColor: colors.primarySoft }]}>
+            <AppText weight="semibold" color={colors.primary} style={styles.badgeText} numberOfLines={1}>
+              {badge}
+            </AppText>
+          </View>
         )}
       </View>
       <View style={styles.txRight}>
@@ -245,9 +254,59 @@ export function TransactionRow({ icon, title, subtitle, amount, tone, meta, firs
   );
 }
 
+// ───────────────────────── Thanh chuyển mục và hàng chip lọc ─────────────────────────
+
+/** Thanh chuyển giữa các mục (vài lựa chọn ngang nhau): mục đang chọn nền navy chữ trắng, các mục còn lại chìm trên nền xám. */
+export function SegmentedControl<T extends string>({ options, value, onChange }: { options: readonly { value: T; label: string }[]; value: T; onChange: (value: T) => void }) {
+  const colors = useColors();
+  return (
+    <View style={[styles.segmented, { backgroundColor: colors.surface2 }]} accessibilityRole="tablist">
+      {options.map((option) => {
+        const selected = option.value === value;
+        return (
+          <Pressable
+            key={option.value}
+            accessibilityRole="tab"
+            accessibilityState={{ selected }}
+            onPress={() => onChange(option.value)}
+            style={[styles.segmentedItem, selected && { backgroundColor: colors.primary }]}>
+            <AppText weight="semibold" color={selected ? colors.primaryInk : colors.muted} style={styles.segmentedText}>
+              {option.label}
+            </AppText>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+/** Một hàng nút lọc cuộn ngang (không xuống dòng); nút đang chọn nền navy. Dùng cho danh mục và loại giao dịch. */
+export function ChipRow<T extends string>({ options, value, onChange }: { options: readonly { value: T; label: string }[]; value: T; onChange: (value: T) => void }) {
+  const colors = useColors();
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll} contentContainerStyle={styles.chipContent} keyboardShouldPersistTaps="handled">
+      {options.map((option) => {
+        const selected = option.value === value;
+        return (
+          <Pressable
+            key={option.value}
+            accessibilityRole="button"
+            accessibilityState={{ selected }}
+            onPress={() => onChange(option.value)}
+            style={[styles.chip, selected ? { backgroundColor: colors.primary, borderColor: colors.primary } : { backgroundColor: colors.surface, borderColor: colors.line }]}>
+            <AppText weight="medium" color={selected ? colors.primaryInk : colors.ink} style={styles.chipText} numberOfLines={1}>
+              {option.label}
+            </AppText>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
 // ───────────────────────── Trạng thái trống ─────────────────────────
 
-export function EmptyState({ text, icon }: { text: string; icon?: IconName }) {
+export function EmptyState({ text, icon, action }: { text: string; icon?: IconName; action?: { label: string; onPress: () => void } }) {
   const colors = useColors();
   return (
     <View style={styles.empty}>
@@ -255,6 +314,7 @@ export function EmptyState({ text, icon }: { text: string; icon?: IconName }) {
       <AppText color={colors.muted} style={styles.emptyText}>
         {text}
       </AppText>
+      {action && <SecondaryButton label={action.label} onPress={action.onPress} style={styles.emptyAction} />}
     </View>
   );
 }
@@ -368,11 +428,21 @@ const styles = StyleSheet.create({
   row: { minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
   rowName: { fontSize: 15.5, lineHeight: 21 },
   rowAmount: { fontSize: 16, lineHeight: 22, textAlign: 'right' },
+  badge: { alignSelf: 'flex-start', marginTop: 4, paddingHorizontal: 8, paddingVertical: 2, borderRadius: AppRadius.pill },
+  badgeText: { fontSize: 11, lineHeight: 15 },
+  segmented: { flexDirection: 'row', padding: 4, borderRadius: AppRadius.pill, gap: 4 },
+  segmentedItem: { flex: 1, height: 38, borderRadius: AppRadius.pill, alignItems: 'center', justifyContent: 'center' },
+  segmentedText: { fontSize: 14 },
+  chipScroll: { flexGrow: 0 },
+  chipContent: { gap: 8, paddingHorizontal: 16 },
+  chip: { height: 36, paddingHorizontal: 14, borderRadius: AppRadius.pill, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  chipText: { fontSize: 13 },
   txRow: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
   txTitle: { fontSize: 15, lineHeight: 20 },
   txRight: { alignItems: 'flex-end', maxWidth: '40%' },
   empty: { alignItems: 'center', gap: 8, paddingVertical: 28, paddingHorizontal: 16 },
   emptyText: { fontSize: 14, textAlign: 'center' },
+  emptyAction: { alignSelf: 'stretch', marginTop: 8 },
   button: { minHeight: 50, borderRadius: AppRadius.field, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
   buttonText: { fontSize: 15.5 },
   scrim: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },

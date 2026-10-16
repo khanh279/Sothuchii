@@ -1,15 +1,13 @@
 import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { EmptyState, PrimaryButton, TransactionRow } from '@/components/design';
+import { EmptyState, TransactionRow } from '@/components/design';
 import { CategoryIcon } from '@/components/category-icon';
 import { SwipeRow } from '@/components/swipe-row';
-import { TOAST_BOTTOM_HISTORY, useToast } from '@/components/toast';
 import { AppRadius } from '@/constants/palette';
-import { deleteExpense } from '@/data/expenseRepository';
 import {
   categoriesInUse,
   dayHeading,
@@ -23,44 +21,31 @@ import {
   sumAmounts,
 } from '@/domain/expenses';
 import { linkedExpenseNotice } from '@/domain/linkedExpense';
-import { describeStorageError, useExpenseSettings, useExpenses } from '@/features/expenses/hooks';
+import { useExpenseSettings, useExpenses } from '@/features/expenses/hooks';
+import { useExpenseRowActions } from '@/features/expenses/useExpenseRowActions';
 import { useColors } from '@/hooks/use-colors';
 import type { ExpenseSettings, ExpenseWithId, Period } from '@/types/expense';
-import { formatVnDate, monthOf, todayStr } from '@/utils/date';
+import { formatVnDate, todayStr } from '@/utils/date';
 import { formatVnd } from '@/utils/format';
 
 /**
  * Lịch sử chi tiêu cá nhân của một kỳ — một thẻ gồm tóm tắt, chip lọc theo mục và các ngày;
  * mỗi khoản là một khung riêng, vuốt sang trái để Sửa / Xoá (chạm vào dòng không mở trang sửa, như PWA).
  * Tham số route: kỳ (`mode`, `month`, `year`, `from`, `to`) và `cat` (chỉ xem một mục, như bấm mục ở Tổng quan).
+ * Tab "Chi tiêu" có màn riêng (`ExpensesTab`) và dùng lại `ExpenseRow` ở đây.
  */
-export interface HistoryTabMode {
-  /** Kỳ đang xem (do tab giữ, không lấy từ tham số route). */
-  period: Period;
-  /** Chip lọc theo mục đang chọn và hàm đổi (do tab giữ để chuyển tab rồi quay lại vẫn còn). */
-  chip: string;
-  onChip: (chip: string) => void;
-  /** Đầu trang (tiêu đề + bộ chọn kỳ), hiện phía trên danh sách. */
-  header: ReactNode;
-}
-
-export default function HistoryScreen({ tab }: { tab?: HistoryTabMode } = {}) {
+export default function HistoryScreen() {
   const params = useLocalSearchParams<{ mode?: string; month?: string; year?: string; from?: string; to?: string; cat?: string }>();
   const { mode, month, year, from, to } = params;
   const today = todayStr();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
-  const toast = useToast();
-  const paramPeriod = useMemo(() => periodFromParams({ mode, month, year, from, to }, today), [mode, month, year, from, to, today]);
-  const period = tab ? tab.period : paramPeriod;
+  const period = useMemo(() => periodFromParams({ mode, month, year, from, to }, today), [mode, month, year, from, to, today]);
 
   const { settings, error: settingsError } = useExpenseSettings();
   const { items, loaded, error, reload } = useExpenses(period);
-  const [ownChip, setOwnChip] = useState<string>('all');
-  const chip = tab ? tab.chip : ownChip;
-  const setChip = tab ? tab.onChip : setOwnChip;
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [chip, setChip] = useState<string>('all');
 
   const fixedCategory = params.cat || null;
   const selected = fixedCategory ?? chip;
@@ -72,42 +57,12 @@ export default function HistoryScreen({ tab }: { tab?: HistoryTabMode } = {}) {
 
   const title = fixedCategory ? resolveCategory(settings, fixedCategory).name : 'Chi tiêu cá nhân';
   const message = settingsError ?? error;
-
-  async function remove(item: ExpenseWithId) {
-    const notice = linkedExpenseNotice(item);
-    if (notice) {
-      setOpenId(null);
-      toast.show(notice, { bottom: TOAST_BOTTOM_HISTORY });
-      return;
-    }
-    try {
-      await deleteExpense({ m: monthOf(item.d), id: item.id });
-      setOpenId(null);
-      toast.show('Đã xoá khoản chi', { bottom: TOAST_BOTTOM_HISTORY });
-      await reload();
-    } catch (e) {
-      toast.show(describeStorageError(e), { bottom: TOAST_BOTTOM_HISTORY });
-    }
-  }
-
-  function openDetail(item: ExpenseWithId) {
-    router.push({ pathname: '/chi-tieu/chi-tiet', params: { m: monthOf(item.d), id: item.id } });
-  }
-
-  function edit(item: ExpenseWithId) {
-    const notice = linkedExpenseNotice(item);
-    if (notice) {
-      toast.show(notice, { bottom: TOAST_BOTTOM_HISTORY });
-      return;
-    }
-    router.push({ pathname: '/chi-tieu/nhap', params: { ...periodToParams(period), m: monthOf(item.d), id: item.id } });
-  }
+  const { openId, setOpenId, remove, edit, openDetail } = useExpenseRowActions({ period, reload });
 
   // Trang riêng: không header, đệm trên 12 + vùng an toàn; một thẻ trắng bo 16 chứa mọi thứ.
   return (
-    <View style={[styles.screen, { backgroundColor: colors.bg, paddingTop: tab ? 0 : 12 + insets.top }]}>
-      {!tab && <Stack.Screen options={{ title, headerShown: false }} />}
-      {tab?.header}
+    <View style={[styles.screen, { backgroundColor: colors.bg, paddingTop: 12 + insets.top }]}>
+      <Stack.Screen options={{ title, headerShown: false }} />
       {message ? (
         <View style={[styles.notice, { backgroundColor: colors.dangerSoft }]}>
           <AppText color={colors.danger} style={styles.noticeText}>
@@ -118,17 +73,9 @@ export default function HistoryScreen({ tab }: { tab?: HistoryTabMode } = {}) {
         <ActivityIndicator style={styles.loading} color={colors.primary} />
       ) : (
         <ScrollView
-          contentContainerStyle={[styles.content, { paddingBottom: (tab ? 110 : 24) + insets.bottom }]}
+          contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]}
           onScrollBeginDrag={() => setOpenId(null)}
           keyboardShouldPersistTaps="handled">
-          {tab && (
-            <View style={styles.addRow}>
-              <PrimaryButton
-                label="Thêm khoản chi"
-                onPress={() => router.push({ pathname: '/chi-tieu/nhap', params: { ...periodToParams(period), d: suggestedDateFor(period, today) } })}
-              />
-            </View>
-          )}
           <View style={[styles.card, { backgroundColor: colors.surface, minHeight: Math.max(0, height - 300) }]}>
             <View style={styles.summary}>
               <View style={styles.summaryLeft}>
@@ -151,7 +98,11 @@ export default function HistoryScreen({ tab }: { tab?: HistoryTabMode } = {}) {
 
             <View style={styles.body}>
               {groups.length === 0 ? (
-                <EmptyState text="Chưa có khoản chi nào trong kỳ này. Mỗi khoản bạn ghi sẽ hiện ở đây, xếp theo ngày; thêm khoản chi bằng nút + Chi tiêu." icon="check" />
+                <EmptyState
+                  text="Chưa có khoản chi nào trong kỳ này. Mỗi khoản bạn ghi sẽ hiện ở đây, xếp theo ngày; thêm khoản chi bằng nút + Chi tiêu."
+                  icon="check"
+                  action={{ label: 'Thêm khoản chi', onPress: () => router.push({ pathname: '/chi-tieu/nhap', params: { ...periodToParams(period), d: suggestedDateFor(period, today) } }) }}
+                />
               ) : (
                 <>
                   {!fixedCategory && inUse.length > 0 && (
@@ -249,9 +200,11 @@ interface RowProps {
   onPressLocked: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  /** Nhãn liên kết hiện dưới dòng phụ (ví dụ "Liên kết bill"). */
+  badge?: string;
 }
 
-function ExpenseRow({ item, settings, open, onOpen, onClose, onPressRow, onPressLocked, onEdit, onDelete }: RowProps) {
+export function ExpenseRow({ item, settings, open, onOpen, onClose, onPressRow, onPressLocked, onEdit, onDelete, badge }: RowProps) {
   const colors = useColors();
   const category = resolveCategory(settings, item.c);
   return (
@@ -272,6 +225,7 @@ function ExpenseRow({ item, settings, open, onOpen, onClose, onPressRow, onPress
         icon={<CategoryIcon category={category} />}
         title={item.n || category.name}
         subtitle={item.i || category.name}
+        badge={badge}
         amount={formatVnd(item.a)}
       />
     </SwipeRow>
@@ -295,7 +249,6 @@ const styles = StyleSheet.create({
   summaryAmount: { fontSize: 12, lineHeight: 15 },
   /** Thân thẻ: đệm 2/12/12, các khối cách nhau 12. Chip tràn hết bề rộng thẻ. */
   body: { paddingTop: 2, paddingBottom: 12, gap: 12 },
-  addRow: { marginBottom: 12 },
   chipsScroll: { flexGrow: 0 },
   chips: { gap: 8, paddingHorizontal: 12, paddingBottom: 4.8 },
   chip: { height: 36, paddingHorizontal: 14, borderRadius: AppRadius.pill, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
