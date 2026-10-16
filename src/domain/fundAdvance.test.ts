@@ -1,7 +1,7 @@
 import type { Advance, Contribution, FundData, FundExpense, FundTxn } from '@/types/fund';
 
 import { fundBalance } from './funds';
-import { advanceSummary, checkPayout, checkRefund, expenseKind, fundPosition, personalDebt } from './fundAdvance';
+import { advanceSummary, checkPayout, checkRefund, expenseKind, fundPersonBalances, fundPosition, personalDebt } from './fundAdvance';
 
 // DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng. Tiền: ĐỒNG.
 const F = 'f1';
@@ -167,5 +167,36 @@ describe('10–12. không tính trùng, lịch sử giữ nguyên', () => {
     fundPosition(d, 'all');
     advanceSummary(d, d.advances![0]);
     expect(JSON.stringify(d)).toBe(before);
+  });
+});
+
+describe('fundPersonBalances (công nợ quỹ theo người)', () => {
+  const d = data({
+    advances: [advance('a1', 500_000, 'B'), advance('a2', 300_000, 'C')],
+    expenses: [
+      expense('p1', 300_000, { mode: 'personal', payer: 'A' }),
+      expense('p2', 100_000, { mode: 'personal', payer: 'B' }),
+      expense('x1', 700_000, { mode: 'advance', payer: 'B', advanceId: 'a1' }), // B chi vượt 200.000
+      expense('x2', 100_000, { mode: 'advance', payer: 'C', advanceId: 'a2' }), // C còn giữ 200.000
+    ],
+    txns: [txn('t1', 'payout', 100_000, { expenseId: 'p1' }), txn('t2', 'payout', 50_000, { advanceId: 'a1', person: 'B' })],
+  });
+
+  it('gộp theo từng người: quỹ nợ và số đang giữ; tổng các dòng khớp vị thế quỹ', () => {
+    const rows = fundPersonBalances(d, F);
+    expect(rows).toEqual([
+      { person: 'B', owed: 250_000, held: 0 }, // p2 100.000 + vượt a1 (200.000 − 50.000 đã trả thêm)
+      { person: 'A', owed: 200_000, held: 0 }, // 300.000 − 100.000 đã trả
+      { person: 'C', owed: 0, held: 200_000 },
+    ]);
+    const position = fundPosition(d, F);
+    expect(rows.reduce((s, r) => s + r.owed, 0)).toBe(position.owed);
+    expect(rows.reduce((s, r) => s + r.held, 0)).toBe(position.held);
+  });
+
+  it('người đã thanh toán đủ và hồ sơ đã quyết toán không còn trong danh sách; quỹ chỉ chi trực tiếp thì rỗng', () => {
+    const paidAll = data({ expenses: [expense('p1', 300_000, { mode: 'personal', payer: 'A' })], txns: [txn('t1', 'payout', 300_000, { expenseId: 'p1' })] });
+    expect(fundPersonBalances(paidAll, F)).toEqual([]);
+    expect(fundPersonBalances(data({ expenses: [expense('d1', 10)] }), F)).toEqual([]);
   });
 });

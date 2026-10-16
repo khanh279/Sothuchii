@@ -1,4 +1,4 @@
-import { buildFundHistory, buildOverviewFundCard } from './fundHistory';
+import { buildFundHistory, buildOverviewFundCard, filterDaysByPerson } from './fundHistory';
 
 // DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng.
 const funds = [{ id: 'a', name: 'Quỹ A' }, { id: 'b', name: 'Quỹ B' }];
@@ -123,5 +123,19 @@ describe('buildFundHistory với chi quỹ nâng cao', () => {
     const history = buildFundHistory(old, 'all', { mode: 'all' });
     expect(history.count).toBe(2);
     expect(history.totalOut).toBe(100_000);
+  });
+});
+
+describe('filterDaysByPerson', () => {
+  it('chỉ giữ dòng của đúng người, bỏ ngày trống; không lọc khi rỗng; không đổi danh sách gốc', () => {
+    const days = [
+      { date: '2025-10-03', entries: [{ kind: 'expense' as const, id: 'e1', date: '2025-10-03', title: 'x', fundId: 'f', amount: 1, meta: '', person: 'A' }, { kind: 'expense' as const, id: 'e2', date: '2025-10-03', title: 'y', fundId: 'f', amount: 1, meta: '', person: 'B' }] },
+      { date: '2025-10-01', entries: [{ kind: 'contribution' as const, id: 'c1', date: '2025-10-01', title: 'z', fundId: 'f', amount: 1, meta: '' }] },
+    ];
+    const a = filterDaysByPerson(days, 'A');
+    expect(a).toHaveLength(1);
+    expect(a[0].entries.map((e) => e.id)).toEqual(['e1']);
+    expect(filterDaysByPerson(days, '')).toHaveLength(2);
+    expect(days[0].entries).toHaveLength(2);
   });
 });

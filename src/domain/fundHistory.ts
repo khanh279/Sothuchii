@@ -160,3 +160,12 @@ export function buildOverviewFundCard(
     totalOut: totals.out,
   };
 }
+
+/**
+ * Giữ lại các dòng lịch sử liên quan tới MỘT người (người chi / nhận ứng / nhận thanh toán / hoàn tiền); bỏ ngày không còn dòng nào.
+ * `person` rỗng = không lọc. Chỉ lọc hiển thị: không đổi dữ liệu, tổng thu / chi của `FundHistory` không bị ảnh hưởng.
+ */
+export function filterDaysByPerson(days: readonly FundHistoryDay[], person: string): FundHistoryDay[] {
+  if (!person) return [...days];
+  return days.map((day) => ({ ...day, entries: day.entries.filter((entry) => entry.person === person) })).filter((day) => day.entries.length > 0);
+}

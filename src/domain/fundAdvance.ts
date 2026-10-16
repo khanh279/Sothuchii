@@ -173,3 +173,42 @@ export function checkPayout(data: Data, target: { expenseId: string } | { advanc
   if (value > owed) return { ok: false, message: 'Số tiền vượt số quỹ còn nợ.' };
   return { ok: true, amount: value };
 }
+
+// ───────────────────────── Công nợ quỹ theo người ─────────────────────────
+
+export interface PersonFundBalance {
+  person: string;
+  /** Quỹ còn nợ người này (khoản cá nhân đã ứng chưa trả + phần chi vượt tiền ứng chưa trả thêm). */
+  owed: Vnd;
+  /** Người này còn giữ tiền ứng của quỹ (chưa chi hết / chưa hoàn). */
+  held: Vnd;
+}
+
+/**
+ * Công nợ quỹ gộp theo từng người (chỉ đọc, dùng đúng `personalDebt` và `advanceSummary` ở trên nên tổng các dòng bằng `fundPosition().owed / .held`).
+ * Chỉ giữ người còn nợ hoặc còn giữ tiền; xếp theo số quỹ nợ giảm dần, rồi số đang giữ, rồi tên.
+ */
+export function fundPersonBalances(data: Data, fundId: string | 'all'): PersonFundBalance[] {
+  const map = new Map<string, PersonFundBalance>();
+  const row = (person: string): PersonFundBalance => {
+    const name = person.trim();
+    let entry = map.get(name);
+    if (!entry) {
+      entry = { person: name, owed: 0, held: 0 };
+      map.set(name, entry);
+    }
+    return entry;
+  };
+  for (const expense of data.expenses) {
+    if (!inFund(expense, fundId) || expenseKind(expense) !== 'personal') continue;
+    row(expense.payer ?? '').owed += personalDebt(data, expense).remaining;
+  }
+  for (const advance of advancesOf(data)) {
+    if (!inFund(advance, fundId)) continue;
+    const summary = advanceSummary(data, advance);
+    const entry = row(advance.person);
+    entry.owed += summary.owed;
+    entry.held += summary.held;
+  }
+  return [...map.values()].filter((entry) => entry.owed > 0 || entry.held > 0).sort((a, b) => b.owed - a.owed || b.held - a.held || a.person.localeCompare(b.person));
+}

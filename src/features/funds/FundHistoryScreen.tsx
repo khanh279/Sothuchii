@@ -10,8 +10,8 @@ import { TOAST_BOTTOM_HISTORY, useToast } from '@/components/toast';
 import { AppRadius } from '@/constants/palette';
 import { deleteAdvanceSynced, deleteContributionSynced, deleteFundExpenseSynced, deleteFundTxnSynced } from '@/data/fundService';
 import { dayHeading, periodFromParams, periodTitle } from '@/domain/expenses';
-import { ADVANCE_STATE_LABEL, PAY_STATE_LABEL, advanceById, advanceSummary, fundPosition, personalDebt, type PayState } from '@/domain/fundAdvance';
-import { buildFundHistory, type FundHistoryEntry } from '@/domain/fundHistory';
+import { ADVANCE_STATE_LABEL, PAY_STATE_LABEL, advanceById, advanceSummary, fundPersonBalances, fundPosition, personalDebt, type PayState } from '@/domain/fundAdvance';
+import { buildFundHistory, filterDaysByPerson, type FundHistoryEntry } from '@/domain/fundHistory';
 import { FundActionSheet, type FundActionTarget } from '@/features/funds/FundActionSheet';
 import { ADVANCE_TONE } from '@/features/funds/FundAdvanceScreen';
 import { ContributionForm } from '@/features/funds/ContributionForm';
@@ -43,6 +43,8 @@ export default function FundHistoryScreen() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [editing, setEditing] = useState<FundHistoryEntry | null>(null);
   const [action, setAction] = useState<FundActionTarget | null>(null);
+  /** Lọc lịch sử theo một người (bấm một dòng ở mục Công nợ quỹ); rỗng = xem tất cả. */
+  const [personFilter, setPersonFilter] = useState('');
 
   const history = useMemo(() => buildFundHistory(data, params.fund || 'all', period), [data, params.fund, period]);
   const single = history.filter !== 'all' ? history.funds[0] : null;
@@ -66,6 +68,9 @@ export default function FundHistoryScreen() {
   const editingExpense = editing?.kind === 'expense' ? data.expenses.find((e) => e.id === editing.id) : undefined;
   const editingFund = editing ? data.funds.find((fund) => fund.id === editing.fundId) : undefined;
   const position = fundPosition(data, history.filter === 'all' ? 'all' : history.filter);
+  const balances = fundPersonBalances(data, history.filter === 'all' ? 'all' : history.filter);
+  // Người đang lọc mà không còn công nợ nào (vừa thanh toán xong) vẫn lọc được cho tới khi bỏ lọc; chỉ đổi cách hiển thị, không đổi dữ liệu.
+  const shownDays = filterDaysByPerson(history.days, personFilter);
 
   const openAdvance = (advanceId?: string) => advanceId && router.push({ pathname: '/quy/ung-truoc', params: { id: advanceId } });
 
@@ -159,11 +164,62 @@ export default function FundHistoryScreen() {
                   <PositionRow label="Quỹ nợ cá nhân" value={formatVnd(position.owed)} color={position.owed > 0 ? colors.danger : undefined} />
                 </View>
               )}
+              {data.funds.length > 0 && position.advanced && (
+                <View style={[styles.balance, styles.position, { backgroundColor: colors.bg }]}>
+                  <AppText weight="semibold" style={styles.debtTitle} accessibilityRole="header">
+                    Công nợ quỹ
+                  </AppText>
+                  {balances.length === 0 ? (
+                    <AppText color={colors.muted} style={styles.balanceLabel}>
+                      Không có khoản nợ hay tiền ứng nào chưa xử lý.
+                    </AppText>
+                  ) : (
+                    balances.map((item) => {
+                      const selected = personFilter === item.person;
+                      return (
+                        <Pressable
+                          key={item.person}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected }}
+                          accessibilityLabel={`${item.person}: ${item.owed > 0 ? `quỹ nợ ${formatVnd(item.owed)}` : ''} ${item.held > 0 ? `đang giữ tiền ứng ${formatVnd(item.held)}` : ''}`}
+                          onPress={() => {
+                            setOpenId(null);
+                            setPersonFilter(selected ? '' : item.person);
+                          }}
+                          style={[styles.debtRow, { backgroundColor: selected ? colors.primarySoft : colors.surface, borderColor: selected ? colors.primary : colors.line }]}>
+                          <AppText weight="semibold" style={styles.debtName} numberOfLines={1}>
+                            {item.person}
+                          </AppText>
+                          <View style={styles.debtAmounts}>
+                            {item.owed > 0 && (
+                              <AppText weight="bold" color={colors.danger} style={styles.positionValue}>
+                                Quỹ nợ {formatVnd(item.owed)}
+                              </AppText>
+                            )}
+                            {item.held > 0 && (
+                              <AppText weight="semibold" color={colors.warning} style={styles.debtHeld}>
+                                Đang giữ ứng {formatVnd(item.held)}
+                              </AppText>
+                            )}
+                          </View>
+                        </Pressable>
+                      );
+                    })
+                  )}
+                  {!!personFilter && (
+                    <Pressable accessibilityRole="button" onPress={() => setPersonFilter('')} hitSlop={8}>
+                      <AppText weight="semibold" color={colors.accent} style={styles.balanceLabel}>
+                        Đang xem các dòng của {personFilter} · Bỏ lọc
+                      </AppText>
+                    </Pressable>
+                  )}
+                </View>
+              )}
 
-              {history.days.length === 0 ? (
-                <EmptyState text="Không có khoản nào trong khoảng này" icon="check" />
+              {shownDays.length === 0 ? (
+                <EmptyState text={personFilter ? `Không có dòng nào của ${personFilter} trong khoảng này` : 'Không có khoản nào trong khoảng này'} icon="check" />
               ) : (
-                history.days.map((day) => (
+                shownDays.map((day) => (
                   <View key={day.date} style={styles.day}>
                     <View style={styles.dayHeader}>
                       <AppText color={colors.muted} style={styles.dayName} numberOfLines={1}>
@@ -297,6 +353,11 @@ const styles = StyleSheet.create({
   position: { flexDirection: 'column', alignItems: 'stretch', gap: 6 },
   positionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   positionValue: { fontSize: 14, lineHeight: 20 },
+  debtTitle: { fontSize: 14.5, lineHeight: 20 },
+  debtRow: { minHeight: 48, borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  debtName: { flex: 1, fontSize: 15 },
+  debtAmounts: { alignItems: 'flex-end' },
+  debtHeld: { fontSize: 12.5, lineHeight: 17 },
   summary: { minHeight: 64, paddingVertical: 10, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   summaryLeft: { flex: 1, minWidth: 0 },
   summaryTitle: { fontSize: 16, lineHeight: 22 },
