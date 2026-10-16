@@ -5,7 +5,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { SvgIcon } from '@/components/svg-icon';
-import { AppRadius } from '@/constants/palette';
 import { fundBalance } from '@/domain/funds';
 import { FundExpenseForm } from '@/features/funds/FundExpenseForm';
 import { useFundData } from '@/features/funds/hooks';
@@ -18,8 +17,8 @@ function leave() {
 }
 
 /**
- * Trang "Chi tiêu quỹ" mở từ nút nổi "+ Chi tiêu" ở Tổng quan (mục `data-fm="cq"` của PWA): chọn quỹ (khi có từ hai quỹ),
- * nhập số tiền / nội dung / ngày bằng đúng form chi quỹ ở trang Quỹ; lưu xong quay lại. Chỉ dùng được khi đã có quỹ.
+ * Trang "Chi tiêu quỹ" mở từ nút nổi "+ Chi tiêu" ở Tổng quan (mục `data-fm="cq"` của PWA): dùng chung giao diện với trang
+ * Chi tiêu cá nhân (số tiền, nội dung, hàng Ngày | Quỹ); lưu xong quay lại. Chỉ dùng được khi đã có quỹ.
  */
 export default function FundExpenseScreen() {
   const colors = useColors();
@@ -50,28 +49,14 @@ export default function FundExpenseScreen() {
   } else {
     body = (
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.line }]}>
-          {data.funds.length > 1 && (
-            <View style={styles.chips}>
-              {data.funds.map((item) => {
-                const selected = item.id === fund.id;
-                return (
-                  <Pressable
-                    key={item.id}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
-                    onPress={() => setPickedId(item.id)}
-                    style={[styles.chip, { borderColor: selected ? colors.primary : colors.line, backgroundColor: selected ? colors.primarySoft : colors.bg }]}>
-                    <AppText weight="semibold" color={selected ? colors.primary : colors.ink} style={styles.chipText} numberOfLines={1}>
-                      {item.name}
-                    </AppText>
-                  </Pressable>
-                );
-              })}
-            </View>
-          )}
-          <FundExpenseForm key={fund.id} fund={fund} balance={fundBalance(data, fund.id)} onChanged={leave} />
-        </View>
+        <FundExpenseForm
+          variant="page"
+          fund={fund}
+          funds={data.funds}
+          onPickFund={setPickedId}
+          balance={fundBalance(data, fund.id)}
+          onChanged={leave}
+        />
       </ScrollView>
     );
   }
@@ -101,8 +86,4 @@ const styles = StyleSheet.create({
   loading: { marginTop: 48 },
   notice: { marginHorizontal: 12, marginTop: 8, padding: 16, borderRadius: 16 },
   noticeText: { fontSize: 15 },
-  card: { borderRadius: AppRadius.card, borderWidth: 1, padding: 16, gap: 12 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { minHeight: 40, maxWidth: '100%', paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  chipText: { fontSize: 14 },
 });
