@@ -1,5 +1,5 @@
 import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -11,10 +11,9 @@ import { AppRadius } from '@/constants/palette';
 import { deleteBillSynced } from '@/data/billService';
 import { formatMoney } from '@/domain/billForm';
 import { billTotal, buildBillHistory } from '@/domain/billHistory';
-import { dayHeading, periodFromParams, periodOf, periodTitle, periodViewFromPeriod, resolveCategory } from '@/domain/expenses';
+import { dayHeading, periodFromParams, periodTitle, resolveCategory } from '@/domain/expenses';
 import { describeBillError, useBills } from '@/features/bills/hooks';
 import { useExpenseSettings } from '@/features/expenses/hooks';
-import { PeriodBar } from '@/features/expenses/PeriodBar';
 import { useColors } from '@/hooks/use-colors';
 import { useSingleOpenRow } from '@/hooks/use-single-open-row';
 import { formatVnDate, todayStr } from '@/utils/date';
@@ -30,8 +29,9 @@ export default function BillHistoryScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const toast = useToast();
-  const [view, setView] = useState(() => periodViewFromPeriod(periodFromParams(params, today), today));
-  const period = useMemo(() => periodOf(view), [view]);
+  // Mở từ Tổng quan: dùng đúng kỳ đang xem ở đó, không có ô chọn lại thời gian.
+  const { mode, month, year, from, to } = params;
+  const period = useMemo(() => periodFromParams({ mode, month, year, from, to }, today), [mode, month, year, from, to, today]);
   const { settings } = useExpenseSettings();
   const { bills, loaded, error, reload } = useBills();
   const { closeAll, rowProps } = useSingleOpenRow();
@@ -50,9 +50,8 @@ export default function BillHistoryScreen() {
   }
 
   return (
-    <View style={[styles.screen, { backgroundColor: colors.bg, paddingTop: insets.top }]}>
+    <View style={[styles.screen, { backgroundColor: colors.bg, paddingTop: 12 + insets.top }]}>
       <Stack.Screen options={{ title: 'Lịch sử bill', headerShown: false }} />
-      <PeriodBar view={view} onChange={setView} today={today} />
       {error ? (
         <View style={[styles.notice, { backgroundColor: colors.dangerSoft }]}>
           <AppText color={colors.danger} style={styles.noticeText}>
