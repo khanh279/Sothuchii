@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -8,8 +8,6 @@ import { NavTile } from '@/components/design';
 import { SvgIcon } from '@/components/svg-icon';
 import {
   budgetSummary,
-  initialPeriodView,
-  periodOf,
   periodToParams,
   sumAmounts,
   suggestedDateFor,
@@ -26,6 +24,7 @@ import { PeriodBar } from '@/features/expenses/PeriodBar';
 import { RecentTransactions } from '@/features/expenses/RecentTransactions';
 import { SpentCard } from '@/features/expenses/SpentCard';
 import { useChromeScroll } from '@/hooks/use-chrome';
+import { useSharedPeriod } from '@/hooks/use-shared-period';
 import { useColors } from '@/hooks/use-colors';
 import { todayStr } from '@/utils/date';
 
@@ -38,8 +37,7 @@ export default function OverviewScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { ref: scrollRef, props: scrollProps } = useChromeScroll();
-  const [view, setView] = useState(() => initialPeriodView(today));
-  const period = useMemo(() => periodOf(view), [view]);
+  const { view, setView, period } = useSharedPeriod();
 
   const { settings, error: settingsError } = useExpenseSettings();
   const { items, loaded, error } = useExpenses(period);
