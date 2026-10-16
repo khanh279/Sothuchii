@@ -2,7 +2,7 @@ import type { Bill } from '@/types/bill';
 
 import { computeSplit, desiredBillExpense } from './bills';
 import { toSplitPeople } from './billForm';
-import { billTotal, buildBillHistory, buildBillOverviewCard, formFromBill } from './billHistory';
+import { billTotal, billsInPeriod, buildBillHistory, buildBillOverviewCard, findBillById, formFromBill } from './billHistory';
 
 // DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng. Tiền là NGHÌN đồng.
 const p = (name: string, paid: number, extra: { w?: number; fix?: number } = {}) => ({ name, paid, ...extra });
@@ -108,5 +108,47 @@ describe('buildBillOverviewCard', () => {
     expect(buildBillOverviewCard(many, { mode: 'all' }, true)).toMatchObject({ hidden: 0, canCollapse: true });
     const three = [bill('t', '2025-10-05', 1, [p('Tôi', 50), p('A', 40), p('B', 30)])];
     expect(buildBillOverviewCard(three, { mode: 'all' }, false)).toMatchObject({ hidden: 0, canCollapse: false });
+  });
+});
+
+describe('findBillById và billsInPeriod (mở chi tiết bill)', () => {
+  // Hai bill TRÙNG tên và trùng số tiền, chỉ khác mã.
+  const twinA = bill('id-a', '2025-10-05', 1, [p('Tôi', 100), p('B', 0)], { title: 'Ăn trưa' });
+  const twinB = bill('id-b', '2025-10-05', 2, [p('Tôi', 100), p('B', 0)], { title: 'Ăn trưa' });
+  const other = bill('id-c', '2025-09-30', 3, [p('Tôi', 60), p('B', 0)], { title: 'Cafe' });
+  const all = [twinA, other, twinB];
+
+  it('tìm theo mã: hai bill trùng tên và số tiền vẫn ra đúng bill được chọn', () => {
+    expect(findBillById(all, 'id-a')).toBe(twinA);
+    expect(findBillById(all, 'id-b')).toBe(twinB);
+    expect(billTotal(twinA)).toBe(billTotal(twinB));
+  });
+
+  it('mã không có hoặc rỗng → null (không đoán theo tên/ngày)', () => {
+    expect(findBillById(all, 'khong-co')).toBeNull();
+    expect(findBillById(all, '')).toBeNull();
+    expect(findBillById(all, undefined)).toBeNull();
+    expect(findBillById(all, null)).toBeNull();
+    expect(findBillById([], 'id-a')).toBeNull();
+  });
+
+  it('bill của kỳ: lọc đúng tháng, mới nhất trước, hai bill cùng ngày là hai dòng riêng', () => {
+    expect(billsInPeriod(all, { mode: 'month', month: '2025-10' }).map((b) => b.id)).toEqual(['id-b', 'id-a']);
+    expect(billsInPeriod(all, { mode: 'month', month: '2025-09' }).map((b) => b.id)).toEqual(['id-c']);
+    expect(billsInPeriod(all, { mode: 'month', month: '2025-08' })).toEqual([]);
+  });
+
+  it('đổi kỳ thì danh sách đổi theo; kỳ năm / tất cả / tuỳ chọn', () => {
+    expect(billsInPeriod(all, { mode: 'all' }).map((b) => b.id)).toEqual(['id-b', 'id-a', 'id-c']);
+    expect(billsInPeriod(all, { mode: 'year', year: 2025 })).toHaveLength(3);
+    expect(billsInPeriod(all, { mode: 'year', year: 2024 })).toEqual([]);
+    expect(billsInPeriod(all, { mode: 'custom', from: '2025-09-30', to: '2025-10-01' }).map((b) => b.id)).toEqual(['id-c']);
+  });
+
+  it('không sửa đầu vào và không tạo bản sao bill (trả đúng đối tượng gốc)', () => {
+    const copy = JSON.parse(JSON.stringify(all));
+    const list = billsInPeriod(all, { mode: 'all' });
+    expect(all).toEqual(copy);
+    expect(list.includes(twinA) && list.includes(twinB) && list.includes(other)).toBe(true);
   });
 });

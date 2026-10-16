@@ -48,6 +48,17 @@ export function buildBillHistory(bills: readonly Bill[], period: Period): BillHi
   return { days, count: sorted.length, totalPaid: sorted.reduce((sum, bill) => sum + billTotal(bill), 0) };
 }
 
+/** Bill trong kỳ dưới dạng một danh sách phẳng, cùng thứ tự với lịch sử (mới nhất trước); dùng cho mục "Chi tiết" ở Tổng quan. */
+export function billsInPeriod(bills: readonly Bill[], period: Period): Bill[] {
+  return buildBillHistory(bills, period).days.flatMap((day) => day.bills);
+}
+
+/** Tìm bill theo MÃ (`id`) — không bao giờ theo tên, ngày hay số tiền (có thể trùng nhau). Không thấy thì `null`. */
+export function findBillById(bills: readonly Bill[], id: string | null | undefined): Bill | null {
+  if (!id) return null;
+  return bills.find((bill) => bill.id === id) ?? null;
+}
+
 export interface BillFormState {
   title: string;
   date: DateStr;
