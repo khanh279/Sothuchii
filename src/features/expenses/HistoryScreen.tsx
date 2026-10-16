@@ -20,7 +20,7 @@ import {
   resolveCategory,
   sumAmounts,
 } from '@/domain/expenses';
-import { FUND_LINKED_DELETE_MESSAGE, FUND_LINKED_EDIT_MESSAGE, isFundLinkedExpense } from '@/domain/funds';
+import { linkedExpenseNotice } from '@/domain/linkedExpense';
 import { describeStorageError, useExpenseSettings, useExpenses } from '@/features/expenses/hooks';
 import { useColors } from '@/hooks/use-colors';
 import type { ExpenseSettings, ExpenseWithId, Period } from '@/types/expense';
@@ -59,9 +59,10 @@ export default function HistoryScreen() {
   const message = settingsError ?? error;
 
   async function remove(item: ExpenseWithId) {
-    if (isFundLinkedExpense(item)) {
+    const notice = linkedExpenseNotice(item);
+    if (notice) {
       setOpenId(null);
-      toast.show(FUND_LINKED_DELETE_MESSAGE, { bottom: TOAST_BOTTOM_HISTORY });
+      toast.show(notice, { bottom: TOAST_BOTTOM_HISTORY });
       return;
     }
     try {
@@ -75,8 +76,9 @@ export default function HistoryScreen() {
   }
 
   function edit(item: ExpenseWithId) {
-    if (isFundLinkedExpense(item)) {
-      toast.show(FUND_LINKED_EDIT_MESSAGE, { bottom: TOAST_BOTTOM_HISTORY });
+    const notice = linkedExpenseNotice(item);
+    if (notice) {
+      toast.show(notice, { bottom: TOAST_BOTTOM_HISTORY });
       return;
     }
     router.push({ pathname: '/chi-tieu/nhap', params: { ...periodToParams(period), m: monthOf(item.d), id: item.id } });
@@ -176,6 +178,7 @@ export default function HistoryScreen() {
                             onOpen={() => setOpenId(item.id)}
                             onClose={() => setOpenId((current) => (current === item.id ? null : current))}
                             onPressRow={() => setOpenId(null)}
+                            onPressLocked={() => toast.show(linkedExpenseNotice(item) ?? '', { bottom: TOAST_BOTTOM_HISTORY })}
                             onEdit={() => edit(item)}
                             onDelete={() => remove(item)}
                           />
@@ -219,11 +222,12 @@ interface RowProps {
   onOpen: () => void;
   onClose: () => void;
   onPressRow: () => void;
+  onPressLocked: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }
 
-function ExpenseRow({ item, settings, open, onOpen, onClose, onPressRow, onEdit, onDelete }: RowProps) {
+function ExpenseRow({ item, settings, open, onOpen, onClose, onPressRow, onPressLocked, onEdit, onDelete }: RowProps) {
   const colors = useColors();
   const category = resolveCategory(settings, item.c);
   return (
@@ -234,6 +238,8 @@ function ExpenseRow({ item, settings, open, onOpen, onClose, onPressRow, onEdit,
       onEdit={onEdit}
       onDelete={onDelete}
       onPressRow={onPressRow}
+      locked={!!linkedExpenseNotice(item)}
+      onPressLocked={onPressLocked}
       background={colors.bg}
       radius={AppRadius.field}
       accessibilityLabel={`${item.n || category.name}, ${formatVnd(item.a)}`}>

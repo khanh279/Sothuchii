@@ -18,6 +18,9 @@ interface Props {
   onDelete: () => void;
   /** Chạm vào dòng khi đang đóng (PWA: không làm gì; cha dùng để đóng dòng khác). */
   onPressRow?: () => void;
+  /** Khoá dòng (khoản được tạo từ nơi khác): không vuốt, không hiện Sửa/Xoá; chạm vào dòng gọi `onPressLocked`. */
+  locked?: boolean;
+  onPressLocked?: () => void;
   /** Nền của dòng (phải đặc để che hai nút phía sau). */
   background: string;
   radius?: number;
@@ -29,17 +32,19 @@ interface Props {
  * Dòng vuốt sang trái để hiện hai nút Sửa / Xoá (`.st-swr` của PWA). Nút Xoá bấm lần đầu đổi thành
  * "Xoá?" (đỏ đậm), bấm lần hai mới xoá. Chạm vào dòng đang mở thì đóng lại; chạm dòng đóng không làm gì.
  */
-export function SwipeRow({ open, onOpen, onClose, onEdit, onDelete, onPressRow, background, radius = 14, accessibilityLabel, children }: Props) {
+export function SwipeRow({ open, onOpen, onClose, onEdit, onDelete, onPressRow, locked = false, onPressLocked, background, radius = 14, accessibilityLabel, children }: Props) {
   const colors = useColors();
   const x = useRef(new Animated.Value(0)).current;
   const offset = useRef(0);
   const startOffset = useRef(0);
-  const live = useRef({ open, onOpen, onClose });
+  /** Vừa vuốt xong: trên web trình duyệt còn bắn "click" sau khi nhả chuột, không được coi là chạm vào dòng. */
+  const justPanned = useRef(false);
+  const live = useRef({ open, onOpen, onClose, locked });
   const [armed, setArmed] = useState(false);
   const useNative = Platform.OS !== 'web';
 
   useEffect(() => {
-    live.current = { open, onOpen, onClose };
+    live.current = { open, onOpen, onClose, locked };
   });
 
   useEffect(() => {
@@ -68,9 +73,10 @@ export function SwipeRow({ open, onOpen, onClose, onEdit, onDelete, onPressRow, 
     PanResponder.create({
       // Giai đoạn capture: giành quyền trước nút bấm bên trong khi cử chỉ rõ ràng là vuốt ngang.
       onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponderCapture: (_, g) => swipeIntent(g.dx, g.dy, live.current.open) === 'horizontal',
+      onMoveShouldSetPanResponderCapture: (_, g) => !live.current.locked && swipeIntent(g.dx, g.dy, live.current.open) === 'horizontal',
       onPanResponderGrant: () => {
         x.stopAnimation();
+        justPanned.current = true;
         startOffset.current = live.current.open ? -SWIPE_ACTIONS_WIDTH : 0;
       },
       onPanResponderMove: (_, g) => x.setValue(swipeOffset(startOffset.current, g.dx)),
@@ -81,6 +87,9 @@ export function SwipeRow({ open, onOpen, onClose, onEdit, onDelete, onPressRow, 
   ).current;
 
   function finish(finalOffset: number) {
+    setTimeout(() => {
+      justPanned.current = false;
+    }, 400);
     if (swipeSettle(finalOffset) === 'open') {
       setArmed(false);
       animateTo(-SWIPE_ACTIONS_WIDTH);
@@ -97,7 +106,7 @@ export function SwipeRow({ open, onOpen, onClose, onEdit, onDelete, onPressRow, 
 
   return (
     <View style={[styles.wrap, { borderRadius: radius }]}>
-      <Animated.View style={[styles.actions, { opacity: actionsOpacity }]} pointerEvents={open ? 'auto' : 'none'}>
+      <Animated.View style={[styles.actions, { opacity: actionsOpacity }]} pointerEvents={open && !locked ? 'auto' : 'none'}>
         <Pressable
           style={[styles.action, { backgroundColor: colors.primary }]}
           accessibilityRole="button"
@@ -128,15 +137,21 @@ export function SwipeRow({ open, onOpen, onClose, onEdit, onDelete, onPressRow, 
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={accessibilityLabel}
-          accessibilityActions={[
+          accessibilityActions={locked ? [] : [
             { name: 'edit', label: 'Sửa' },
             { name: 'delete', label: 'Xoá' },
           ]}
           onAccessibilityAction={(event) => {
+            if (locked) return;
             if (event.nativeEvent.actionName === 'edit') onEdit();
             else if (event.nativeEvent.actionName === 'delete') onDelete();
           }}
-          onPress={() => (open ? onClose() : onPressRow?.())}>
+          onPress={() => {
+            if (justPanned.current) return;
+            if (locked) onPressLocked?.();
+            else if (open) onClose();
+            else onPressRow?.();
+          }}>
           {children}
         </Pressable>
       </Animated.View>

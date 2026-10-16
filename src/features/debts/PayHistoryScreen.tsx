@@ -1,17 +1,21 @@
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { SvgIcon } from '@/components/svg-icon';
+import { SwipeRow } from '@/components/swipe-row';
+import { TOAST_BOTTOM_HISTORY, useToast } from '@/components/toast';
 import { AppRadius } from '@/constants/palette';
+import { deletePaySynced } from '@/data/payService';
 import { formatMoney } from '@/domain/billForm';
 import { dayHeading, periodFromParams, periodTitle, periodViewFromPeriod, periodOf } from '@/domain/expenses';
 import { buildPayHistory, payRowSubtitle, type PayRow } from '@/domain/payForm';
-import { useDebtData } from '@/features/debts/hooks';
+import { describeDebtError, useDebtData } from '@/features/debts/hooks';
 import { PeriodBar } from '@/features/expenses/PeriodBar';
 import { useColors } from '@/hooks/use-colors';
+import { useSingleOpenRow } from '@/hooks/use-single-open-row';
 import { withAlpha } from '@/utils/color';
 import { formatVnDate, todayStr } from '@/utils/date';
 
@@ -29,8 +33,21 @@ export default function PayHistoryScreen() {
   const insets = useSafeAreaInsets();
   const [view, setView] = useState(() => periodViewFromPeriod(periodFromParams(params, today), today));
   const period = useMemo(() => periodOf(view), [view]);
-  const { bills, pays, loaded, error } = useDebtData();
+  const toast = useToast();
+  const { bills, pays, loaded, error, reload } = useDebtData();
+  const { closeAll, rowProps } = useSingleOpenRow();
   const history = useMemo(() => buildPayHistory(pays, bills, period), [pays, bills, period]);
+
+  async function remove(row: PayRow) {
+    try {
+      await deletePaySynced(row.ids);
+      closeAll();
+      toast.show('Đã xóa', { bottom: TOAST_BOTTOM_HISTORY });
+      await reload();
+    } catch (e) {
+      toast.show(describeDebtError(e), { bottom: TOAST_BOTTOM_HISTORY });
+    }
+  }
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg, paddingTop: insets.top }]}>
@@ -45,7 +62,7 @@ export default function PayHistoryScreen() {
       ) : !loaded ? (
         <ActivityIndicator style={styles.loading} color={colors.primary} />
       ) : (
-        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]}>
+        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} onScrollBeginDrag={closeAll}>
           <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.line }]}>
             <View style={styles.summary}>
               <View style={styles.summaryLeft}>
@@ -92,7 +109,7 @@ export default function PayHistoryScreen() {
                     </View>
                     <View style={styles.rows}>
                       {day.rows.map((row) => (
-                        <PayRowView key={row.ids.join(',')} row={row} />
+                        <PayRowView key={row.ids.join(',')} row={row} rowProps={rowProps(row.ids.join(','))} onDelete={() => void remove(row)} />
                       ))}
                     </View>
                   </View>
@@ -106,38 +123,42 @@ export default function PayHistoryScreen() {
   );
 }
 
-function PayRowView({ row }: { row: PayRow }) {
+function PayRowView({ row, rowProps, onDelete }: { row: PayRow; rowProps: ReturnType<ReturnType<typeof useSingleOpenRow>['rowProps']>; onDelete: () => void }) {
   const colors = useColors();
   const tone = TONE_COLOR[row.tone];
   const sign = row.tone === 'get' ? '+' : row.tone === 'owe' ? '−' : '';
   const subtitle = payRowSubtitle(row);
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Sửa khoản ${row.from} trả ${row.to}`}
-      onPress={() => router.push({ pathname: '/cong-no/sua', params: { ids: row.ids.join(',') } })}
-      style={[styles.item, { backgroundColor: colors.bg }]}>
-      <View style={[styles.icon, { backgroundColor: withAlpha(tone, 0.16) }]}>
-        <SvgIcon name="tabTransactions" size={22} color={tone} />
-      </View>
-      <View style={styles.itemText}>
-        <AppText weight="semibold" style={styles.itemTitle}>
-          {row.from} → {row.to}
-        </AppText>
-        <AppText color={colors.muted} style={styles.itemSub}>
-          {row.title}
-        </AppText>
-        {!!subtitle && (
-          <AppText color={colors.muted} style={styles.itemSub}>
-            {subtitle}
+    <SwipeRow
+      {...rowProps}
+      onEdit={() => router.push({ pathname: '/cong-no/sua', params: { ids: row.ids.join(',') } })}
+      onDelete={onDelete}
+      background={colors.bg}
+      radius={AppRadius.field}
+      accessibilityLabel={`${row.from} trả ${row.to}, ${formatMoney(row.amt)}`}>
+      <View style={styles.item}>
+        <View style={[styles.icon, { backgroundColor: withAlpha(tone, 0.16) }]}>
+          <SvgIcon name="tabTransactions" size={22} color={tone} />
+        </View>
+        <View style={styles.itemText}>
+          <AppText weight="semibold" style={styles.itemTitle}>
+            {row.from} → {row.to}
           </AppText>
-        )}
+          <AppText color={colors.muted} style={styles.itemSub}>
+            {row.title}
+          </AppText>
+          {!!subtitle && (
+            <AppText color={colors.muted} style={styles.itemSub}>
+              {subtitle}
+            </AppText>
+          )}
+        </View>
+        <AppText weight="bold" color={row.tone === 'mid' ? colors.ink : tone} style={styles.itemAmount}>
+          {sign}
+          {formatMoney(row.amt)}
+        </AppText>
       </View>
-      <AppText weight="bold" color={row.tone === 'mid' ? colors.ink : tone} style={styles.itemAmount}>
-        {sign}
-        {formatMoney(row.amt)}
-      </AppText>
-    </Pressable>
+    </SwipeRow>
   );
 }
 
@@ -162,7 +183,7 @@ const styles = StyleSheet.create({
   dayHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, paddingHorizontal: 2, marginTop: 6, marginBottom: 6 },
   dayName: { flexShrink: 1, fontSize: 13, lineHeight: 18.85 },
   rows: { gap: 8 },
-  item: { minHeight: 64, paddingVertical: 11, paddingHorizontal: 16, borderRadius: AppRadius.field, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  item: { minHeight: 64, paddingVertical: 11, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
   icon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   itemText: { flex: 1, minWidth: 0 },
   itemTitle: { fontSize: 15.5, lineHeight: 20 },

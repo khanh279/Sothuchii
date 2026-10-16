@@ -32,7 +32,7 @@ import {
   savedMessage,
   validateExpenseInput,
 } from '@/domain/expenses';
-import { FUND_LINKED_EDIT_MESSAGE, isFundLinkedExpense } from '@/domain/funds';
+import { linkedExpenseNotice } from '@/domain/linkedExpense';
 import { describeStorageError, useExpenseSettings } from '@/features/expenses/hooks';
 import { useColors } from '@/hooks/use-colors';
 import type { Category, ExpenseRef, ExpenseSettings, ExpenseWithId, Period } from '@/types/expense';
@@ -91,14 +91,15 @@ export default function ExpenseFormScreen() {
     };
   }, [refMonth, refId]);
 
-  // Khoản do Quỹ tạo chỉ sửa được tại Quỹ: báo rồi quay lại, không mở form (mở từ bất kỳ màn nào cũng chặn).
+  // Khoản do Quỹ hoặc Chia bill/khoản trả tạo chỉ sửa được tại nguồn: báo rồi quay lại, không mở form (mở từ bất kỳ màn nào cũng chặn).
   const toast = useToast();
-  const blocked = expense.status === 'ready' && !!expense.existing && isFundLinkedExpense(expense.existing);
+  const notice = expense.status === 'ready' && expense.existing ? linkedExpenseNotice(expense.existing) : null;
+  const blocked = !!notice;
   useEffect(() => {
-    if (!blocked) return;
-    toast.show(FUND_LINKED_EDIT_MESSAGE);
+    if (!notice) return;
+    toast.show(notice);
     leave();
-  }, [blocked, toast]);
+  }, [notice, toast]);
 
   let body;
   if (blocked) body = <ActivityIndicator style={styles.loading} color={colors.primary} />;
