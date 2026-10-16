@@ -2,7 +2,8 @@ import type { Bill } from '@/types/bill';
 
 import { computeSplit, desiredBillExpense } from './bills';
 import { toSplitPeople } from './billForm';
-import { billTotal, billsInPeriod, buildBillHistory, buildBillOverviewCard, findBillById, formFromBill } from './billHistory';
+import { billTotal, billsInPeriod, buildBillHistory, buildBillOverviewCard, filterBillsByCategory, findBillById, formFromBill } from './billHistory';
+import { EMPTY_SETTINGS } from './expenses';
 
 // DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng. Tiền là NGHÌN đồng.
 const p = (name: string, paid: number, extra: { w?: number; fix?: number } = {}) => ({ name, paid, ...extra });
@@ -150,5 +151,21 @@ describe('findBillById và billsInPeriod (mở chi tiết bill)', () => {
     const list = billsInPeriod(all, { mode: 'all' });
     expect(all).toEqual(copy);
     expect(list.includes(twinA) && list.includes(twinB) && list.includes(other)).toBe(true);
+  });
+});
+
+describe('filterBillsByCategory (chip danh mục ở tab Chia bill)', () => {
+  const mk = (id: string, cat: string): Bill => ({ id, title: id, date: '2025-10-05', createdAt: 1, cat, people: [{ name: 'Tôi', paid: 10, w: 1 }] });
+  const bills = [mk('a', 'food'), mk('b', 'food'), mk('c', 'xoa-roi')];
+
+  it('"all" giữ nguyên tất cả, không đổi danh sách gốc', () => {
+    expect(filterBillsByCategory(bills, EMPTY_SETTINGS, 'all').map((b) => b.id)).toEqual(['a', 'b', 'c']);
+    expect(bills).toHaveLength(3);
+  });
+
+  it('lọc đúng mục; mục không còn tồn tại được quy về mục cuối (Khác) như chi tiêu cá nhân', () => {
+    expect(filterBillsByCategory(bills, EMPTY_SETTINGS, 'food').map((b) => b.id)).toEqual(['a', 'b']);
+    expect(filterBillsByCategory(bills, EMPTY_SETTINGS, 'other').map((b) => b.id)).toEqual(['c']);
+    expect(filterBillsByCategory(bills, EMPTY_SETTINGS, 'transport')).toEqual([]);
   });
 });

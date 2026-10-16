@@ -5,10 +5,10 @@
 
 import { BILL_OWNER_NAME, DEFAULT_BILL_TITLE, computeSplit, fixedOf, weightOf } from '@/domain/bills';
 import { emptyPerson, type FormPerson } from '@/domain/billForm';
-import { isInPeriod } from '@/domain/expenses';
+import { isInPeriod, resolveCategory } from '@/domain/expenses';
 import { formatNghinInput, nghinToVnd } from '@/domain/money';
 import type { Bill } from '@/types/bill';
-import type { DateStr, Period } from '@/types/expense';
+import type { DateStr, ExpenseSettings, Period } from '@/types/expense';
 import type { Nghin } from '@/types/money';
 
 export interface BillDay {
@@ -46,6 +46,15 @@ export function buildBillHistory(bills: readonly Bill[], period: Period): BillHi
     }
   }
   return { days, count: sorted.length, totalPaid: sorted.reduce((sum, bill) => sum + billTotal(bill), 0) };
+}
+
+/**
+ * Giữ các bill thuộc một mục chi (`'all'` giữ tất cả). Mục chi của bill được quy về mục hiện có (mục đã xoá thì về "Khác") bằng
+ * `resolveCategory`, cùng quy tắc với chi tiêu cá nhân. Chỉ lọc hiển thị: không sửa bill.
+ */
+export function filterBillsByCategory(bills: readonly Bill[], settings: ExpenseSettings, categoryId: string | 'all'): Bill[] {
+  if (categoryId === 'all') return [...bills];
+  return bills.filter((bill) => resolveCategory(settings, bill.cat).id === categoryId);
 }
 
 /** Bill trong kỳ dưới dạng một danh sách phẳng, cùng thứ tự với lịch sử (mới nhất trước); dùng cho mục "Chi tiết" ở Tổng quan. */

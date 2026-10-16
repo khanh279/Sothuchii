@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from '@/components/app-text';
 import { ChipRow, EmptyState, ScreenTitle, TitleAction } from '@/components/design';
 import { AppRadius } from '@/constants/palette';
-import { categoriesInUse, dayHeading, filterByCategory, groupByDay, periodTitle, periodToParams, suggestedDateFor, sumAmounts } from '@/domain/expenses';
+import { categoriesInUse, dayHeading, filterByCategory, groupByDay, periodToParams, suggestedDateFor } from '@/domain/expenses';
 import { expenseLinkLabel } from '@/domain/expenseTab';
 import { ExpenseRow } from '@/features/expenses/HistoryScreen';
 import { useExpenseSettings, useExpenses } from '@/features/expenses/hooks';
@@ -15,10 +15,10 @@ import { useColors } from '@/hooks/use-colors';
 import { usePersistedState } from '@/hooks/use-persisted-state';
 import { useSharedPeriod } from '@/hooks/use-shared-period';
 import { formatVnDate, todayStr } from '@/utils/date';
-import { formatGrouped, formatVnd } from '@/utils/format';
+import { formatVnd } from '@/utils/format';
 
 /**
- * Tab "Chi tiêu": thẻ tổng chi tiêu của kỳ, hàng nút lọc danh mục cuộn ngang và danh sách khoản chi cá nhân (kể cả khoản tự sinh từ chia bill /
+ * Tab "Chi tiêu": hàng nút lọc danh mục cuộn ngang và danh sách khoản chi cá nhân (kể cả khoản tự sinh từ chia bill /
  * quỹ, vẫn bị khoá sửa/xoá). Kỳ lấy từ bộ lọc DÙNG CHUNG chọn ở Tổng quan (không có ô chọn ngày riêng). Chip danh mục được nhớ khi đổi tab.
  * Lịch sử giao dịch / chuyển tiền nằm ở tab Công nợ.
  */
@@ -34,7 +34,6 @@ export default function ExpensesTab() {
   const { items, loaded, error, reload } = useExpenses(period);
   const { openId, setOpenId, remove, edit, openDetail } = useExpenseRowActions({ period, reload });
 
-  const total = useMemo(() => sumAmounts(items), [items]);
   const inUse = useMemo(() => categoriesInUse(items, settings), [items, settings]);
   // Chip đang chọn mà không còn khoản nào trong kỳ này thì quay về "Tất cả" (không đổi giá trị đã nhớ).
   const activeCat = catChip === 'all' || inUse.some((cat) => cat.id === catChip) ? catChip : 'all';
@@ -52,24 +51,6 @@ export default function ExpensesTab() {
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
       <ScreenTitle title="Chi tiêu" topInset={insets.top} right={<TitleAction label="Chi tiêu" onPress={addExpense} />} />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 110 + insets.bottom }]} onScrollBeginDrag={() => setOpenId(null)} keyboardShouldPersistTaps="handled">
-        {/* Thẻ tổng quan: số tiền là thông tin nổi bật nhất; chỉ tính khoản chi cá nhân của kỳ. */}
-        <View style={[styles.hero, { backgroundColor: colors.heroBg }]} accessible accessibilityLabel={`Tổng chi tiêu ${periodTitle(period)}: ${formatVnd(total)}`}>
-          <AppText weight="medium" color={colors.heroSoft} style={styles.heroLabel}>
-            {loaded ? 'Tổng chi tiêu' : 'Đang mở sổ…'}
-          </AppText>
-          <AppText weight="display" color={colors.heroInk} style={styles.heroAmount} adjustsFontSizeToFit numberOfLines={1}>
-            {formatGrouped(total)}
-            <AppText weight="display" color={colors.heroInk} style={styles.heroCurrency}>
-              {' '}
-              ₫
-            </AppText>
-          </AppText>
-          <AppText color={colors.heroSoft} style={styles.heroCaption} numberOfLines={1}>
-            {periodTitle(period)}
-            {loaded ? ` · ${items.length} khoản chi` : ''}
-          </AppText>
-        </View>
-
         {/* Hàng nút lọc danh mục cuộn ngang. */}
         {!message && loaded && (
           <View style={styles.chips}>
@@ -162,11 +143,6 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { paddingHorizontal: 16, paddingTop: 4, gap: 12 },
   flex: { flex: 1, minWidth: 0 },
-  hero: { borderRadius: 22, paddingVertical: 18, paddingHorizontal: 20, gap: 2 },
-  heroLabel: { fontSize: 13 },
-  heroAmount: { fontSize: 34, lineHeight: 42, letterSpacing: -0.6 },
-  heroCurrency: { fontSize: 20 },
-  heroCaption: { fontSize: 13, marginTop: 2 },
   /** Hàng chip tràn hết bề rộng màn hình (bù đệm ngang của nội dung). */
   chips: { marginHorizontal: -16 },
   card: { borderRadius: AppRadius.card, overflow: 'hidden', paddingBottom: 12 },

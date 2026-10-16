@@ -4,19 +4,20 @@ import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { EmptyState, TransactionRow } from '@/components/design';
+import { ChipRow, EmptyState, TransactionRow } from '@/components/design';
 import { CategoryIcon } from '@/components/category-icon';
 import { SwipeRow } from '@/components/swipe-row';
 import { TOAST_BOTTOM_HISTORY, useToast } from '@/components/toast';
 import { AppRadius } from '@/constants/palette';
 import { deleteBillSynced } from '@/data/billService';
 import { formatMoney } from '@/domain/billForm';
-import { billTotal, buildBillHistory } from '@/domain/billHistory';
-import { dayHeading, periodFromParams, periodTitle, resolveCategory } from '@/domain/expenses';
+import { billTotal, buildBillHistory, filterBillsByCategory } from '@/domain/billHistory';
+import { categoriesInUse, dayHeading, periodFromParams, periodTitle, resolveCategory } from '@/domain/expenses';
 import { describeBillError, useBills } from '@/features/bills/hooks';
 import { useExpenseSettings } from '@/features/expenses/hooks';
 import { useColors } from '@/hooks/use-colors';
 import type { Period } from '@/types/expense';
+import { usePersistedState } from '@/hooks/use-persisted-state';
 import { useSingleOpenRow } from '@/hooks/use-single-open-row';
 import { formatVnDate, todayStr } from '@/utils/date';
 
@@ -46,7 +47,13 @@ export default function BillHistoryScreen({ tab }: { tab?: BillHistoryTabMode } 
   const { bills, loaded, error, reload } = useBills();
   const { closeAll, rowProps } = useSingleOpenRow();
 
-  const history = useMemo(() => buildBillHistory(bills, period), [bills, period]);
+  // Chip danh mục (chỉ ở tab Chia bill): các mục chi có bill trong kỳ; chip đang chọn mà không còn bill nào thì quay về "Tất cả".
+  const [catChip, setCatChip] = usePersistedState<string>('tab:chia-bill:chip', () => 'all');
+  const periodBills = useMemo(() => buildBillHistory(bills, period).days.flatMap((day) => day.bills), [bills, period]);
+  const inUse = useMemo(() => categoriesInUse(periodBills.map((bill) => ({ c: bill.cat })), settings), [periodBills, settings]);
+  const activeCat = tab && (catChip === 'all' || inUse.some((cat) => cat.id === catChip)) ? catChip : 'all';
+  const catOptions = useMemo(() => [{ value: 'all', label: 'Tất cả' }, ...inUse.map((cat) => ({ value: cat.id, label: cat.name }))], [inUse]);
+  const history = useMemo(() => buildBillHistory(filterBillsByCategory(bills, settings, activeCat), period), [bills, settings, activeCat, period]);
 
   async function remove(id: string) {
     try {
@@ -73,6 +80,18 @@ export default function BillHistoryScreen({ tab }: { tab?: BillHistoryTabMode } 
         <ActivityIndicator style={styles.loading} color={colors.primary} />
       ) : (
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: (tab ? 110 : 24) + insets.bottom }]} onScrollBeginDrag={closeAll}>
+          {tab && periodBills.length > 0 && (
+            <View style={styles.chips}>
+              <ChipRow
+                options={catOptions}
+                value={activeCat}
+                onChange={(next) => {
+                  closeAll();
+                  setCatChip(next);
+                }}
+              />
+            </View>
+          )}
           <View style={[styles.card, { backgroundColor: colors.surface }]}>
             <View style={styles.summary}>
               <View style={styles.summaryLeft}>
@@ -95,7 +114,7 @@ export default function BillHistoryScreen({ tab }: { tab?: BillHistoryTabMode } 
 
             <View style={styles.body}>
               {history.days.length === 0 ? (
-                <EmptyState text="Không có bill trong khoảng này" icon="check" />
+                <EmptyState text={periodBills.length > 0 ? 'Không có bill nào thuộc danh mục này trong kỳ' : 'Không có bill trong khoảng này'} icon="check" />
               ) : (
                 history.days.map((day) => (
                   <View key={day.date} style={styles.day}>
@@ -156,6 +175,8 @@ const styles = StyleSheet.create({
   loading: { marginTop: 48 },
   notice: { marginHorizontal: 12, marginTop: 12, padding: 16, borderRadius: 16 },
   noticeText: { fontSize: 15 },
+  /** Hàng chip tràn hết bề rộng màn hình (bù đệm ngang của nội dung). */
+  chips: { marginHorizontal: -12, marginBottom: 12 },
   card: { borderRadius: AppRadius.card, overflow: 'hidden' },
   summary: { minHeight: 64, paddingVertical: 10, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   summaryLeft: { flex: 1, minWidth: 0 },
