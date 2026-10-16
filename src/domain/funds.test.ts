@@ -7,6 +7,7 @@ import {
   isFundLinkedExpense,
   desiredLinkedExpense,
   fundBalance,
+  fundLastActivity,
   fundPeriodTotals,
   fundTotals,
   normalizeFundData,
@@ -449,5 +450,17 @@ describe('planFundExpenseSync', () => {
     const copy = JSON.parse(JSON.stringify(contribs));
     planFundExpenseSync({ data: { funds: [fundA], contribs }, lookup: () => null, quyRefs: [] });
     expect(contribs).toEqual(copy);
+  });
+});
+
+describe('fundLastActivity (ngày cập nhật gần nhất của quỹ)', () => {
+  it('lấy ngày muộn nhất trong các lần đóng và khoản chi của đúng quỹ đó; quỹ chưa có giao dịch thì null', () => {
+    const data = {
+      contribs: [contrib('c1', [['Tôi', 1000]], { date: '2025-10-05' }), contrib('c2', [['Tôi', 1000]], { fundId: 'f_b', date: '2025-12-01' })],
+      expenses: [{ id: 'e1', fundId: 'f_a', title: 'Chi', date: '2025-10-09', amount: 500 }],
+    };
+    expect(fundLastActivity(data, 'f_a')).toBe('2025-10-09');
+    expect(fundLastActivity(data, 'f_b')).toBe('2025-12-01');
+    expect(fundLastActivity(data, 'f_c')).toBeNull();
   });
 });

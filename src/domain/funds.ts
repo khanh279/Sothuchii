@@ -115,6 +115,15 @@ export function fundBalance(data: Pick<FundData, 'contribs' | 'expenses'>, fundI
   return fundTotals(data, fundId).bal;
 }
 
+/** Ngày phát sinh gần nhất (đóng quỹ hoặc chi quỹ) của một quỹ; `null` nếu quỹ chưa có giao dịch nào. Chỉ đọc, không đổi dữ liệu. */
+export function fundLastActivity(data: Pick<FundData, 'contribs' | 'expenses'>, fundId: string): DateStr | null {
+  let last: DateStr | null = null;
+  for (const item of [...data.contribs, ...data.expenses]) {
+    if (item.fundId === fundId && (last === null || item.date > last)) last = item.date;
+  }
+  return last;
+}
+
 /** Tổng đóng và chi của MỌI quỹ trong một kỳ xem (khung Quỹ ở Tổng quan). */
 export function fundPeriodTotals(data: Pick<FundData, 'contribs' | 'expenses'>, period: Period): { in: Vnd; out: Vnd } {
   const totalIn = data.contribs.filter((c) => isInPeriod(c.date, period)).reduce((sum, c) => sum + contributionTotal(c), 0);

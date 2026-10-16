@@ -1,22 +1,24 @@
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { ModalHeader, ScreenTitle, SecondaryButton, TitleAction } from '@/components/design';
+import { EmptyState, ModalHeader, ScreenTitle, SecondaryButton, TitleAction } from '@/components/design';
 import { SvgIcon } from '@/components/svg-icon';
 import { SwipeRow } from '@/components/swipe-row';
 import { useToast } from '@/components/toast';
 import { AppFonts } from '@/constants/fonts';
 import { FundInputError } from '@/data/fundRepository';
 import { createFundSynced, deleteFundSynced, renameFundSynced } from '@/data/fundService';
-import { FUND_NAME_MAX, fundBalance } from '@/domain/funds';
+import { FUND_NAME_MAX, fundBalance, fundLastActivity } from '@/domain/funds';
 import { ContributionForm } from '@/features/funds/ContributionForm';
 import { FundExpenseForm } from '@/features/funds/FundExpenseForm';
 import { describeFundError, useFundData } from '@/features/funds/hooks';
 import { useChromeScroll } from '@/hooks/use-chrome';
 import { useColors } from '@/hooks/use-colors';
 import type { Fund } from '@/types/fund';
+import { formatVnDate } from '@/utils/date';
 import { formatVnd } from '@/utils/format';
 
 /** Đang soạn tên quỹ: thêm mới, hoặc đổi tên một quỹ có sẵn. */
@@ -25,7 +27,8 @@ type EntryMode = 'thu' | 'chi';
 
 /**
  * Tab "Quỹ nhóm": tiêu đề và nút "+ Giao dịch quỹ" (menu Thu quỹ / Chi tiêu quỹ, mở đúng form đóng quỹ / chi quỹ có sẵn cho quỹ chọn
- * trong tờ nổi), rồi danh sách quỹ: tạo quỹ mới, đổi tên, xoá bằng cách vuốt dòng; chạm một quỹ để mở form Thu / Chi của quỹ đó. Xem / sửa / xoá các lần đóng và khoản chi đã lưu thuộc bước 3E.
+ * trong tờ nổi), rồi danh sách quỹ dạng thẻ nhỏ (tên, số dư, ngày cập nhật gần nhất): chạm một quỹ để mở lịch sử và chi tiết của quỹ đó
+ * (màn Lịch sử quỹ có sẵn); tạo quỹ mới, đổi tên, xoá bằng cách vuốt dòng.
  */
 export default function FundListScreen() {
   const { ref: scrollRef, props: scrollProps } = useChromeScroll();
@@ -35,8 +38,6 @@ export default function FundListScreen() {
   const { data, loaded, error, reload } = useFundData();
   const [editing, setEditing] = useState<Editing | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [entryMode, setEntryMode] = useState<EntryMode>('thu');
   const [sheetFundId, setSheetFundId] = useState<string | null>(null);
   const [sheetMode, setSheetMode] = useState<EntryMode | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -65,15 +66,13 @@ export default function FundListScreen() {
         return 'Đã đổi tên quỹ';
       }
       const created = await createFundSynced(name);
-      setExpandedId(created.value.id); // PWA: quỹ vừa tạo được mở sẵn
-      setEntryMode('thu');
+      void created;
       return 'Đã tạo quỹ mới';
     });
 
   const remove = (fund: Fund) =>
     run(async () => {
       await deleteFundSynced(fund.id);
-      if (expandedId === fund.id) setExpandedId(null);
       return 'Đã xóa quỹ';
     });
 
@@ -117,40 +116,44 @@ export default function FundListScreen() {
         contentContainerStyle={styles.list}
         onScrollBeginDrag={() => setOpenId(null)}
         keyboardShouldPersistTaps="handled">
+        {data.funds.length === 0 && editing?.mode !== 'add' && <EmptyState text="Chưa có quỹ nào. Tạo quỹ mới để bắt đầu ghi nhận thu và chi của nhóm." icon="check" />}
+
         {data.funds.map((fund) => {
-          const expanded = expandedId === fund.id;
+          const balance = fundBalance(data, fund.id);
+          const last = fundLastActivity(data, fund.id);
           return (
-            <View
-              key={fund.id}
-              style={[styles.row, { backgroundColor: colors.surface, borderColor: expanded ? colors.primary : 'transparent' }]}>
+            <View key={fund.id} style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.line }]}>
               <SwipeRow
                 open={openId === fund.id}
                 onOpen={() => setOpenId(fund.id)}
                 onClose={() => setOpenId((current) => (current === fund.id ? null : current))}
                 onPressRow={() => {
                   setOpenId(null);
-                  setExpandedId(expanded ? null : fund.id);
+                  router.push({ pathname: '/quy/lich-su', params: { mode: 'all', fund: fund.id } });
                 }}
                 onEdit={() => setEditing({ mode: 'edit', id: fund.id })}
                 onDelete={() => void remove(fund)}
                 background={colors.surface}
-                radius={13}
-                accessibilityLabel={fund.name}>
+                radius={15}
+                accessibilityLabel={`${fund.name}, số dư ${formatVnd(balance)}`}>
                 <View style={styles.head}>
                   <View style={styles.nameCol}>
                     <AppText weight="bold" style={styles.name} numberOfLines={1}>
                       {fund.name}
                     </AppText>
+                    <AppText color={colors.muted} style={styles.balanceLabel} numberOfLines={1}>
+                      {last ? `Cập nhật ${formatVnDate(last)}` : 'Chưa có giao dịch'}
+                    </AppText>
+                  </View>
+                  <View style={styles.balanceCol}>
                     <AppText color={colors.muted} style={styles.balanceLabel}>
                       Số dư
                     </AppText>
+                    <AppText weight="bold" color={balance < 0 ? colors.danger : colors.success} style={styles.balance} numberOfLines={1}>
+                      {formatVnd(balance)}
+                    </AppText>
                   </View>
-                  <AppText weight="bold" color={fundBalance(data, fund.id) < 0 ? colors.danger : colors.success} style={styles.balance}>
-                    {formatVnd(fundBalance(data, fund.id))}
-                  </AppText>
-                  <View style={{ transform: [{ rotate: expanded ? '-90deg' : '90deg' }] }}>
-                    <SvgIcon name="chevronRight" size={18} color={colors.muted} />
-                  </View>
+                  <SvgIcon name="chevronRight" size={16} color={colors.muted} strokeWidth={2} />
                 </View>
               </SwipeRow>
 
@@ -163,17 +166,6 @@ export default function FundListScreen() {
                   onCancel={() => setEditing(null)}
                   style={{ backgroundColor: colors.bg, borderTopColor: colors.line, borderTopWidth: 1 }}
                 />
-              )}
-
-              {expanded && (
-                <View style={[styles.body, { backgroundColor: colors.bg, borderTopColor: colors.line }]}>
-                  <EntryTabs mode={entryMode} onChange={setEntryMode} />
-                  {entryMode === 'thu' ? (
-                    <ContributionForm fund={fund} onChanged={reload} />
-                  ) : (
-                    <FundExpenseForm fund={fund} balance={fundBalance(data, fund.id)} onChanged={reload} />
-                  )}
-                </View>
               )}
             </View>
           );
@@ -277,7 +269,7 @@ export default function FundListScreen() {
                     disabled={data.funds.length === 0}
                     onPress={() => {
                       setMenuOpen(false);
-                      setSheetFundId(expandedId ?? data.funds[0].id);
+                      setSheetFundId(data.funds[0].id);
                       setSheetMode(option.mode);
                     }}
                     style={({ pressed }) => [styles.menuOption, { borderColor: colors.line, opacity: data.funds.length === 0 ? 0.45 : pressed ? 0.7 : 1 }]}>
@@ -297,30 +289,6 @@ export default function FundListScreen() {
           </View>
         </Modal>
       )}
-    </View>
-  );
-}
-
-/** Thanh chuyển Thu / Chi trong một quỹ (`#entryTabs` của PWA). */
-function EntryTabs({ mode, onChange }: { mode: EntryMode; onChange: (mode: EntryMode) => void }) {
-  const colors = useColors();
-  return (
-    <View style={[styles.tabs, { backgroundColor: colors.surface, borderColor: colors.line }]} accessibilityRole="tablist">
-      {(['thu', 'chi'] as const).map((id) => {
-        const selected = id === mode;
-        return (
-          <Pressable
-            key={id}
-            accessibilityRole="tab"
-            accessibilityState={{ selected }}
-            onPress={() => onChange(id)}
-            style={[styles.tab, selected && { backgroundColor: colors.primary }]}>
-            <AppText weight="semibold" color={selected ? colors.primaryInk : colors.muted} style={styles.tabText}>
-              {id === 'thu' ? 'Thu' : 'Chi'}
-            </AppText>
-          </Pressable>
-        );
-      })}
     </View>
   );
 }
@@ -383,15 +351,12 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   list: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 24, gap: 12 },
   row: { borderWidth: 1, borderRadius: 16, overflow: 'hidden' },
-  head: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16 },
+  head: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 10 },
   nameCol: { flex: 1, minWidth: 0 },
-  name: { fontSize: 16 },
-  balanceLabel: { fontSize: 12 },
-  balance: { fontSize: 16 },
-  body: { padding: 14, gap: 12, borderTopWidth: 1 },
-  tabs: { flexDirection: 'row', gap: 4, padding: 4, borderWidth: 1, borderRadius: 12 },
-  tab: { flex: 1, minHeight: 38, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  tabText: { fontSize: 14 },
+  name: { fontSize: 16, lineHeight: 22 },
+  balanceCol: { alignItems: 'flex-end', maxWidth: '50%' },
+  balanceLabel: { fontSize: 12, lineHeight: 16 },
+  balance: { fontSize: 17, lineHeight: 23 },
   form: { padding: 14 },
   label: { fontSize: 13, marginBottom: 4 },
   input: { height: 46, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, fontSize: 18 },
