@@ -23,6 +23,8 @@ const MODES: { mode: Period['mode']; label: string }[] = [
 interface Props {
   /** Tiêu đề màn hình hiện phía trên bộ chọn (ví dụ "Tổng quan"). */
   title?: string;
+  /** Có giá trị thì hiện biểu tượng bánh răng ở góc phải tiêu đề (mở Cài đặt). */
+  onSettings?: () => void;
   view: PeriodView;
   onChange: (view: PeriodView) => void;
   today: DateStr;
@@ -32,7 +34,7 @@ interface Props {
  * Đầu trang Tổng quan: tiêu đề và bộ chọn thời gian gọn (Tháng / Năm / Tất cả / Tuỳ chọn + mũi tên kỳ trước / sau). Nền trang xám nhạt,
  * được đặt làm phần tử dính ở đầu trang cuộn; mục đang chọn nền navy chữ trắng.
  */
-export function PeriodBar({ title, view, onChange, today }: Props) {
+export function PeriodBar({ title, onSettings, view, onChange, today }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const toast = useToast();
@@ -57,9 +59,16 @@ export function PeriodBar({ title, view, onChange, today }: Props) {
   return (
     <View style={[styles.wrap, { backgroundColor: colors.bg, paddingTop: 8 + insets.top }]}>
       {!!title && (
-        <AppText weight="display" style={styles.title} accessibilityRole="header">
-          {title}
-        </AppText>
+        <View style={styles.titleRow}>
+          <AppText weight="display" style={styles.title} accessibilityRole="header">
+            {title}
+          </AppText>
+          {onSettings && (
+            <Pressable accessibilityRole="button" accessibilityLabel="Cài đặt" hitSlop={6} onPress={onSettings} style={[styles.gear, { backgroundColor: colors.surface }]}>
+              <SvgIcon name="gear" size={20} color={colors.primary} strokeWidth={1.9} />
+            </Pressable>
+          )}
+        </View>
       )}
       <View style={[styles.segment, { backgroundColor: colors.surface2 }]} accessibilityRole="tablist">
         {MODES.map((item) => {
@@ -137,7 +146,9 @@ export function PeriodBar({ title, view, onChange, today }: Props) {
 
 const styles = StyleSheet.create({
   wrap: { paddingHorizontal: 16, paddingBottom: 10, gap: 10 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { fontSize: 26, lineHeight: 32, letterSpacing: -0.4 },
+  gear: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   segment: { flexDirection: 'row', padding: 3, borderRadius: AppRadius.pill },
   segmentItem: { flex: 1, height: 36, borderRadius: AppRadius.pill, alignItems: 'center', justifyContent: 'center' },
   segmentText: { fontSize: 13 },

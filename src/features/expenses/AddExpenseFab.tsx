@@ -4,29 +4,31 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { SvgIcon } from '@/components/svg-icon';
+import type { IconName } from '@/constants/icons';
 import { AppRadius } from '@/constants/palette';
 import { useChrome } from '@/hooks/use-chrome';
 import { useColors } from '@/hooks/use-colors';
 
 interface Props {
   onAddPersonal: () => void;
-  /** Có giá trị khi đã có Quỹ nhóm: hiện thêm mục "Chi tiêu quỹ". */
-  onAddFund?: () => void;
+  /** Mở luồng chi tiêu quỹ (chỉ dùng được khi đã có quỹ). */
+  onAddFund: () => void;
+  /** Mở luồng ghi nhận chuyển tiền. */
+  onTransfer: () => void;
+  /** Đã có ít nhất một quỹ nhóm; chưa có thì mục "Chi quỹ nhóm" mờ đi kèm lời nhắc. */
+  hasFunds: boolean;
 }
 
 const USE_NATIVE = Platform.OS !== 'web';
-/** Nền mờ phủ cả màn hình (kể cả thanh tab dưới); chỉ các nút chọn còn sáng. */
-const SCRIM = 'rgba(0,0,0,0.5)';
-const OPEN_MS = 280;
+const SHEET_OFFSET = 360;
+const OPEN_MS = 260;
 const CLOSE_MS = 200;
 
 /**
- * Nút nổi "+ Chi tiêu" của PWA (`#stFab`). Bấm thì nút ẩn đi và hiện menu lựa chọn ngay phía trên (`#stFabMenu`):
- * "Chi tiêu cá nhân" ở trên (nền trắng, chữ xanh), "Chi tiêu quỹ" ở dưới (chỉ khi đã có Quỹ nhóm, `onAddFund`).
- * Menu nằm trong `Modal` nên nền mờ phủ cả màn hình kể cả thanh tab dưới; bấm ra ngoài thì đóng.
- * Mở / đóng có hiệu ứng mượt: nền mờ dần, hai nút trồi lên lần lượt.
+ * Nút nổi "+" ở Tổng quan. Bấm thì mở bottom sheet đúng ba lựa chọn: Chi tiêu cá nhân, Chi quỹ nhóm, Chuyển tiền — mỗi lựa
+ * chọn mở thẳng luồng nghiệp vụ hiện có (không tạo luồng mới). Đóng bằng chạm nền mờ, nút Back hoặc chọn một mục.
  */
-export function AddExpenseFab({ onAddPersonal, onAddFund }: Props) {
+export function AddExpenseFab({ onAddPersonal, onAddFund, onTransfer, hasFunds }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { hidden } = useChrome();
@@ -50,69 +52,70 @@ export function AddExpenseFab({ onAddPersonal, onAddFund }: Props) {
     Animated.timing(progress, { toValue: 1, duration: OPEN_MS, easing: Easing.out(Easing.cubic), useNativeDriver: USE_NATIVE }).start();
   }
 
-  /** Đóng menu (nền mờ dần, nút chìm xuống) rồi mới gỡ khỏi màn hình; `after` chạy sau khi đã đóng hẳn. */
+  /** Đóng sheet (trượt xuống, nền sáng lại) rồi mới gỡ khỏi màn hình; `after` chạy sau khi đã đóng (hẹn giờ, không phụ thuộc khung hình). */
   function hide(after?: () => void) {
-    Animated.timing(progress, { toValue: 0, duration: CLOSE_MS, easing: Easing.in(Easing.cubic), useNativeDriver: USE_NATIVE }).start(({ finished }) => {
-      if (!finished) return;
+    Animated.timing(progress, { toValue: 0, duration: CLOSE_MS, easing: Easing.in(Easing.cubic), useNativeDriver: USE_NATIVE }).start();
+    setTimeout(() => {
       setOpen(false);
       after?.();
-    });
+    }, CLOSE_MS + 20);
   }
 
-  // Mỗi nút trồi lên và hiện dần, nút dưới (Chi tiêu quỹ) bắt đầu trước, nút trên theo sau một nhịp.
-  const itemStyle = (from: number, to: number) => ({
-    opacity: progress.interpolate({ inputRange: [from, to], outputRange: [0, 1], extrapolate: 'clamp' }),
-    transform: [
-      { translateY: progress.interpolate({ inputRange: [from, to], outputRange: [22, 0], extrapolate: 'clamp' }) },
-      { scale: progress.interpolate({ inputRange: [from, to], outputRange: [0.9, 1], extrapolate: 'clamp' }) },
-    ],
-  });
-  const fundStyle = itemStyle(0, 0.75);
-  const personalStyle = itemStyle(onAddFund ? 0.2 : 0, onAddFund ? 1 : 0.75);
+  const options: { icon: IconName; label: string; hint: string; disabled?: boolean; onPress: () => void }[] = [
+    { icon: 'person', label: 'Chi tiêu cá nhân', hint: 'Ghi một khoản chi của bạn', onPress: onAddPersonal },
+    { icon: 'people', label: 'Chi quỹ nhóm', hint: hasFunds ? 'Ghi khoản chi từ một quỹ' : 'Chưa có quỹ — tạo quỹ ở tab Quỹ nhóm', disabled: !hasFunds, onPress: onAddFund },
+    { icon: 'tabTransactions', label: 'Chuyển tiền', hint: 'Ghi nhận chuyển tiền hoặc trả nợ giữa hai người', onPress: onTransfer },
+  ];
 
   return (
     <>
       {!open && (
         <Animated.View style={[styles.fabWrap, { bottom: 76 + insets.bottom, transform: [{ translateY: y }] }]} pointerEvents={hidden ? 'none' : 'box-none'}>
-          <Pressable style={[styles.fab, { backgroundColor: colors.primary }]} accessibilityRole="button" accessibilityLabel="Thêm khoản chi" onPress={show}>
-            <SvgIcon name="plus" size={18} color={colors.primaryInk} strokeWidth={2.4} />
-            <AppText weight="bold" color={colors.primaryInk} style={styles.fabText}>
-              Chi tiêu
-            </AppText>
+          <Pressable style={[styles.fab, { backgroundColor: colors.primary }]} accessibilityRole="button" accessibilityLabel="Thêm nhanh" onPress={show}>
+            <SvgIcon name="plus" size={22} color={colors.primaryInk} strokeWidth={2.4} />
           </Pressable>
         </Animated.View>
       )}
 
       {open && (
         <Modal transparent animationType="none" visible statusBarTranslucent onRequestClose={() => hide()}>
-          <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: SCRIM, opacity: progress }]}>
-            <Pressable style={StyleSheet.absoluteFill} accessibilityLabel="Đóng menu" onPress={() => hide()} />
+          <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: colors.scrim, opacity: progress }]}>
+            <Pressable style={StyleSheet.absoluteFill} accessibilityLabel="Đóng" onPress={() => hide()} />
           </Animated.View>
-          <View style={[styles.menu, { bottom: 82 + insets.bottom }]} pointerEvents="box-none">
-            <Animated.View style={personalStyle}>
-              <Pressable
-                style={[styles.menuItem, { backgroundColor: colors.surface }]}
-                accessibilityRole="button"
-                onPress={() => hide(onAddPersonal)}>
-                <SvgIcon name="person" size={22} color={colors.primary} strokeWidth={2} />
-                <AppText weight="bold" color={colors.primary} style={styles.menuText}>
-                  Chi tiêu cá nhân
-                </AppText>
-              </Pressable>
-            </Animated.View>
-            {onAddFund && (
-              <Animated.View style={fundStyle}>
+          <View style={styles.sheetHost} pointerEvents="box-none">
+            <Animated.View
+              accessibilityViewIsModal
+              style={[
+                styles.sheet,
+                { backgroundColor: colors.surface, paddingBottom: 16 + insets.bottom, transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [SHEET_OFFSET, 0] }) }] },
+              ]}>
+              <View style={[styles.handle, { backgroundColor: colors.line }]} />
+              <AppText weight="bold" style={styles.sheetTitle}>
+                Thêm nhanh
+              </AppText>
+              {options.map((option, index) => (
                 <Pressable
-                  style={[styles.menuItem, { backgroundColor: colors.primary }]}
+                  key={option.label}
                   accessibilityRole="button"
-                  onPress={() => hide(onAddFund)}>
-                  <SvgIcon name="people" size={22} color={colors.primaryInk} strokeWidth={2} />
-                  <AppText weight="bold" color={colors.primaryInk} style={styles.menuText}>
-                    Chi tiêu quỹ
-                  </AppText>
+                  accessibilityState={{ disabled: !!option.disabled }}
+                  disabled={option.disabled}
+                  onPress={() => hide(option.onPress)}
+                  style={({ pressed }) => [styles.option, index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line }, { opacity: option.disabled ? 0.45 : pressed ? 0.7 : 1 }]}>
+                  <View style={[styles.optionIcon, { backgroundColor: colors.primarySoft }]}>
+                    <SvgIcon name={option.icon} size={22} color={colors.primary} strokeWidth={1.9} />
+                  </View>
+                  <View style={styles.optionText}>
+                    <AppText weight="semibold" style={styles.optionLabel}>
+                      {option.label}
+                    </AppText>
+                    <AppText color={colors.muted} style={styles.optionHint}>
+                      {option.hint}
+                    </AppText>
+                  </View>
+                  <SvgIcon name="chevronRight" size={16} color={colors.muted} strokeWidth={2} />
                 </Pressable>
-              </Animated.View>
-            )}
+              ))}
+            </Animated.View>
           </View>
         </Modal>
       )}
@@ -121,36 +124,26 @@ export function AddExpenseFab({ onAddPersonal, onAddFund }: Props) {
 }
 
 const styles = StyleSheet.create({
-  fabWrap: { position: 'absolute', right: 12 },
+  fabWrap: { position: 'absolute', right: 16 },
   fab: {
-    height: 44,
-    paddingLeft: 12,
-    paddingRight: 16,
-    gap: 5,
-    flexDirection: 'row',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     alignItems: 'center',
-    borderRadius: AppRadius.pill,
-    shadowColor: '#15202B',
-    shadowOpacity: 0.16,
-    shadowRadius: 5,
-    shadowOffset: { width: 0, height: 2 },
+    justifyContent: 'center',
+    shadowColor: '#0B2A4A',
+    shadowOpacity: 0.22,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
     elevation: 5,
   },
-  fabText: { fontSize: 14.5 },
-  menu: { position: 'absolute', right: 12, alignItems: 'flex-end', gap: 10 },
-  menuItem: {
-    height: 52,
-    paddingLeft: 15,
-    paddingRight: 20,
-    gap: 9,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: AppRadius.pill,
-    shadowColor: '#000',
-    shadowOpacity: 0.16,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 8,
-  },
-  menuText: { fontSize: 15.5 },
+  sheetHost: { flex: 1, justifyContent: 'flex-end' },
+  sheet: { borderTopLeftRadius: AppRadius.hero, borderTopRightRadius: AppRadius.hero, paddingHorizontal: 16, paddingTop: 10 },
+  handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, marginBottom: 12 },
+  sheetTitle: { fontSize: 17, lineHeight: 24, marginBottom: 4 },
+  option: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
+  optionIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  optionText: { flex: 1, minWidth: 0 },
+  optionLabel: { fontSize: 15.5, lineHeight: 21 },
+  optionHint: { fontSize: 12.5, lineHeight: 17 },
 });

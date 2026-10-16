@@ -10,11 +10,13 @@ import type { IconName } from '@/constants/icons';
 import { useChrome } from '@/hooks/use-chrome';
 import { useColors } from '@/hooks/use-colors';
 
-/** Thanh điều hướng dưới: ba mục, mỗi mục một biểu tượng và nhãn ngắn; mục đang chọn tô màu chủ đạo (navy). */
-const TABS: { name: string; href: '/' | '/giao-dich' | '/thiet-lap'; icon: IconName; label: string; short: string }[] = [
+/** Thanh điều hướng dưới: năm mục (Tổng quan, Chi tiêu, Chia bill, Công nợ, Quỹ nhóm), mỗi mục một biểu tượng và nhãn ngắn; mục đang chọn tô màu chủ đạo (navy). */
+const TABS: { name: string; href: '/' | '/chi-tieu' | '/chia-bill' | '/cong-no' | '/quy'; icon: IconName; label: string; short: string }[] = [
   { name: 'index', href: '/', icon: 'tabOverview', label: 'Tổng quan', short: 'Tổng quan' },
-  { name: 'giao-dich', href: '/giao-dich', icon: 'tabTransactions', label: 'Giao dịch: đóng quỹ, chia bill, chuyển tiền', short: 'Giao dịch' },
-  { name: 'thiet-lap', href: '/thiet-lap', icon: 'tabSettings', label: 'Thiết lập và sao lưu', short: 'Thiết lập' },
+  { name: 'chi-tieu', href: '/chi-tieu', icon: 'wallet', label: 'Chi tiêu cá nhân', short: 'Chi tiêu' },
+  { name: 'chia-bill', href: '/chia-bill', icon: 'receipt', label: 'Chia bill', short: 'Chia bill' },
+  { name: 'cong-no', href: '/cong-no', icon: 'tabTransactions', label: 'Công nợ', short: 'Công nợ' },
+  { name: 'quy', href: '/quy', icon: 'people', label: 'Quỹ nhóm', short: 'Quỹ nhóm' },
 ];
 
 export default function FloatingTabs() {
@@ -94,8 +96,8 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 496,
     flexDirection: 'row',
-    gap: 4,
-    padding: 5,
+    gap: 2,
+    padding: 4,
     borderRadius: AppRadius.card,
     borderWidth: StyleSheet.hairlineWidth,
     shadowColor: '#0B2A4A',
@@ -105,5 +107,5 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   button: { flex: 1, minWidth: 0, height: 56, borderRadius: AppRadius.field, alignItems: 'center', justifyContent: 'center', gap: 2 },
-  buttonLabel: { fontSize: 11.5, lineHeight: 15 },
+  buttonLabel: { fontSize: 10.5, lineHeight: 14 },
 });

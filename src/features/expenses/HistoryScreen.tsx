@@ -1,5 +1,5 @@
 import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -33,7 +33,17 @@ import { formatVnd } from '@/utils/format';
  * mỗi khoản là một khung riêng, vuốt sang trái để Sửa / Xoá (chạm vào dòng không mở trang sửa, như PWA).
  * Tham số route: kỳ (`mode`, `month`, `year`, `from`, `to`) và `cat` (chỉ xem một mục, như bấm mục ở Tổng quan).
  */
-export default function HistoryScreen() {
+export interface HistoryTabMode {
+  /** Kỳ đang xem (do tab giữ, không lấy từ tham số route). */
+  period: Period;
+  /** Chip lọc theo mục đang chọn và hàm đổi (do tab giữ để chuyển tab rồi quay lại vẫn còn). */
+  chip: string;
+  onChip: (chip: string) => void;
+  /** Đầu trang (tiêu đề + bộ chọn kỳ), hiện phía trên danh sách. */
+  header: ReactNode;
+}
+
+export default function HistoryScreen({ tab }: { tab?: HistoryTabMode } = {}) {
   const params = useLocalSearchParams<{ mode?: string; month?: string; year?: string; from?: string; to?: string; cat?: string }>();
   const { mode, month, year, from, to } = params;
   const today = todayStr();
@@ -41,11 +51,14 @@ export default function HistoryScreen() {
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const toast = useToast();
-  const period = useMemo(() => periodFromParams({ mode, month, year, from, to }, today), [mode, month, year, from, to, today]);
+  const paramPeriod = useMemo(() => periodFromParams({ mode, month, year, from, to }, today), [mode, month, year, from, to, today]);
+  const period = tab ? tab.period : paramPeriod;
 
   const { settings, error: settingsError } = useExpenseSettings();
   const { items, loaded, error, reload } = useExpenses(period);
-  const [chip, setChip] = useState<string>('all');
+  const [ownChip, setOwnChip] = useState<string>('all');
+  const chip = tab ? tab.chip : ownChip;
+  const setChip = tab ? tab.onChip : setOwnChip;
   const [openId, setOpenId] = useState<string | null>(null);
 
   const fixedCategory = params.cat || null;
@@ -87,8 +100,9 @@ export default function HistoryScreen() {
 
   // Trang riêng: không header, đệm trên 12 + vùng an toàn; một thẻ trắng bo 16 chứa mọi thứ.
   return (
-    <View style={[styles.screen, { backgroundColor: colors.bg, paddingTop: 12 + insets.top }]}>
-      <Stack.Screen options={{ title, headerShown: false }} />
+    <View style={[styles.screen, { backgroundColor: colors.bg, paddingTop: tab ? 0 : 12 + insets.top }]}>
+      {!tab && <Stack.Screen options={{ title, headerShown: false }} />}
+      {tab?.header}
       {message ? (
         <View style={[styles.notice, { backgroundColor: colors.dangerSoft }]}>
           <AppText color={colors.danger} style={styles.noticeText}>
@@ -99,7 +113,7 @@ export default function HistoryScreen() {
         <ActivityIndicator style={styles.loading} color={colors.primary} />
       ) : (
         <ScrollView
-          contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]}
+          contentContainerStyle={[styles.content, { paddingBottom: (tab ? 110 : 24) + insets.bottom }]}
           onScrollBeginDrag={() => setOpenId(null)}
           keyboardShouldPersistTaps="handled">
           <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.line, minHeight: Math.max(0, height - 300) }]}>

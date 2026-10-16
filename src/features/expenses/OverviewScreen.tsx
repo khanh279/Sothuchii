@@ -56,7 +56,7 @@ export default function OverviewScreen() {
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
       {/* Phần tử đầu tiên là ô chọn kỳ và được ghim lại khi cuộn (sticky). */}
       <ScrollView ref={scrollRef} {...scrollProps} stickyHeaderIndices={[0]} contentContainerStyle={{ paddingBottom: 110 + insets.bottom }}>
-        <PeriodBar title="Tổng quan" view={view} onChange={setView} today={today} />
+        <PeriodBar title="Tổng quan" onSettings={() => router.push('/thiet-lap')} view={view} onChange={setView} today={today} />
         <View style={styles.body}>
           {message ? (
             <View style={[styles.notice, { backgroundColor: colors.dangerSoft }]}>
@@ -85,7 +85,7 @@ export default function OverviewScreen() {
               </View>
               <View style={styles.grid}>
                 <NavTile icon="tabOverview" label="Chi tiêu" caption="Lịch sử chi tiêu" style={styles.gridItem} onPress={() => router.push({ pathname: '/lich-su', params: periodParams })} />
-                <NavTile icon="people" label="Quỹ nhóm" caption="Đóng quỹ, chi quỹ" style={styles.gridItem} onPress={() => router.push('/giao-dich')} />
+                <NavTile icon="people" label="Quỹ nhóm" caption="Đóng quỹ, chi quỹ" style={styles.gridItem} onPress={() => router.push('/quy')} />
               </View>
               <BillDetailSection
                 bills={debt.bills}
@@ -111,7 +111,9 @@ export default function OverviewScreen() {
       </ScrollView>
 
       <AddExpenseFab
-        onAddFund={hasFunds ? () => router.push('/quy/chi-tieu') : undefined}
+        hasFunds={hasFunds}
+        onTransfer={() => router.push('/cong-no/ghi-nhan')}
+        onAddFund={() => router.push('/quy/chi-tieu')}
         onAddPersonal={() =>
           router.push({ pathname: '/chi-tieu/nhap', params: { ...periodParams, d: suggestedDateFor(period, today) } })
         }

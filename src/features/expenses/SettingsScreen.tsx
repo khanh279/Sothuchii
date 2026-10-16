@@ -56,7 +56,7 @@ const ICON_COLUMNS = 6;
  * "Danh sách người" và "Sao lưu và dữ liệu" của PWA sẽ thêm cùng các module Quỹ / Chia bill.
  */
 export default function SettingsScreen() {
-  const { ref: scrollRef, props: scrollProps } = useChromeScroll();
+  const { ref: scrollRef, props: scrollProps } = useChromeScroll(false);
   const today = todayStr();
   const colors = useColors();
   const { settings, loaded, error, save, reload: reloadSettings } = useExpenseSettings();
@@ -143,7 +143,7 @@ export default function SettingsScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
-      <ScrollView ref={scrollRef} {...scrollProps} contentContainerStyle={[styles.content, { paddingBottom: 92 + insets.bottom }]} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={scrollRef} {...scrollProps} contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
         {error ? (
           <View style={[styles.notice, { backgroundColor: colors.dangerSoft, marginTop: 12 + insets.top }]}>
             <AppText color={colors.danger} style={styles.noticeText}>

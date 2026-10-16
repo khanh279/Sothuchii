@@ -1,5 +1,5 @@
 import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -16,6 +16,7 @@ import { dayHeading, periodFromParams, periodTitle, resolveCategory } from '@/do
 import { describeBillError, useBills } from '@/features/bills/hooks';
 import { useExpenseSettings } from '@/features/expenses/hooks';
 import { useColors } from '@/hooks/use-colors';
+import type { Period } from '@/types/expense';
 import { useSingleOpenRow } from '@/hooks/use-single-open-row';
 import { formatVnDate, todayStr } from '@/utils/date';
 
@@ -24,7 +25,16 @@ import { formatVnDate, todayStr } from '@/utils/date';
  * Chạm một bill để mở màn Chi tiết bill (theo mã bill). Vuốt dòng sang trái để hiện Sửa / Xóa (Xóa bấm hai lần);
  * chỉ một dòng mở tại một thời điểm. Xóa bill sẽ dọn khoản chi cá nhân đã tạo từ bill đó.
  */
-export default function BillHistoryScreen() {
+export interface BillHistoryTabMode {
+  /** Kỳ đang xem (do tab giữ, không lấy từ tham số route). */
+  period: Period;
+  /** Đầu trang (tiêu đề + bộ chọn kỳ). */
+  header: ReactNode;
+  /** Khu vực hành động đầu danh sách (nút "Tạo bill"). */
+  top?: ReactNode;
+}
+
+export default function BillHistoryScreen({ tab }: { tab?: BillHistoryTabMode } = {}) {
   const params = useLocalSearchParams<{ mode?: string; month?: string; year?: string; from?: string; to?: string }>();
   const today = todayStr();
   const colors = useColors();
@@ -32,7 +42,8 @@ export default function BillHistoryScreen() {
   const toast = useToast();
   // Mở từ Tổng quan: dùng đúng kỳ đang xem ở đó, không có ô chọn lại thời gian.
   const { mode, month, year, from, to } = params;
-  const period = useMemo(() => periodFromParams({ mode, month, year, from, to }, today), [mode, month, year, from, to, today]);
+  const paramPeriod = useMemo(() => periodFromParams({ mode, month, year, from, to }, today), [mode, month, year, from, to, today]);
+  const period = tab ? tab.period : paramPeriod;
   const { settings } = useExpenseSettings();
   const { bills, loaded, error, reload } = useBills();
   const { closeAll, rowProps } = useSingleOpenRow();
@@ -51,8 +62,9 @@ export default function BillHistoryScreen() {
   }
 
   return (
-    <View style={[styles.screen, { backgroundColor: colors.bg, paddingTop: 12 + insets.top }]}>
-      <Stack.Screen options={{ title: 'Lịch sử bill', headerShown: false }} />
+    <View style={[styles.screen, { backgroundColor: colors.bg, paddingTop: tab ? 0 : 12 + insets.top }]}>
+      {!tab && <Stack.Screen options={{ title: 'Lịch sử bill', headerShown: false }} />}
+      {tab?.header}
       {error ? (
         <View style={[styles.notice, { backgroundColor: colors.dangerSoft }]}>
           <AppText color={colors.danger} style={styles.noticeText}>
@@ -62,7 +74,8 @@ export default function BillHistoryScreen() {
       ) : !loaded ? (
         <ActivityIndicator style={styles.loading} color={colors.primary} />
       ) : (
-        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} onScrollBeginDrag={closeAll}>
+        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: (tab ? 110 : 24) + insets.bottom }]} onScrollBeginDrag={closeAll}>
+          {tab?.top}
           <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.line }]}>
             <View style={styles.summary}>
               <View style={styles.summaryLeft}>

@@ -21,6 +21,20 @@ export function useToneColor() {
   return (tone: AmountTone | undefined) => (tone === 'get' ? colors.success : tone === 'owe' ? colors.danger : colors.ink);
 }
 
+// ───────────────────────── Tiêu đề màn hình gốc ─────────────────────────
+
+/** Tiêu đề lớn của một trang gốc (tab), kèm khoảng đệm theo vùng an toàn phía trên. */
+export function ScreenTitle({ title, topInset = 0, right }: { title: string; topInset?: number; right?: ReactNode }) {
+  return (
+    <View style={[styles.screenTitleRow, { paddingTop: 8 + topInset }]}>
+      <AppText weight="display" style={styles.screenTitle} accessibilityRole="header">
+        {title}
+      </AppText>
+      {right}
+    </View>
+  );
+}
+
 // ───────────────────────── Tiêu đề khu vực ─────────────────────────
 
 interface SectionHeaderProps {
@@ -281,6 +295,8 @@ export function ConfirmDialog({ title, message, amountText, note, confirmLabel =
 
 const styles = StyleSheet.create({
   flex: { flex: 1, minWidth: 0 },
+  screenTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 8 },
+  screenTitle: { fontSize: 26, lineHeight: 32, letterSpacing: -0.4 },
   sectionHeader: { flexDirection: 'row', alignItems: 'flex-end', gap: 12, paddingHorizontal: 4, marginBottom: 8 },
   sectionTitle: { fontSize: 17, lineHeight: 24 },
   caption: { fontSize: 12, lineHeight: 16 },

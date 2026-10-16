@@ -48,12 +48,13 @@ const BILL_CATEGORY_IDS = ['food', 'fun', 'trip', 'move', 'bill', 'other'];
 /**
  * Màn tính chia bill (phần "Chia bill" của tab Giao dịch): nội dung, mục chi, ngày, số người 2–20, số tiền mỗi
  * người đã chi (NGHÌN đồng) và kết quả chia theo thời gian thực. Vuốt ô tiền sang trái để đặt hệ số hoặc mức
- * cố định. Có `existing` thì là chế độ SỬA bill đó (lưu xong gọi `onFinished`, không đặt lại form).
+ * cố định. Có `existing` thì là chế độ SỬA bill đó (lưu xong gọi `onFinished`, không đặt lại form). Tạo mới mà có `onFinished`
+ * (màn "Tạo bill" riêng) thì lưu xong cũng gọi `onFinished` để quay lại.
  */
 export default function BillCalcScreen({ existing = null, onFinished }: { existing?: Bill | null; onFinished?: () => void }) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { ref: scrollRef, props: scrollProps } = useChromeScroll(!existing);
+  const { ref: scrollRef, props: scrollProps } = useChromeScroll(!existing && !onFinished);
   const today = todayStr();
   const { settings } = useExpenseSettings();
 
@@ -117,6 +118,8 @@ export default function BillCalcScreen({ existing = null, onFinished }: { existi
       setTitle('');
       setCatId('food');
       setOpenRow(null);
+      // Mở từ màn "Tạo bill" riêng: lưu xong quay lại danh sách.
+      onFinished?.();
     } catch (e) {
       toast.show(e instanceof BillInputError ? e.message : describeStorageError(e));
     } finally {
