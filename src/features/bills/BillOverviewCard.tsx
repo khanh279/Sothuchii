@@ -4,25 +4,32 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/app-text';
 import { SvgIcon } from '@/components/svg-icon';
 import { formatMoney } from '@/domain/billForm';
-import { buildBillOverviewCard } from '@/domain/billHistory';
+import { billTotal, billsInPeriod, buildBillOverviewCard } from '@/domain/billHistory';
+import { periodTitle } from '@/domain/expenses';
 import { useBills } from '@/features/bills/hooks';
 import { useColors } from '@/hooks/use-colors';
 import type { Period } from '@/types/expense';
+import { formatVnDate } from '@/utils/date';
 
 interface Props {
   period: Period;
   /** Bấm tiêu đề hoặc một người để mở lịch sử bill của kỳ đang xem. */
   onOpen: () => void;
+  /** Bấm một bill trong mục "Chi tiết" để mở chi tiết bill (theo mã bill). */
+  onOpenBill: (id: string) => void;
 }
 
 /**
  * Khung "Chia bill" ở Tổng quan (`#tqBill` của PWA): số bill và tổng bill trong kỳ đang xem, rồi những người đã chi
- * tiền kèm thanh so sánh. Quá 3 người thì có "Xem thêm N người" / "Thu gọn". Như PWA, khung luôn hiện.
+ * tiền kèm thanh so sánh. Quá 3 người thì có "Xem thêm N người" / "Thu gọn". Cuối khung là "Chi tiết" (đang gập): danh sách
+ * các bill đã chia trong kỳ đang xem, bấm một bill để mở chi tiết bill. Như PWA, khung luôn hiện.
  */
-export function BillOverviewCard({ period, onOpen }: Props) {
+export function BillOverviewCard({ period, onOpen, onOpenBill }: Props) {
   const colors = useColors();
   const { bills, loaded, error } = useBills();
   const [showAll, setShowAll] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const periodBills = useMemo(() => billsInPeriod(bills, period), [bills, period]);
   const card = useMemo(() => buildBillOverviewCard(bills, period, showAll), [bills, period, showAll]);
 
   if (error || !loaded) return null;
@@ -76,6 +83,52 @@ export function BillOverviewCard({ period, onOpen }: Props) {
           </AppText>
         </Pressable>
       )}
+
+      <View style={[styles.detail, { borderTopColor: colors.line }]}>
+        <Pressable accessibilityRole="button" accessibilityState={{ expanded: detailOpen }} onPress={() => setDetailOpen((open) => !open)} style={styles.detailHead}>
+          <AppText weight="bold" style={styles.detailTitle}>
+            Chi tiết
+            <AppText weight="medium" color={colors.muted} style={styles.small}>
+              {'  '}
+              {periodTitle(period)}
+            </AppText>
+          </AppText>
+          <AppText color={colors.muted} style={styles.small}>
+            {periodBills.length} bill
+          </AppText>
+          <View style={{ transform: [{ rotate: detailOpen ? '-90deg' : '90deg' }] }}>
+            <SvgIcon name="chevronRight" size={18} color={colors.muted} />
+          </View>
+        </Pressable>
+        {detailOpen &&
+          (periodBills.length === 0 ? (
+            <AppText color={colors.muted} style={styles.empty}>
+              Không có bill trong khoảng này
+            </AppText>
+          ) : (
+            periodBills.map((bill, index) => (
+              <Pressable
+                key={bill.id}
+                accessibilityRole="button"
+                accessibilityLabel={`Chi tiết bill ${bill.title || 'Không tên'}, ${formatMoney(billTotal(bill))}`}
+                onPress={() => onOpenBill(bill.id)}
+                style={[styles.billRow, index > 0 && { borderTopWidth: 1, borderTopColor: colors.line }]}>
+                <View style={styles.billText}>
+                  <AppText weight="semibold" style={styles.billTitle} numberOfLines={1}>
+                    {bill.title || 'Không tên'}
+                  </AppText>
+                  <AppText color={colors.muted} style={styles.small}>
+                    {formatVnDate(bill.date)}
+                  </AppText>
+                </View>
+                <AppText weight="bold" style={styles.billAmount}>
+                  {formatMoney(billTotal(bill))}
+                </AppText>
+                <SvgIcon name="chevronRight" size={16} color={colors.muted} />
+              </Pressable>
+            ))
+          ))}
+      </View>
     </View>
   );
 }
@@ -96,4 +149,12 @@ const styles = StyleSheet.create({
   fill: { height: '100%', borderRadius: 99 },
   more: { minHeight: 40, alignItems: 'center', justifyContent: 'center', borderTopWidth: 1, borderStyle: 'dashed' },
   moreText: { fontSize: 14 },
+  detail: { borderTopWidth: 1 },
+  detailHead: { minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  detailTitle: { flex: 1, fontSize: 16 },
+  empty: { textAlign: 'center', fontSize: 14, paddingTop: 12, paddingBottom: 12 },
+  billRow: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  billText: { flex: 1, minWidth: 0 },
+  billTitle: { fontSize: 15.5 },
+  billAmount: { fontSize: 16, marginLeft: 'auto' },
 });

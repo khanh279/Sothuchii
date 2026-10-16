@@ -1,18 +1,15 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { SvgIcon } from '@/components/svg-icon';
 import { formatMoney } from '@/domain/billForm';
-import { billTotal, billsInPeriod } from '@/domain/billHistory';
 import { buildDebtOverview } from '@/domain/debtOverview';
-import { periodTitle } from '@/domain/expenses';
 import { buildPayHistory } from '@/domain/payForm';
 import { useDebtData } from '@/features/debts/hooks';
 import { useColors } from '@/hooks/use-colors';
 import type { Period } from '@/types/expense';
 import { withAlpha } from '@/utils/color';
-import { formatVnDate } from '@/utils/date';
 
 const GET = '#0F8A4B';
 const OWE = '#D64545';
@@ -22,22 +19,18 @@ interface Props {
   period: Period;
   /** Bấm một người để xem nợ với người đó. */
   onOpenPerson: (name: string) => void;
-  /** Bấm một bill trong mục "Chi tiết" để mở chi tiết bill (theo mã bill). */
-  onOpenBill: (id: string) => void;
   /** Bấm khung "Giao dịch" để xem lịch sử khoản trả của kỳ. */
   onOpenPays: () => void;
 }
 
 /**
  * Các khung Công nợ ở Tổng quan (`#debt-box`, `#dsx-box`, `#tqTx` của PWA): "Nợ" (Tôi nợ / Người khác nợ tôi, mỗi người một
- * số tổng nợ (vay + bill, có dấu), kèm mục "Chi tiết": danh sách bill đã chia trong kỳ đang xem) và "Giao dịch" (số khoản và +vào −ra của kỳ). Như PWA, luôn hiện.
+ * số tổng nợ (vay + bill, có dấu),) và "Giao dịch" (số khoản và +vào −ra của kỳ). Như PWA, luôn hiện.
  */
-export function DebtOverviewCards({ period, onOpenPerson, onOpenBill, onOpenPays }: Props) {
+export function DebtOverviewCards({ period, onOpenPerson, onOpenPays }: Props) {
   const colors = useColors();
   const { bills, pays, loaded, error } = useDebtData();
-  const [detailOpen, setDetailOpen] = useState(false);
   const overview = useMemo(() => buildDebtOverview(bills, pays, period), [bills, pays, period]);
-  const periodBills = useMemo(() => billsInPeriod(bills, period), [bills, period]);
   const history = useMemo(() => buildPayHistory(pays, bills, period), [pays, bills, period]);
 
   if (error || !loaded) return null;
@@ -94,51 +87,6 @@ export function DebtOverviewCards({ period, onOpenPerson, onOpenBill, onOpenPays
           ))
         )}
 
-        <View style={[styles.detail, { borderTopColor: colors.line }]}>
-          <Pressable accessibilityRole="button" accessibilityState={{ expanded: detailOpen }} onPress={() => setDetailOpen((open) => !open)} style={styles.detailHead}>
-            <AppText weight="bold" style={styles.detailTitle}>
-              Chi tiết
-              <AppText weight="medium" color={colors.muted} style={styles.small}>
-                {'  '}
-                {periodTitle(period)}
-              </AppText>
-            </AppText>
-            <AppText color={colors.muted} style={styles.small}>
-              {periodBills.length} bill
-            </AppText>
-            <View style={{ transform: [{ rotate: detailOpen ? '-90deg' : '90deg' }] }}>
-              <SvgIcon name="chevronRight" size={18} color={colors.muted} />
-            </View>
-          </Pressable>
-          {detailOpen &&
-            (periodBills.length === 0 ? (
-              <AppText color={colors.muted} style={styles.empty}>
-                Không có bill trong khoảng này
-              </AppText>
-            ) : (
-              periodBills.map((bill, index) => (
-                <Pressable
-                  key={bill.id}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Chi tiết bill ${bill.title || 'Không tên'}, ${formatMoney(billTotal(bill))}`}
-                  onPress={() => onOpenBill(bill.id)}
-                  style={[styles.pair, index > 0 && { borderTopWidth: 1, borderTopColor: colors.line }]}>
-                  <View style={styles.billText}>
-                    <AppText weight="semibold" style={styles.box} numberOfLines={1}>
-                      {bill.title || 'Không tên'}
-                    </AppText>
-                    <AppText color={colors.muted} style={styles.small}>
-                      {formatVnDate(bill.date)}
-                    </AppText>
-                  </View>
-                  <AppText weight="bold" style={styles.pairAmount}>
-                    {formatMoney(billTotal(bill))}
-                  </AppText>
-                  <SvgIcon name="chevronRight" size={16} color={colors.muted} />
-                </Pressable>
-              ))
-            ))}
-        </View>
       </View>
 
       <Pressable accessibilityRole="button" onPress={onOpenPays} style={[...card, styles.payCard]}>

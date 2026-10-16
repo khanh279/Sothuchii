@@ -77,10 +77,13 @@ export default function OverviewScreen() {
           <DebtOverviewCards
             period={period}
             onOpenPerson={(name) => router.push({ pathname: '/cong-no/chi-tiet', params: { ...periodParams, name } })}
-            onOpenBill={(id) => router.push({ pathname: '/chia-bill/chi-tiet', params: { id } })}
             onOpenPays={() => router.push({ pathname: '/cong-no/lich-su', params: periodParams })}
           />
-          <BillOverviewCard period={period} onOpen={() => router.push({ pathname: '/chia-bill/lich-su', params: periodParams })} />
+          <BillOverviewCard
+            period={period}
+            onOpen={() => router.push({ pathname: '/chia-bill/lich-su', params: periodParams })}
+            onOpenBill={(id) => router.push({ pathname: '/chia-bill/chi-tiet', params: { id } })}
+          />
           <FundOverviewCard
             period={period}
             onOpenFund={(fund) => router.push({ pathname: '/quy/lich-su', params: { ...periodParams, fund } })}
