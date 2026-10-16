@@ -22,7 +22,7 @@ import { useToast } from '@/components/toast';
 import { DEFAULT_CATEGORY_ID, MEMO_MAX } from '@/constants/categories';
 import { AppFonts } from '@/constants/fonts';
 import { AppRadius } from '@/constants/palette';
-import { addExpense, deleteExpense, getExpense, updateExpense } from '@/data/expenseRepository';
+import { addExpense, getExpense, updateExpense } from '@/data/expenseRepository';
 import {
   allCategories,
   buildExpense,
@@ -141,8 +141,6 @@ function ExpenseForm({ settings, existing, suggestedDate, period }: FormProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [errors, setErrors] = useState({ amount: false, date: false });
   const [busy, setBusy] = useState(false);
-  /** Nút Xoá bấm lần đầu thì "lên đạn": đổi chữ, bấm lần nữa mới xoá (như PWA). */
-  const [deleteArmed, setDeleteArmed] = useState(false);
 
   const category = resolveCategory(settings, categoryId);
   const overlayOpen = calendarOpen || pickerOpen;
@@ -180,23 +178,6 @@ function ExpenseForm({ settings, existing, suggestedDate, period }: FormProps) {
         await addExpense(built);
       }
       toast.show(savedMessage({ isEdit: !!existing, amount: built.a, date: built.d, period }));
-      leave();
-    } catch (error) {
-      setBusy(false);
-      toast.show(describeStorageError(error));
-    }
-  }
-
-  async function remove() {
-    if (!existing || busy) return;
-    if (!deleteArmed) {
-      setDeleteArmed(true);
-      return;
-    }
-    setBusy(true);
-    try {
-      await deleteExpense({ m: monthOf(existing.d), id: existing.id });
-      toast.show('Đã xoá khoản chi');
       leave();
     } catch (error) {
       setBusy(false);
@@ -248,17 +229,6 @@ function ExpenseForm({ settings, existing, suggestedDate, period }: FormProps) {
           )}
 
           <View style={formStyles.actions}>
-            {existing && (
-              <Pressable
-                style={[formStyles.btn, formStyles.btnDelete, { backgroundColor: colors.dangerSoft }]}
-                onPress={remove}
-                disabled={busy}
-                accessibilityRole="button">
-                <AppText weight="semibold" color={colors.danger} style={formStyles.btnText}>
-                  {deleteArmed ? 'Chạm lần nữa để xoá' : 'Xoá'}
-                </AppText>
-              </Pressable>
-            )}
             <Pressable
               style={[formStyles.btn, formStyles.btnSave, { backgroundColor: colors.primary }, busy && formStyles.disabled]}
               onPress={save}

@@ -8,7 +8,7 @@ import { SvgIcon } from '@/components/svg-icon';
 import { useToast } from '@/components/toast';
 import { AppFonts } from '@/constants/fonts';
 import { FundInputError } from '@/data/fundRepository';
-import { deleteContributionSynced, saveContributionSynced } from '@/data/fundService';
+import { saveContributionSynced } from '@/data/fundService';
 import {
   PERSON_NAME_MAX,
   buildContributionPeople,
@@ -68,7 +68,6 @@ export function ContributionForm({ fund, existing, onChanged }: Props) {
   const [calendarOpen, setCalendarOpen] = useState(false);
   /** Dòng đang mở bảng chọn người từ danh sách (null = đóng). */
   const [pickingRow, setPickingRow] = useState<number | null>(null);
-  const [deleteArmed, setDeleteArmed] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const summary = contributionSummary(rows.map(toPerson));
@@ -138,25 +137,6 @@ export function ContributionForm({ fund, existing, onChanged }: Props) {
     setAll(true);
     setEachText('');
     setError('');
-  }
-
-  async function remove() {
-    if (!existing || busy) return;
-    if (!deleteArmed) {
-      setDeleteArmed(true);
-      setTimeout(() => setDeleteArmed(false), 3500);
-      return;
-    }
-    setBusy(true);
-    try {
-      await deleteContributionSynced(existing.id);
-      toast.show('Đã xóa lần đóng quỹ');
-      onChanged();
-    } catch (e) {
-      setError(describeFundError(e));
-    } finally {
-      setBusy(false);
-    }
   }
 
   return (
@@ -294,16 +274,6 @@ export function ContributionForm({ fund, existing, onChanged }: Props) {
           {existing ? 'Lưu thay đổi' : 'Lưu khoản thu'}
         </AppText>
       </Pressable>
-      {existing && (
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => void remove()}
-          style={[styles.delete, { backgroundColor: deleteArmed ? '#D64545' : colors.dangerSoft }]}>
-          <AppText weight="semibold" color={deleteArmed ? '#FFFFFF' : colors.danger}>
-            {deleteArmed ? 'Bấm lần nữa để xóa' : 'Xóa lần đóng quỹ này'}
-          </AppText>
-        </Pressable>
-      )}
 
       {pickingRow !== null && rows[pickingRow] && (
         <PersonPicker

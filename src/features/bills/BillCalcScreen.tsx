@@ -211,13 +211,7 @@ export default function BillCalcScreen({ existing = null, onFinished }: { existi
           Lưu
         </AppText>
       </Pressable>
-      {existing ? (
-        <Pressable accessibilityRole="button" onPress={() => onFinished?.()} style={[styles.ghostButton, { borderColor: colors.line }]}>
-          <AppText weight="semibold" color={colors.muted} style={styles.ghostText}>
-            Hủy sửa
-          </AppText>
-        </Pressable>
-      ) : (
+      {!existing && (
         <Pressable accessibilityRole="button" onPress={() => router.push('/chia-bill/lich-su')} style={[styles.ghostButton, { borderColor: colors.line }]}>
           <AppText weight="semibold" color={colors.primary} style={styles.ghostText}>
             Lịch sử bill

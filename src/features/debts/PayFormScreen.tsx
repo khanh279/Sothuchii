@@ -11,7 +11,7 @@ import { useToast } from '@/components/toast';
 import { AppFonts } from '@/constants/fonts';
 import { AppRadius } from '@/constants/palette';
 import { PayInputError } from '@/data/payRepository';
-import { addTransferSynced, deletePaySynced, updatePayGroupSynced, updateTransferSynced } from '@/data/payService';
+import { addTransferSynced, updatePayGroupSynced, updateTransferSynced } from '@/data/payService';
 import { BILL_OWNER_NAME } from '@/domain/bills';
 import {
   canRecordPay,
@@ -51,7 +51,7 @@ function representative(pays: readonly Pay[], ids: readonly string[]): { form: P
 
 /**
  * Form ghi nhận / sửa / xoá một khoản chuyển tiền hoặc trả bill (`#pay-form` của PWA): ngày, nội dung, người trả → người
- * nhận, loại (Trả bill / Chuyển tiền) và số tiền (NGHÌN đồng). Sửa: "Lưu thay đổi", "Hủy sửa", "Xóa khoản này" (bấm hai lần).
+ * nhận, loại (Trả bill / Chuyển tiền) và số tiền (NGHÌN đồng). Sửa (mở bằng vuốt dòng ở lịch sử): chỉ có nút "Lưu thay đổi"; xóa bằng vuốt dòng.
  */
 export default function PayFormScreen({ editIds, onFinished }: Props) {
   const colors = useColors();
@@ -109,7 +109,6 @@ function PayForm({ bills, pays, people, editIds, source, reload, onFinished }: F
   const [typeChosen, setTypeChosen] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [picking, setPicking] = useState<'from' | 'to' | null>(null);
-  const [deleteArmed, setDeleteArmed] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const options = useMemo(() => payNameOptions(bills, pays, people), [bills, pays, people]);
@@ -146,25 +145,6 @@ function PayForm({ bills, pays, people, editIds, source, reload, onFinished }: F
       onFinished?.();
     } catch (e) {
       toast.show(e instanceof PayInputError ? e.message : describeDebtError(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function remove() {
-    if (busy || !editing) return;
-    if (!deleteArmed) {
-      setDeleteArmed(true);
-      setTimeout(() => setDeleteArmed(false), 3500);
-      return;
-    }
-    setBusy(true);
-    try {
-      await deletePaySynced(editIds ?? []);
-      toast.show('Đã xóa');
-      onFinished?.();
-    } catch (e) {
-      toast.show(describeDebtError(e));
     } finally {
       setBusy(false);
     }
@@ -252,21 +232,7 @@ function PayForm({ bills, pays, people, editIds, source, reload, onFinished }: F
               {editing ? 'Lưu thay đổi' : 'Ghi nhận'}
             </AppText>
           </Pressable>
-          {editing && (
-            <Pressable accessibilityRole="button" onPress={() => onFinished?.()} style={[styles.ghost, { borderColor: colors.line }]}>
-              <AppText weight="semibold" color={colors.muted} style={styles.ghostText}>
-                Hủy sửa
-              </AppText>
-            </Pressable>
-          )}
         </View>
-        {editing && (
-          <Pressable accessibilityRole="button" onPress={() => void remove()} style={[styles.delete, { backgroundColor: deleteArmed ? '#D64545' : colors.dangerSoft }]}>
-            <AppText weight="semibold" color={deleteArmed ? '#FFFFFF' : colors.danger}>
-              {deleteArmed ? 'Bấm lần nữa để xóa' : 'Xóa khoản này'}
-            </AppText>
-          </Pressable>
-        )}
       </View>
 
       {!editing && (

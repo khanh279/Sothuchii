@@ -10,7 +10,7 @@ import { SvgIcon } from '@/components/svg-icon';
 import { useToast } from '@/components/toast';
 import { AppFonts } from '@/constants/fonts';
 import { FundInputError } from '@/data/fundRepository';
-import { deleteFundExpenseSynced, saveFundExpenseSynced } from '@/data/fundService';
+import { saveFundExpenseSynced } from '@/data/fundService';
 import { AppRadius } from '@/constants/palette';
 import { FUND_TITLE_MAX, fundExpenseSavedMessage, overspends, validateFundExpense } from '@/domain/fundForms';
 import { addToAmount } from '@/domain/expenses';
@@ -57,7 +57,6 @@ export function FundExpenseForm({ fund, balance, existing, onChanged, variant = 
   const [date, setDate] = useState(existing?.date ?? today);
   const [error, setError] = useState('');
   const [calendarOpen, setCalendarOpen] = useState(false);
-  const [deleteArmed, setDeleteArmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const overlayOpen = calendarOpen || pickerOpen;
@@ -97,25 +96,6 @@ export function FundExpenseForm({ fund, balance, existing, onChanged, variant = 
       onChanged();
     } catch (e) {
       setError(e instanceof FundInputError ? e.message : describeFundError(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function remove() {
-    if (!existing || busy) return;
-    if (!deleteArmed) {
-      setDeleteArmed(true);
-      setTimeout(() => setDeleteArmed(false), 3500);
-      return;
-    }
-    setBusy(true);
-    try {
-      await deleteFundExpenseSynced(existing.id);
-      toast.show('Đã xóa khoản chi');
-      onChanged();
-    } catch (e) {
-      setError(describeFundError(e));
     } finally {
       setBusy(false);
     }
@@ -175,17 +155,6 @@ export function FundExpenseForm({ fund, balance, existing, onChanged, variant = 
         )}
 
         <View style={formStyles.actions}>
-          {existing && (
-            <Pressable
-              style={[formStyles.btn, formStyles.btnDelete, { backgroundColor: deleteArmed ? '#D64545' : colors.dangerSoft }]}
-              onPress={() => void remove()}
-              disabled={busy}
-              accessibilityRole="button">
-              <AppText weight="semibold" color={deleteArmed ? '#FFFFFF' : colors.danger} style={formStyles.btnText}>
-                {deleteArmed ? 'Chạm lần nữa để xoá' : 'Xoá'}
-              </AppText>
-            </Pressable>
-          )}
           <Pressable
             style={[formStyles.btn, formStyles.btnSave, { backgroundColor: colors.primary }, busy && formStyles.disabled]}
             onPress={() => void save()}
@@ -309,16 +278,6 @@ export function FundExpenseForm({ fund, balance, existing, onChanged, variant = 
           Lưu khoản chi
         </AppText>
       </Pressable>
-      {existing && (
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => void remove()}
-          style={[styles.delete, { backgroundColor: deleteArmed ? '#D64545' : colors.dangerSoft }]}>
-          <AppText weight="semibold" color={deleteArmed ? '#FFFFFF' : colors.danger}>
-            {deleteArmed ? 'Bấm lần nữa để xóa' : 'Xóa khoản chi này'}
-          </AppText>
-        </Pressable>
-      )}
 
       {calendarOpen && (
         <CalendarPanel
