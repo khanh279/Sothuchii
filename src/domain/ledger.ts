@@ -143,6 +143,8 @@ export interface PayDraft {
   to: string;
   amt: Nghin;
   led?: Ledger;
+  /** Ghi chú riêng của khoản (ví dụ "Trả dư"); thiếu thì để trống. */
+  note?: string;
 }
 
 /**
@@ -208,7 +210,7 @@ export function finalizeNewPays(drafts: readonly PayDraft[], context: NewPayCont
         id: context.newId(),
         createdAt: context.now + index,
         date: context.today,
-        note: '',
+        note: draft.note ?? '',
         amt: r3(draft.amt),
       };
       if (context.group && draft.kind === 'bt') pay.grp = context.group;

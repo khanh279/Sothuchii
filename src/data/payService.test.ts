@@ -7,6 +7,7 @@ import {
   addTransferSynced,
   deletePaySynced,
   mergeDebtsSynced,
+  recordDebtPaymentSynced,
   recordPairPaymentSynced,
   recordPaymentSynced,
   undoMergeSynced,
@@ -116,6 +117,60 @@ describe('thanh toán', () => {
     const result = await recordPairPaymentSynced('Tôi', 'An', { mode: 'all' });
     expect(result.value).toEqual({ recorded: true, message: 'Đã ghi Tôi → An 30.000 ₫' });
     expect((await recordPairPaymentSynced('Tôi', 'An', { mode: 'all' })).value.recorded).toBe(false);
+  });
+});
+
+describe('thanh toán 4 lựa chọn (nợ bill / nợ vay / một phần / toàn bộ)', () => {
+  /** Tôi nợ An 30 (bill) và 50 (vay, An cho tôi vay). Khoản vay có trường lạ để kiểm tra bảo toàn. */
+  async function seedOweBoth() {
+    await seedBills();
+    await AsyncStorage.setItem(PAYS, JSON.stringify([{ id: 'l1', createdAt: 1, date: '2025-10-02', note: '', from: 'An', to: 'Tôi', amt: 50, kind: 'vay', zzz: 'giu-nguyen' }]));
+  }
+
+  it('trả quá tổng nợ: bill 30 + vay 50 + dư 20 thành nợ vay mới; ghi một lần, bản ghi dư riêng, không sinh chi tiêu ngoài bill', async () => {
+    await seedOweBoth();
+    const result = await recordDebtPaymentSynced('An', 'partial', 100);
+    expect(result).toEqual({ value: { recorded: true, message: 'Đã ghi Tôi → An 30.000 ₫ · Tôi → An 50.000 ₫ · Tôi → An 20.000 ₫' }, syncFailed: false });
+    expect(await ledger('An')).toMatchObject({ bill: 0, loan: 20 });
+    const pays = await json(PAYS);
+    expect(pays).toHaveLength(4);
+    expect(pays[0]).toMatchObject({ id: 'l1', zzz: 'giu-nguyen' });
+    expect(pays.slice(1).map((x: { kind: string; amt: number; note: string }) => [x.kind, x.amt, x.note])).toEqual([
+      ['billpay', 30, ''],
+      ['vay', 50, ''],
+      ['vay', 20, 'Trả dư'],
+    ]);
+    // Chỉ khoản trả nợ bill sinh chi tiêu cá nhân (30.000 đồng), đúng một khoản.
+    expect((await cbExpenses()).map((e) => e.a)).toEqual([30_000]);
+  });
+
+  it('trả riêng nợ vay: nợ bill giữ nguyên, không sinh chi tiêu', async () => {
+    await seedOweBoth();
+    await recordDebtPaymentSynced('An', 'loan');
+    expect(await ledger('An')).toMatchObject({ bill: -30, loan: 0 });
+    expect(await cbExpenses()).toEqual([]);
+  });
+
+  it('trả riêng nợ bill rồi toàn bộ phần còn lại; gọi lại khi hết nợ không ghi thêm', async () => {
+    await seedOweBoth();
+    await recordDebtPaymentSynced('An', 'bill');
+    expect(await ledger('An')).toMatchObject({ bill: 0, loan: -50 });
+    await recordDebtPaymentSynced('An', 'all');
+    expect(await ledger('An')).toMatchObject({ bill: 0, loan: 0 });
+    const count = (await json(PAYS)).length;
+    expect((await recordDebtPaymentSynced('An', 'all')).value.recorded).toBe(false);
+    expect(await json(PAYS)).toHaveLength(count);
+    expect((await cbExpenses()).map((e) => e.a)).toEqual([30_000]);
+  });
+
+  it('hai sổ trái dấu hoặc số tiền ≤ 0 → không ghi gì', async () => {
+    await seedBills();
+    await AsyncStorage.setItem(PAYS, JSON.stringify([{ id: 'l1', createdAt: 1, date: '2025-10-02', note: '', from: 'Tôi', to: 'An', amt: 50, kind: 'vay' }])); // An nợ tôi vay 50, tôi nợ An bill 30
+    const before = await AsyncStorage.getItem(PAYS);
+    expect((await recordDebtPaymentSynced('An', 'all')).value.recorded).toBe(false);
+    expect((await recordDebtPaymentSynced('An', 'partial', 10)).value.recorded).toBe(false);
+    expect(await AsyncStorage.getItem(PAYS)).toBe(before);
+    expect((await recordDebtPaymentSynced('An', 'partial', 0)).value.recorded).toBe(false);
   });
 });
 

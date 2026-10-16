@@ -8,6 +8,7 @@
 import { loadBills, newBillId } from '@/data/billRepository';
 import { syncBillExpenses } from '@/data/billSync';
 import { PayInputError, appendPays, deletePayGroup, deletePays, loadPays, replacePayGroup, setPayNotes, updatePay, type PayPatch } from '@/data/payRepository';
+import { debtPaymentMessage, planDebtPayment, type DebtPayOption } from '@/domain/debtPay';
 import {
   checkUndoMerge,
   debtEvents,
@@ -65,6 +66,19 @@ export async function recordPaymentSynced(name: string, ledger: Ledger, amount: 
   if (!draft) return { value: NOTHING, syncFailed: false };
   await recordDrafts([draft]);
   return thenSync({ recorded: true, message: paymentMessage(draft) });
+}
+
+/**
+ * "Thanh toán" với `name` theo 4 lựa chọn (nợ bill / nợ vay / một phần / toàn bộ), xem `planDebtPayment`.
+ * Mọi khoản của một lần thanh toán được ghi trong MỘT lần lưu rồi mới đồng bộ. Không ghi gì nếu không có gì để trả
+ * (ví dụ hai sổ trái dấu, số tiền ≤ 0).
+ */
+export async function recordDebtPaymentSynced(name: string, option: DebtPayOption, amount?: Nghin): Promise<SyncedPayChange<RecordResult>> {
+  const [bills, pays] = await Promise.all([loadBills(), loadPays()]);
+  const drafts = planDebtPayment(personLedger(debtEvents(bills, pays), name), option, amount);
+  if (!drafts.length) return { value: NOTHING, syncFailed: false };
+  await recordDrafts(drafts);
+  return thenSync({ recorded: true, message: debtPaymentMessage(drafts) });
 }
 
 /** "Gộp nợ" với `name`: trừ giữa nợ vay và nợ bill. Không ghi gì nếu hai sổ không gộp được. */
