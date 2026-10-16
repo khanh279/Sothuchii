@@ -82,7 +82,7 @@ export default function OverviewScreen() {
           <BillOverviewCard
             period={period}
             onOpen={() => router.push({ pathname: '/chia-bill/lich-su', params: periodParams })}
-            onOpenBill={(id) => router.push({ pathname: '/chia-bill/chi-tiet', params: { id } })}
+            onOpenPerson={(name) => router.push({ pathname: '/chia-bill/nguoi', params: { ...periodParams, name } })}
           />
           <FundOverviewCard
             period={period}

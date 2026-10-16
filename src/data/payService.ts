@@ -8,6 +8,7 @@
 import { loadBills, newBillId } from '@/data/billRepository';
 import { syncBillExpenses } from '@/data/billSync';
 import { PayInputError, appendPays, deletePayGroup, deletePays, loadPays, replacePayGroup, setPayNotes, updatePay, type PayPatch } from '@/data/payRepository';
+import { checkPairPayment, pairAmountDraft, personBillRows } from '@/domain/billPerson';
 import { debtPaymentMessage, planDebtPayment, type DebtPayOption } from '@/domain/debtPay';
 import {
   checkUndoMerge,
@@ -101,6 +102,21 @@ export async function undoMergeSynced(group: string): Promise<SyncedPayChange<nu
   const check = checkUndoMerge(bills, pays, group);
   if (!check.ok) throw new PayInputError(check.message);
   return thenSync(await deletePayGroup(group));
+}
+
+/**
+ * Thanh toán MỘT PHẦN (hoặc nhập số) nợ bill giữa "Tôi" và `person` trong kỳ: số tiền phải > 0 và không vượt số còn phải thanh toán
+ * (tính lại từ dữ liệu hiện có ngay lúc ghi, theo các bill trong kỳ). Không hợp lệ thì ném `PayInputError` và không ghi gì.
+ */
+export async function recordPersonBillPaymentSynced(person: string, period: Period, amount: Nghin): Promise<SyncedPayChange<RecordResult>> {
+  const [bills, pays] = await Promise.all([loadBills(), loadPays()]);
+  const net = personBillRows(bills, pays, person, period);
+  const check = checkPairPayment(net.remaining, amount);
+  if (!check.ok) throw new PayInputError(check.message);
+  const draft = pairAmountDraft(net, check.amount);
+  if (!draft) return { value: NOTHING, syncFailed: false };
+  await recordDrafts([draft]);
+  return thenSync({ recorded: true, message: paymentMessage(draft) });
 }
 
 /** "Thanh toán toàn bộ" cho cả cặp `x` – `z` trong kỳ đang xem. */

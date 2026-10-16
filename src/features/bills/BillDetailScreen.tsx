@@ -1,65 +1,34 @@
-import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Stack, useLocalSearchParams } from 'expo-router';
+import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { CategoryIcon } from '@/components/category-icon';
-import { SvgIcon } from '@/components/svg-icon';
-import { useToast } from '@/components/toast';
 import { AppRadius } from '@/constants/palette';
-import { deleteBillSynced } from '@/data/billService';
 import { computeSplit } from '@/domain/bills';
 import { findBillById } from '@/domain/billHistory';
 import { dayHeading, resolveCategory } from '@/domain/expenses';
-import { describeBillError, useBills } from '@/features/bills/hooks';
+import { useBills } from '@/features/bills/hooks';
 import { SplitReceipt } from '@/features/bills/SplitReceipt';
 import { useExpenseSettings } from '@/features/expenses/hooks';
 import { useColors } from '@/hooks/use-colors';
 import { formatVnDate, todayStr } from '@/utils/date';
 
-/** Quay lại màn trước; nếu không có màn trước (mở thẳng trang này) thì về Tổng quan. */
-function leave() {
-  if (router.canGoBack()) router.back();
-  else router.replace('/');
-}
-
 /**
  * Chi tiết MỘT bill đã chia (tham số route `id` = mã bill, không dùng tên/ngày/số tiền): tên, ngày, mục, số người và biên lai
  * (Tổng bill, phần mỗi người, ai nhận lại / còn thiếu, các khoản cần chuyển). Dùng chung cho Lịch sử chia bill và mục "Chi tiết"
- * ở Tổng quan. Có Sửa (màn tính chia) và Xóa (bấm hai lần; dọn khoản chi cá nhân đã tạo từ bill).
+ * ở Tổng quan. Chỉ xem: sửa / xóa bill làm ở Lịch sử chia bill (vuốt dòng).
  */
 export default function BillDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const toast = useToast();
   const today = todayStr();
   const { settings } = useExpenseSettings();
   const { bills, loaded, error } = useBills();
-  const [armed, setArmed] = useState(false);
-  const [busy, setBusy] = useState(false);
 
   const bill = findBillById(bills, id);
   const category = bill ? resolveCategory(settings, bill.cat) : null;
-
-  async function remove() {
-    if (!bill || busy) return;
-    if (!armed) {
-      setArmed(true);
-      setTimeout(() => setArmed(false), 3500);
-      return;
-    }
-    setBusy(true);
-    try {
-      await deleteBillSynced(bill.id);
-      toast.show('Đã xóa');
-      leave();
-    } catch (e) {
-      toast.show(describeBillError(e));
-      setBusy(false);
-    }
-  }
 
   let body;
   if (error) {
@@ -96,27 +65,6 @@ export default function BillDetailScreen() {
             </View>
           </View>
           <SplitReceipt split={computeSplit(bill.people)} showTotal framed={false} />
-          <View style={styles.actions}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => router.push({ pathname: '/chia-bill/sua', params: { id: bill.id } })}
-              style={[styles.action, { backgroundColor: colors.surface, borderColor: colors.line }]}>
-              <SvgIcon name="edit" size={16} color={colors.ink} />
-              <AppText weight="semibold" style={styles.actionText}>
-                Sửa
-              </AppText>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={armed ? 'Bấm lần nữa để xóa' : 'Xóa'}
-              disabled={busy}
-              onPress={() => void remove()}
-              style={[styles.action, { backgroundColor: armed ? '#D64545' : colors.dangerSoft, borderColor: 'transparent' }]}>
-              <AppText weight="semibold" color={armed ? '#FFFFFF' : colors.danger} style={styles.actionText}>
-                {armed ? 'Bấm lần nữa để xóa' : 'Xóa'}
-              </AppText>
-            </Pressable>
-          </View>
         </View>
       </ScrollView>
     );

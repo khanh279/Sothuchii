@@ -9,12 +9,14 @@ import {
   mergeDebtsSynced,
   recordDebtPaymentSynced,
   recordPairPaymentSynced,
+  recordPersonBillPaymentSynced,
   recordPaymentSynced,
   undoMergeSynced,
   updatePayGroupSynced,
   updateTransferSynced,
 } from './payService';
 import { loadBills } from './billRepository';
+import { personBillRows } from '@/domain/billPerson';
 import { debtEvents, personLedger } from '@/domain/ledger';
 
 jest.mock('@react-native-async-storage/async-storage', () =>
@@ -190,6 +192,30 @@ describe('thanh toán 4 lựa chọn (nợ bill / nợ vay / một phần / toà
     expect((await recordDebtPaymentSynced('An', 'partial', 10)).value.recorded).toBe(false);
     expect(await AsyncStorage.getItem(PAYS)).toBe(before);
     expect((await recordDebtPaymentSynced('An', 'partial', 0)).value.recorded).toBe(false);
+  });
+});
+
+describe('thanh toán nợ bill của một người trong kỳ (một phần / nhập số)', () => {
+  const OCT = { mode: 'month' as const, month: '2025-10' };
+  const remaining = async () => personBillRows(await loadBills(), await loadPays(), 'An', OCT);
+
+  it('trả một phần rồi trả nốt: ghi đúng số tiền, còn lại giảm đúng, chi tiêu cá nhân sinh theo phần trả; hết nợ thì từ chối', async () => {
+    await seedBills(); // tôi nợ An 30 (bill 01/10/2025)
+    const first = await recordPersonBillPaymentSynced('An', OCT, 10);
+    expect(first.value).toEqual({ recorded: true, message: 'Đã ghi Tôi → An 10.000 ₫' });
+    expect(await remaining()).toMatchObject({ remaining: 20, rows: [{ id: 'b1', paid: 10, remaining: 20 }] });
+    expect((await cbExpenses()).map((e) => e.a)).toEqual([10_000]);
+
+    await recordPersonBillPaymentSynced('An', OCT, 20);
+    expect(await remaining()).toMatchObject({ remaining: 0 });
+    await expect(recordPersonBillPaymentSynced('An', OCT, 5)).rejects.toThrow('Không còn khoản nào phải thanh toán');
+    expect((await json(PAYS)).map((x: { amt: number }) => x.amt)).toEqual([30]); // cùng ngày, cùng người: cộng dồn một dòng
+  });
+
+  it('số tiền không hợp lệ hoặc vượt số còn phải thanh toán: báo lỗi, không ghi gì', async () => {
+    await seedBills();
+    for (const bad of [0, -3, 31]) await expect(recordPersonBillPaymentSynced('An', OCT, bad)).rejects.toThrow();
+    expect(await AsyncStorage.getItem(PAYS)).toBeNull();
   });
 });
 

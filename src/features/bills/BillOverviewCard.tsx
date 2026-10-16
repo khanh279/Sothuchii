@@ -4,32 +4,35 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/app-text';
 import { SvgIcon } from '@/components/svg-icon';
 import { formatMoney } from '@/domain/billForm';
-import { billTotal, billsInPeriod, buildBillOverviewCard } from '@/domain/billHistory';
+import { buildBillOverviewCard } from '@/domain/billHistory';
+import { personBillSummary } from '@/domain/billPerson';
 import { periodTitle } from '@/domain/expenses';
-import { useBills } from '@/features/bills/hooks';
+import { useDebtData } from '@/features/debts/hooks';
 import { useColors } from '@/hooks/use-colors';
 import type { Period } from '@/types/expense';
-import { formatVnDate } from '@/utils/date';
 
 interface Props {
   period: Period;
   /** Bấm tiêu đề hoặc một người để mở lịch sử bill của kỳ đang xem. */
   onOpen: () => void;
-  /** Bấm một bill trong mục "Chi tiết" để mở chi tiết bill (theo mã bill). */
-  onOpenBill: (id: string) => void;
+  /** Bấm số tiền của một người trong mục "Chi tiết" để xem các bill của người đó trong kỳ. */
+  onOpenPerson: (name: string) => void;
 }
 
 /**
  * Khung "Chia bill" ở Tổng quan (`#tqBill` của PWA): số bill và tổng bill trong kỳ đang xem, rồi những người đã chi
- * tiền kèm thanh so sánh. Quá 3 người thì có "Xem thêm N người" / "Thu gọn". Cuối khung là "Chi tiết" (đang gập): danh sách
- * các bill đã chia trong kỳ đang xem, bấm một bill để mở chi tiết bill. Như PWA, khung luôn hiện.
+ * tiền kèm thanh so sánh. Quá 3 người thì có "Xem thêm N người" / "Thu gọn". Cuối khung là "Chi tiết" (đang gập): mỗi người một số tiền còn phải thanh toán của các bill
+ * trong kỳ đang xem; bấm vào để xem các bill của người đó. Như PWA, khung luôn hiện.
  */
-export function BillOverviewCard({ period, onOpen, onOpenBill }: Props) {
+const GET = '#0F8A4B';
+const OWE = '#D64545';
+
+export function BillOverviewCard({ period, onOpen, onOpenPerson }: Props) {
   const colors = useColors();
-  const { bills, loaded, error } = useBills();
+  const { bills, pays, loaded, error } = useDebtData();
   const [showAll, setShowAll] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
-  const periodBills = useMemo(() => billsInPeriod(bills, period), [bills, period]);
+  const summary = useMemo(() => personBillSummary(bills, pays, period), [bills, pays, period]);
   const card = useMemo(() => buildBillOverviewCard(bills, period, showAll), [bills, period, showAll]);
 
   if (error || !loaded) return null;
@@ -94,35 +97,31 @@ export function BillOverviewCard({ period, onOpen, onOpenBill }: Props) {
             </AppText>
           </AppText>
           <AppText color={colors.muted} style={styles.small}>
-            {periodBills.length} bill
+            {summary.length} người
           </AppText>
           <View style={{ transform: [{ rotate: detailOpen ? '-90deg' : '90deg' }] }}>
             <SvgIcon name="chevronRight" size={18} color={colors.muted} />
           </View>
         </Pressable>
         {detailOpen &&
-          (periodBills.length === 0 ? (
+          (summary.length === 0 ? (
             <AppText color={colors.muted} style={styles.empty}>
-              Không có bill trong khoảng này
+              Không có khoản bill nào còn phải thanh toán trong khoảng này
             </AppText>
           ) : (
-            periodBills.map((bill, index) => (
+            summary.map((person, index) => (
               <Pressable
-                key={bill.id}
+                key={person.name}
                 accessibilityRole="button"
-                accessibilityLabel={`Chi tiết bill ${bill.title || 'Không tên'}, ${formatMoney(billTotal(bill))}`}
-                onPress={() => onOpenBill(bill.id)}
+                accessibilityLabel={`Bill của ${person.name}, còn phải thanh toán ${formatMoney(Math.abs(person.amount))}`}
+                onPress={() => onOpenPerson(person.name)}
                 style={[styles.billRow, index > 0 && { borderTopWidth: 1, borderTopColor: colors.line }]}>
-                <View style={styles.billText}>
-                  <AppText weight="semibold" style={styles.billTitle} numberOfLines={1}>
-                    {bill.title || 'Không tên'}
-                  </AppText>
-                  <AppText color={colors.muted} style={styles.small}>
-                    {formatVnDate(bill.date)}
-                  </AppText>
-                </View>
-                <AppText weight="bold" style={styles.billAmount}>
-                  {formatMoney(billTotal(bill))}
+                <AppText weight="semibold" style={styles.billTitle} numberOfLines={1}>
+                  {person.name}
+                </AppText>
+                <AppText weight="bold" color={person.tone === 'get' ? GET : person.tone === 'owe' ? OWE : colors.muted} style={styles.billAmount}>
+                  {person.tone === 'get' ? '+' : person.tone === 'owe' ? '−' : ''}
+                  {formatMoney(Math.abs(person.amount))}
                 </AppText>
                 <SvgIcon name="chevronRight" size={16} color={colors.muted} />
               </Pressable>
@@ -154,7 +153,6 @@ const styles = StyleSheet.create({
   detailTitle: { flex: 1, fontSize: 16 },
   empty: { textAlign: 'center', fontSize: 14, paddingTop: 12, paddingBottom: 12 },
   billRow: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  billText: { flex: 1, minWidth: 0 },
-  billTitle: { fontSize: 15.5 },
+  billTitle: { flex: 1, minWidth: 0, fontSize: 15.5 },
   billAmount: { fontSize: 16, marginLeft: 'auto' },
 });
