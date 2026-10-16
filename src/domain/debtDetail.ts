@@ -114,7 +114,7 @@ export interface DebtDetail {
   name: string;
   loan: Nghin;
   bill: Nghin;
-  /** Ngăn Nợ vay chỉ hiện khi từng có biến động; liệt kê MỌI dòng (không theo kỳ). */
+  /** Ngăn Nợ vay chỉ hiện khi số dư còn nợ (từ 0,05 nghìn); sổ về 0 bị ẩn nhưng lịch sử vẫn nằm trong dữ liệu. Liệt kê MỌI dòng (không theo kỳ). */
   hasLoan: boolean;
   loanSubtitle: string;
   loanRows: DebtRow[];
@@ -127,10 +127,14 @@ export interface DebtDetail {
   billDays: DayGroup[];
   billMonths: MonthGroup[];
   billEmpty: boolean;
-  /** Không còn khoản nợ nào ở cả hai sổ. */
+  /** Không còn khoản nợ nào ở cả hai sổ → hiện "Không còn nợ". */
   settled: boolean;
+  /** Hai sổ trái dấu (kể cả khi tổng bằng 0) → chỉ có "Gộp nợ", chưa có "Thanh toán". */
   canMerge: boolean;
   mergeAmount: Nghin;
+  /** Hai sổ cùng dấu, hoặc chỉ một sổ còn nợ → có "Thanh toán". */
+  canPay: boolean;
+  /** Sổ còn nợ để thanh toán; rỗng khi hai sổ trái dấu (phải gộp nợ trước, không tự bù trừ). */
   payActions: PayAction[];
   history: MergeRecord[];
 }
@@ -154,17 +158,18 @@ export function buildDebtDetail(
   const rows = toRows(inPeriod);
   const merge = { loan: ledger.loan, bill: ledger.bill };
   const label: Record<Ledger, string> = { loan: 'Nợ vay', bill: 'Nợ bill' };
+  const mergeable = canMerge(merge);
   const payActions: PayAction[] = (['loan', 'bill'] as const)
-    .filter((key) => !isNearZero(ledger[key]))
+    .filter((key) => !mergeable && !isNearZero(ledger[key]))
     .map((key) => ({ ledger: key, label: label[key], balance: ledger[key], owes: ledger[key] > 0 ? `${who} nợ tôi` : `Tôi nợ ${who}` }));
   return {
     name: who,
     loan: ledger.loan,
     bill: ledger.bill,
-    hasLoan: loanItems.length > 0,
+    hasLoan: !isNearZero(ledger.loan),
     loanSubtitle: ledgerSubtitle(ledger.loan, who),
     loanRows: toRows(loanItems),
-    hasBill: billItems.length > 0,
+    hasBill: !isNearZero(ledger.bill),
     billSubtitle: ledgerSubtitle(ledger.bill, who),
     billPeriodTotal: period.mode === 'all' ? null : r3(inPeriod.reduce((sum, item) => sum + item.v, 0)),
     monthMode,
@@ -172,8 +177,9 @@ export function buildDebtDetail(
     billMonths: monthMode ? [] : groupByMonth(rows),
     billEmpty: inPeriod.length === 0,
     settled: isNearZero(ledger.loan) && isNearZero(ledger.bill),
-    canMerge: canMerge(merge),
+    canMerge: mergeable,
     mergeAmount: mergeAmount(merge),
+    canPay: payActions.length > 0,
     payActions,
     history: mergeHistory(pays, who),
   };

@@ -136,7 +136,7 @@ function PersonView({ name, detail, busy, run, periodLabel, today }: { name: str
 
       {detail.settled && (
         <AppText color={colors.muted} style={styles.empty}>
-          Không còn khoản nợ nào
+          Không còn nợ
         </AppText>
       )}
 
