@@ -9,15 +9,15 @@ import { useToast } from '@/components/toast';
 import { AppFonts } from '@/constants/fonts';
 import { AppRadius } from '@/constants/palette';
 import { PayInputError } from '@/data/payRepository';
-import { mergeDebtsSynced, recordPairPaymentSynced, recordPaymentSynced, undoMergeSynced, type RecordResult, type SyncedPayChange } from '@/data/payService';
+import { mergeDebtsSynced, recordDebtPaymentSynced, recordPairPaymentSynced, undoMergeSynced, type RecordResult, type SyncedPayChange } from '@/data/payService';
 import { formatMoney } from '@/domain/billForm';
+import type { DebtPayOption } from '@/domain/debtPay';
 import { buildDebtDetail, buildPairDetail, type DayGroup, type DebtRow, type MonthGroup, type Tone } from '@/domain/debtDetail';
 import { dayHeading, periodFromParams, periodTitle, resolveCategory } from '@/domain/expenses';
 import { maskPayAmount, parsePayAmount } from '@/domain/payForm';
 import { describeDebtError, useDebtData } from '@/features/debts/hooks';
 import { useExpenseSettings } from '@/features/expenses/hooks';
 import { useColors } from '@/hooks/use-colors';
-import type { Ledger } from '@/types/pay';
 import { formatVnDate, todayStr } from '@/utils/date';
 
 const TONE_COLOR = { get: '#0F8A4B', owe: '#D64545' } as const;
@@ -92,11 +92,12 @@ function PersonView({ name, detail, busy, run, periodLabel, today }: { name: str
   const colors = useColors();
   const [open, setOpen] = useState<{ loan?: boolean; bill?: boolean }>({});
   const [openMonth, setOpenMonth] = useState<string | null>(null);
-  const [partial, setPartial] = useState<Ledger | null>(null);
+  const [payOpen, setPayOpen] = useState(false);
+  const [partial, setPartial] = useState(false);
   const [partialText, setPartialText] = useState('');
   const [armedUndo, setArmedUndo] = useState<string | null>(null);
 
-  const pay = (ledger: Ledger, amount: number) => run(() => recordPaymentSynced(name, ledger, amount));
+  const pay = (option: DebtPayOption, amount?: number) => run(() => recordDebtPaymentSynced(name, option, amount));
 
   return (
     <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.line }]}>
@@ -155,83 +156,121 @@ function PersonView({ name, detail, busy, run, periodLabel, today }: { name: str
         </Pressable>
       )}
 
-      {detail.payActions.map((action) => (
-        <View key={action.ledger} style={styles.payBox}>
-          <AppText weight="semibold" color={colors.muted} style={styles.small}>
-            {action.label} · {action.owes} {formatMoney(Math.abs(action.balance))}
-          </AppText>
-          <View style={styles.payButtons}>
-            <Pressable
-              accessibilityRole="button"
-              disabled={busy}
-              onPress={() => {
-                setPartial(null);
-                void pay(action.ledger, Math.abs(action.balance));
-              }}
-              style={[styles.payAll, { backgroundColor: colors.primary }]}>
-              <AppText weight="semibold" color={colors.primaryInk} style={styles.actionText}>
-                Thanh toán toàn bộ
-              </AppText>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              disabled={busy}
-              onPress={() => {
-                setPartial(action.ledger);
-                setPartialText('');
-              }}
-              style={[styles.payPart, { borderColor: colors.line, backgroundColor: colors.surface }]}>
-              <AppText weight="semibold" style={styles.actionText}>
-                Một phần
-              </AppText>
-            </Pressable>
-          </View>
-          {partial === action.ledger && (
-            <View style={styles.partCol}>
-              <View style={styles.partInputWrap}>
-              <TextInput
-                autoFocus
-                value={partialText}
-                onChangeText={(text) => setPartialText(maskPayAmount(text))}
-                keyboardType="decimal-pad"
-                maxLength={11}
-                placeholder="Nhập số tiền"
-                placeholderTextColor={colors.muted}
-                accessibilityLabel="Số tiền thanh toán, nghìn đồng"
-                style={[styles.partInput, { backgroundColor: colors.bg, borderColor: colors.line, color: colors.ink, fontFamily: AppFonts.semibold }]}
-              />
-              {!!partialText && (
-                <AppText color={colors.muted} style={styles.partSuffix} pointerEvents="none">
-                  .000 ₫
+      {detail.canPay && (
+        <View style={styles.payBox}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: payOpen }}
+            disabled={busy}
+            onPress={() => {
+              setPayOpen((open) => !open);
+              setPartial(false);
+            }}
+            style={[styles.action, { backgroundColor: colors.primary, marginTop: 0 }]}>
+            <AppText weight="bold" color={colors.primaryInk} style={styles.actionText}>
+              Thanh toán
+            </AppText>
+          </Pressable>
+          {payOpen && (
+            <View style={styles.payChoices}>
+              {detail.payActions.map((action) => (
+                <Pressable
+                  key={action.ledger}
+                  accessibilityRole="button"
+                  disabled={busy}
+                  onPress={() => {
+                    setPayOpen(false);
+                    void pay(action.ledger);
+                  }}
+                  style={[styles.choice, { borderColor: colors.line, backgroundColor: colors.surface }]}>
+                  <AppText weight="semibold" style={styles.actionText}>
+                    Thanh toán {action.label.toLowerCase()}
+                  </AppText>
+                  <AppText color={colors.muted} style={styles.small}>
+                    {action.owes} {formatMoney(Math.abs(action.balance))}
+                  </AppText>
+                </Pressable>
+              ))}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ expanded: partial }}
+                disabled={busy}
+                onPress={() => {
+                  setPartial((open) => !open);
+                  setPartialText('');
+                }}
+                style={[styles.choice, { borderColor: partial ? colors.primary : colors.line, backgroundColor: colors.surface }]}>
+                <AppText weight="semibold" style={styles.actionText}>
+                  Thanh toán một phần
                 </AppText>
-              )}
-              </View>
-              <View style={styles.partButtons}>
-              <Pressable accessibilityRole="button" onPress={() => setPartial(null)} style={[styles.small2, styles.half, { borderColor: colors.line, backgroundColor: colors.surface }]}>
-                <AppText weight="semibold" color={colors.muted} style={styles.actionText}>
-                  Huỷ
+                <AppText color={colors.muted} style={styles.small}>
+                  Trả nợ bill trước, rồi nợ vay; phần dư ghi thành nợ vay mới
                 </AppText>
               </Pressable>
+              {partial && (
+                <View style={styles.partCol}>
+                  <View style={styles.partInputWrap}>
+                    <TextInput
+                      autoFocus
+                      value={partialText}
+                      onChangeText={(text) => setPartialText(maskPayAmount(text))}
+                      keyboardType="decimal-pad"
+                      maxLength={11}
+                      placeholder="Nhập số tiền"
+                      placeholderTextColor={colors.muted}
+                      accessibilityLabel="Số tiền thanh toán, nghìn đồng"
+                      style={[styles.partInput, { backgroundColor: colors.bg, borderColor: colors.line, color: colors.ink, fontFamily: AppFonts.semibold }]}
+                    />
+                    {!!partialText && (
+                      <AppText color={colors.muted} style={styles.partSuffix} pointerEvents="none">
+                        .000 ₫
+                      </AppText>
+                    )}
+                  </View>
+                  <View style={styles.partButtons}>
+                    <Pressable accessibilityRole="button" onPress={() => setPartial(false)} style={[styles.small2, styles.half, { borderColor: colors.line, backgroundColor: colors.surface }]}>
+                      <AppText weight="semibold" color={colors.muted} style={styles.actionText}>
+                        Huỷ
+                      </AppText>
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={busy}
+                      onPress={() => {
+                        const amount = parsePayAmount(partialText);
+                        if (amount > 0) {
+                          setPartial(false);
+                          setPayOpen(false);
+                          void pay('partial', amount);
+                        }
+                      }}
+                      style={[styles.small2, styles.half, { backgroundColor: colors.primary, borderColor: colors.primary }]}>
+                      <AppText weight="semibold" color={colors.primaryInk} style={styles.actionText}>
+                        Lưu
+                      </AppText>
+                    </Pressable>
+                  </View>
+                </View>
+              )}
               <Pressable
                 accessibilityRole="button"
                 disabled={busy}
                 onPress={() => {
-                  const amount = parsePayAmount(partialText);
-                  if (amount > 0) {
-                    setPartial(null);
-                    void pay(action.ledger, amount);
-                  }
+                  setPayOpen(false);
+                  void pay('all');
                 }}
-                style={[styles.small2, styles.half, { backgroundColor: colors.primary, borderColor: colors.primary }]}>
+                style={[styles.choice, { borderColor: colors.primary, backgroundColor: colors.primary }]}>
                 <AppText weight="semibold" color={colors.primaryInk} style={styles.actionText}>
-                  Lưu
+                  Thanh toán toàn bộ
+                </AppText>
+                <AppText color={colors.primaryInk} style={styles.smallInk}>
+                  Trả hết cả hai khoản nợ còn lại
                 </AppText>
               </Pressable>
-              </View>
             </View>
           )}
         </View>
-      ))}
+      )}
 
       {detail.history.length > 0 && (
         <View style={[styles.history, { opacity: 0.55 }]}>
@@ -483,6 +522,8 @@ const styles = StyleSheet.create({
   actionText: { fontSize: 14 },
   payBox: { marginTop: 14, gap: 8 },
   payButtons: { flexDirection: 'row', gap: 8 },
+  payChoices: { gap: 8 },
+  choice: { minHeight: 52, borderRadius: 12, borderWidth: 1, paddingVertical: 8, paddingHorizontal: 12, justifyContent: 'center' },
   payAll: { flex: 1.3, minHeight: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
   payPart: { flex: 1, minHeight: 46, paddingHorizontal: 8, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   partCol: { gap: 8 },
