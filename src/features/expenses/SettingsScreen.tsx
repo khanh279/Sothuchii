@@ -154,7 +154,10 @@ export default function SettingsScreen() {
           <ActivityIndicator color={colors.primary} style={{ marginTop: 12 + insets.top }} />
         ) : (
           <>
-            <Section title="Danh sách người" first topInset={insets.top}>
+            <AppText weight="display" style={[styles.pageTitle, { paddingTop: 8 + insets.top }]} accessibilityRole="header">
+              Thiết lập
+            </AppText>
+            <Section title="Danh sách người" first>
               <Panel>
                 <View style={styles.tags}>
                   {people.length === 0 ? (
@@ -343,7 +346,7 @@ export default function SettingsScreen() {
 /** Một khối của trang: tiêu đề Bricolage 18/700, các phần cách nhau 12; khối đầu cách đỉnh 12, khối sau 8 (đo từ PWA). */
 function Section({ title, first, topInset = 0, children }: { title: string; first?: boolean; topInset?: number; children: ReactNode }) {
   return (
-    <View style={[styles.section, { paddingTop: first ? 12 + topInset : 8 }]}>
+    <View style={[styles.section, { paddingTop: first ? 8 + topInset : 8 }]}>
       <AppText weight="display" style={styles.sectionTitle}>
         {title}
       </AppText>
@@ -368,6 +371,7 @@ function Label({ children }: { children: string }) {
 }
 
 const styles = StyleSheet.create({
+  pageTitle: { fontSize: 26, lineHeight: 32, letterSpacing: -0.4, paddingHorizontal: 4 },
   screen: { flex: 1 },
   content: { paddingHorizontal: 12 },
   notice: { padding: 16, borderRadius: 16 },
