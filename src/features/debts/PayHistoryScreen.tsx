@@ -4,9 +4,9 @@ import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { EmptyState, TransactionRow } from '@/components/design';
+import { EmptyState } from '@/components/design';
+import { HistoryCard, IconTile } from '@/components/history-card';
 import { SvgIcon } from '@/components/svg-icon';
-import { SwipeRow } from '@/components/swipe-row';
 import { TOAST_BOTTOM_HISTORY, useToast } from '@/components/toast';
 import { AppRadius } from '@/constants/palette';
 import { deletePaySynced } from '@/data/payService';
@@ -16,7 +16,6 @@ import { buildPayHistory, payRowSubtitle, type PayRow } from '@/domain/payForm';
 import { describeDebtError, useDebtData } from '@/features/debts/hooks';
 import { useColors } from '@/hooks/use-colors';
 import { useSingleOpenRow } from '@/hooks/use-single-open-row';
-import { withAlpha } from '@/utils/color';
 import { formatVnDate, todayStr } from '@/utils/date';
 
 /** Màu theo chiều tiền (`.lg-ico.get/owe/mid` của PWA). */
@@ -123,31 +122,26 @@ export default function PayHistoryScreen() {
 /** Một dòng khoản trả (vuốt để Sửa / Xoá); dùng chung với mục Giao dịch của tab Chi tiêu. `badge`: nhãn liên kết nếu có căn cứ. */
 export function PayRowView({ row, rowProps, onDelete, badge }: { row: PayRow; rowProps: ReturnType<ReturnType<typeof useSingleOpenRow>['rowProps']>; onDelete: () => void; badge?: string }) {
   const colors = useColors();
-  const tone = row.tone === 'get' ? colors.success : row.tone === 'owe' ? colors.danger : colors.muted;
+  const tint = row.tone === 'get' ? colors.success : row.tone === 'owe' ? colors.danger : colors.muted;
   const sign = row.tone === 'get' ? '+' : row.tone === 'owe' ? '−' : '';
   const subtitle = payRowSubtitle(row);
   return (
-    <SwipeRow
+    <HistoryCard
       {...rowProps}
       onEdit={() => router.push({ pathname: '/cong-no/sua', params: { ids: row.ids.join(',') } })}
       onDelete={onDelete}
-      background={colors.bg}
-      radius={AppRadius.field}
-      accessibilityLabel={`${row.from} trả ${row.to}, ${formatMoney(row.amt)}`}>
-      <TransactionRow
-        bare
-        icon={
-          <View style={[styles.icon, { backgroundColor: withAlpha(tone, 0.16) }]}>
-            <SvgIcon name="tabTransactions" size={22} color={tone} />
-          </View>
-        }
-        title={`${row.from} → ${row.to}`}
-        subtitle={[row.title, subtitle].filter(Boolean).join(' · ')}
-        badge={badge}
-        amount={`${sign}${formatMoney(row.amt)}`}
-        tone={row.tone}
-      />
-    </SwipeRow>
+      accessibilityLabel={`${row.from} trả ${row.to}, ${formatMoney(row.amt)}`}
+      icon={
+        <IconTile color={tint}>
+          <SvgIcon name="tabTransactions" size={22} color={tint} />
+        </IconTile>
+      }
+      title={`${row.from} → ${row.to}`}
+      subtitle={[row.title, subtitle].filter(Boolean).join(' · ')}
+      badge={badge}
+      amount={`${sign}${formatMoney(row.amt)}`}
+      tone={row.tone}
+    />
   );
 }
 
@@ -166,12 +160,12 @@ const styles = StyleSheet.create({
   summaryRight: { alignItems: 'flex-end' },
   summaryCount: { fontSize: 14, lineHeight: 19.5 },
   summaryAmount: { fontSize: 12, lineHeight: 15 },
-  body: { paddingHorizontal: 12, paddingTop: 2, paddingBottom: 12 },
+  body: { paddingHorizontal: 12, paddingBottom: 8 },
   empty: { textAlign: 'center', fontSize: 15, paddingVertical: 28 },
-  day: { marginBottom: 6 },
-  dayHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, paddingHorizontal: 2, marginTop: 6, marginBottom: 6 },
+  day: {},
+  dayHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, paddingHorizontal: 2, marginTop: 8, marginBottom: 4 },
   dayName: { flexShrink: 1, fontSize: 13, lineHeight: 18.85 },
-  rows: { gap: 8 },
+  rows: { gap: 6 },
   item: { minHeight: 64, paddingVertical: 11, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
   icon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   itemText: { flex: 1, minWidth: 0 },

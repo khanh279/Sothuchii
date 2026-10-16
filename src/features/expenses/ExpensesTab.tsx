@@ -152,8 +152,8 @@ const styles = StyleSheet.create({
   listHead: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 6 },
   listTitle: { fontSize: 15, lineHeight: 20 },
   listSub: { fontSize: 12, lineHeight: 16 },
-  day: { gap: 10, paddingHorizontal: 12, paddingTop: 8 },
+  day: { gap: 4, paddingHorizontal: 12, paddingTop: 8 },
   dayHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, paddingHorizontal: 2 },
   dayName: { flexShrink: 1, fontSize: 13, lineHeight: 18.85 },
-  rows: { gap: 8 },
+  rows: { gap: 6 },
 });

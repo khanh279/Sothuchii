@@ -4,8 +4,8 @@ import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } fro
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { EmptyState, ModalHeader, Panel, PrimaryButton, ScreenTitle, SecondaryButton, SectionHeader, StatusBadge, TransactionRow, type StatusTone } from '@/components/design';
-import { SwipeRow } from '@/components/swipe-row';
+import { EmptyState, ModalHeader, Panel, PrimaryButton, ScreenTitle, SecondaryButton, SectionHeader, StatusBadge, type StatusTone } from '@/components/design';
+import { HistoryCard, IconTile } from '@/components/history-card';
 import { TOAST_BOTTOM_HISTORY, useToast } from '@/components/toast';
 import { AppRadius } from '@/constants/palette';
 import { deleteAdvanceSynced, deleteFundExpenseSynced, deleteFundTxnSynced } from '@/data/fundService';
@@ -108,25 +108,25 @@ export default function FundAdvanceScreen() {
 
         <View>
           <SectionHeader title="Khoản chi thực tế" subtitle="Tính vào tổng chi quỹ, đã nằm trong lịch sử chi" />
-          <View style={styles.list}>
+          <View style={[styles.list, { backgroundColor: colors.surface, borderColor: colors.line }]}>
             {summary.expenses.length === 0 ? (
               <Panel>
                 <EmptyState text="Chưa có khoản chi nào từ tiền ứng này" icon="check" />
               </Panel>
             ) : (
               summary.expenses.map((item) => (
-                <SwipeRow
+                <HistoryCard
                   key={item.id}
                   {...rowProps(item.id)}
                   onEdit={() => setEditing(item)}
                   onDelete={() => void run(() => deleteFundExpenseSynced(item.id), 'Đã xóa khoản chi')}
-                  background={colors.bg}
-                  radius={AppRadius.field}
-                  accessibilityLabel={`${item.title}, ${formatVnd(item.amount)}`}>
-                  <View style={[styles.row, { backgroundColor: colors.surface }]}>
-                    <TransactionRow bare icon={<RowIcon sign="−" tone="owe" />} title={item.title || 'Chi quỹ'} subtitle={`${item.payer || advance.person} · ${formatVnDate(item.date)}`} amount={`−${formatVnd(item.amount)}`} tone="owe" />
-                  </View>
-                </SwipeRow>
+                  accessibilityLabel={`${item.title}, ${formatVnd(item.amount)}`}
+                  icon={<RowIcon sign="−" tone="owe" />}
+                  title={item.title || 'Chi quỹ'}
+                  subtitle={`${item.payer || advance.person} · ${formatVnDate(item.date)}`}
+                  amount={`−${formatVnd(item.amount)}`}
+                  tone="owe"
+                />
               ))
             )}
           </View>
@@ -135,27 +135,20 @@ export default function FundAdvanceScreen() {
         {summary.txns.length > 0 && (
           <View>
             <SectionHeader title="Hoàn tiền và thanh toán" subtitle="Chỉ đổi tiền quỹ và công nợ, không tính vào tổng chi" />
-            <View style={styles.list}>
+            <View style={[styles.list, { backgroundColor: colors.surface, borderColor: colors.line }]}>
               {summary.txns.map((item) => (
-                <SwipeRow
+                <HistoryCard
                   key={item.id}
                   {...rowProps(item.id)}
                   onEdit={() => toast.show('Muốn sửa, hãy xoá giao dịch này rồi ghi lại', { bottom: TOAST_BOTTOM_HISTORY })}
                   onDelete={() => void run(() => deleteFundTxnSynced(item.id), 'Đã xóa giao dịch')}
-                  background={colors.bg}
-                  radius={AppRadius.field}
-                  accessibilityLabel={`${item.kind === 'refund' ? 'Hoàn tiền' : 'Thanh toán'}, ${formatVnd(item.amount)}`}>
-                  <View style={[styles.row, { backgroundColor: colors.surface }]}>
-                    <TransactionRow
-                      bare
-                      icon={<RowIcon sign={item.kind === 'refund' ? '+' : '−'} tone={item.kind === 'refund' ? 'get' : 'owe'} />}
-                      title={item.kind === 'refund' ? 'Hoàn tiền ứng' : `Quỹ trả cho ${item.person}`}
-                      subtitle={formatVnDate(item.date)}
-                      amount={`${item.kind === 'refund' ? '+' : '−'}${formatVnd(item.amount)}`}
-                      tone={item.kind === 'refund' ? 'get' : 'owe'}
-                    />
-                  </View>
-                </SwipeRow>
+                  accessibilityLabel={`${item.kind === 'refund' ? 'Hoàn tiền' : 'Thanh toán'}, ${formatVnd(item.amount)}`}
+                  icon={<RowIcon sign={item.kind === 'refund' ? '+' : '−'} tone={item.kind === 'refund' ? 'get' : 'owe'} />}
+                  title={item.kind === 'refund' ? 'Hoàn tiền ứng' : `Quỹ trả cho ${item.person}`}
+                  subtitle={formatVnDate(item.date)}
+                  amount={`${item.kind === 'refund' ? '+' : '−'}${formatVnd(item.amount)}`}
+                  tone={item.kind === 'refund' ? 'get' : 'owe'}
+                />
               ))}
             </View>
           </View>
@@ -231,11 +224,11 @@ function RowIcon({ sign, tone }: { sign: '+' | '−'; tone: 'get' | 'owe' }) {
   const colors = useColors();
   const fg = tone === 'get' ? colors.success : colors.danger;
   return (
-    <View style={[styles.icon, { backgroundColor: tone === 'get' ? colors.successSoft : colors.dangerSoft }]}>
+    <IconTile color={fg}>
       <AppText weight="bold" color={fg} style={styles.iconText}>
         {sign}
       </AppText>
-    </View>
+    </IconTile>
   );
 }
 
@@ -268,7 +261,7 @@ const styles = StyleSheet.create({
   summaryLabel: { flex: 1, fontSize: 14.5, lineHeight: 20 },
   summaryValue: { fontSize: 15.5, lineHeight: 22 },
   actions: { gap: 10 },
-  list: { gap: 8 },
+  list: { gap: 6, padding: 8, borderRadius: AppRadius.card, borderWidth: 1 },
   row: { borderRadius: AppRadius.field, overflow: 'hidden', paddingHorizontal: 12 },
   icon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   iconText: { fontSize: 20, lineHeight: 24 },

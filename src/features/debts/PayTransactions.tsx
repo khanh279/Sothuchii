@@ -114,8 +114,8 @@ const styles = StyleSheet.create({
   head: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 6 },
   title: { fontSize: 15, lineHeight: 20 },
   sub: { fontSize: 12, lineHeight: 16 },
-  day: { gap: 10, paddingHorizontal: 12, paddingTop: 8 },
+  day: { gap: 4, paddingHorizontal: 12, paddingTop: 8 },
   dayHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, paddingHorizontal: 2 },
   dayName: { flexShrink: 1, fontSize: 13, lineHeight: 18.85 },
-  rows: { gap: 8 },
+  rows: { gap: 6 },
 });

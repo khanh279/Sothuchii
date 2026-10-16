@@ -4,9 +4,9 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View, useWindowDi
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { EmptyState, TransactionRow } from '@/components/design';
+import { EmptyState } from '@/components/design';
 import { CategoryIcon } from '@/components/category-icon';
-import { SwipeRow } from '@/components/swipe-row';
+import { HistoryCard } from '@/components/history-card';
 import { AppRadius } from '@/constants/palette';
 import {
   categoriesInUse,
@@ -205,10 +205,9 @@ interface RowProps {
 }
 
 export function ExpenseRow({ item, settings, open, onOpen, onClose, onPressRow, onPressLocked, onEdit, onDelete, badge }: RowProps) {
-  const colors = useColors();
   const category = resolveCategory(settings, item.c);
   return (
-    <SwipeRow
+    <HistoryCard
       open={open}
       onOpen={onOpen}
       onClose={onClose}
@@ -217,18 +216,13 @@ export function ExpenseRow({ item, settings, open, onOpen, onClose, onPressRow, 
       onPressRow={onPressRow}
       locked={!!linkedExpenseNotice(item)}
       onPressLocked={onPressLocked}
-      background={colors.bg}
-      radius={AppRadius.field}
-      accessibilityLabel={`${item.n || category.name}, ${formatVnd(item.a)}`}>
-      <TransactionRow
-        bare
-        icon={<CategoryIcon category={category} />}
-        title={item.n || category.name}
-        subtitle={item.i || category.name}
-        badge={badge}
-        amount={formatVnd(item.a)}
-      />
-    </SwipeRow>
+      accessibilityLabel={`${item.n || category.name}, ${formatVnd(item.a)}`}
+      icon={<CategoryIcon category={category} />}
+      title={item.n || category.name}
+      subtitle={item.i || category.name}
+      badge={badge}
+      amount={formatVnd(item.a)}
+    />
   );
 }
 
@@ -248,16 +242,16 @@ const styles = StyleSheet.create({
   summaryCount: { fontSize: 14, lineHeight: 19.5 },
   summaryAmount: { fontSize: 12, lineHeight: 15 },
   /** Thân thẻ: đệm 2/12/12, các khối cách nhau 12. Chip tràn hết bề rộng thẻ. */
-  body: { paddingTop: 2, paddingBottom: 12, gap: 12 },
+  body: { paddingTop: 0, paddingBottom: 8, gap: 8 },
   chipsScroll: { flexGrow: 0 },
   chips: { gap: 8, paddingHorizontal: 12, paddingBottom: 4.8 },
   chip: { height: 36, paddingHorizontal: 14, borderRadius: AppRadius.pill, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   chipText: { fontSize: 13 },
-  day: { gap: 12, paddingHorizontal: 12 },
+  day: { gap: 4, paddingHorizontal: 12 },
   dayHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, paddingHorizontal: 2 },
   dayName: { flexShrink: 1, fontSize: 13, lineHeight: 18.85 },
   /** Khung chứa các dòng có viền trong suốt 0.8px như PWA (.panel.rows). */
-  rows: { gap: 8, borderWidth: 0.8, borderColor: 'transparent' },
+  rows: { gap: 6, borderWidth: 0.8, borderColor: 'transparent' },
   row: { minHeight: 64, paddingVertical: 12, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
   rowText: { flex: 1, minWidth: 0 },
   rowTitle: { fontSize: 15.5, lineHeight: 19.4 },

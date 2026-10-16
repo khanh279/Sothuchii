@@ -4,9 +4,9 @@ import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { ChipRow, EmptyState, SegmentedControl, TransactionRow } from '@/components/design';
+import { ChipRow, EmptyState, SegmentedControl } from '@/components/design';
 import { CategoryIcon } from '@/components/category-icon';
-import { SwipeRow } from '@/components/swipe-row';
+import { HistoryCard } from '@/components/history-card';
 import { TOAST_BOTTOM_HISTORY, useToast } from '@/components/toast';
 import { AppRadius } from '@/constants/palette';
 import { deleteBillSynced } from '@/data/billService';
@@ -164,7 +164,7 @@ export default function BillHistoryScreen({ tab }: { tab?: BillHistoryTabMode } 
                         const category = resolveCategory(settings, bill.cat);
                         const props = rowProps(bill.id);
                         return (
-                          <SwipeRow
+                          <HistoryCard
                             key={bill.id}
                             {...props}
                             onPressRow={() => {
@@ -173,19 +173,15 @@ export default function BillHistoryScreen({ tab }: { tab?: BillHistoryTabMode } 
                             }}
                             onEdit={() => router.push({ pathname: '/chia-bill/sua', params: { id: bill.id } })}
                             onDelete={() => void remove(bill.id)}
-                            background={colors.bg}
-                            radius={AppRadius.field}
-                            accessibilityLabel={`${bill.title || 'Không tên'}, ${formatMoney(billTotal(bill))}`}>
-                            <TransactionRow
-                              bare
-                              icon={<CategoryIcon category={category} />}
-                              title={bill.title || 'Không tên'}
-                              subtitle={`${category.name} · ${formatVnDate(bill.date)} · ${bill.people.length} người`}
-                              badge={settledOf(bill.id) ? 'Đã thanh toán' : 'Chưa thanh toán'}
-                              badgeTone={settledOf(bill.id) ? 'get' : 'owe'}
-                              amount={formatMoney(billTotal(bill))}
-                            />
-                          </SwipeRow>
+                            accessibilityLabel={`${bill.title || 'Không tên'}, ${category.name}, ${formatMoney(billTotal(bill))}`}
+                            icon={<CategoryIcon category={category} />}
+                            title={bill.title || 'Không tên'}
+                            subtitle={`${formatVnDate(bill.date)} · ${bill.people.length} người`}
+                            badge={settledOf(bill.id) ? 'Đã thanh toán' : 'Chưa thanh toán'}
+                            badgeTone={settledOf(bill.id) ? 'get' : 'owe'}
+                            amount={formatMoney(billTotal(bill))}
+                            meta="Tổng bill"
+                          />
                         );
                       })}
                     </View>
@@ -218,12 +214,13 @@ const styles = StyleSheet.create({
   summaryRight: { alignItems: 'flex-end' },
   summaryCount: { fontSize: 14, lineHeight: 19.5 },
   summaryAmount: { fontSize: 12, lineHeight: 15 },
-  body: { paddingHorizontal: 12, paddingTop: 2, paddingBottom: 12 },
+  body: { paddingHorizontal: 12, paddingBottom: 8 },
   empty: { textAlign: 'center', fontSize: 15, paddingVertical: 28 },
-  day: { marginBottom: 6 },
-  dayHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, paddingHorizontal: 2, marginTop: 6, marginBottom: 6 },
+  day: {},
+  /** Khoảng trên tiêu đề ngày lớn hơn khoảng dưới để tiêu đề thuộc về nhóm bên dưới; không còn lề kép giữa các nhóm. */
+  dayHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, paddingHorizontal: 2, marginTop: 8, marginBottom: 4 },
   dayName: { flexShrink: 1, fontSize: 13, lineHeight: 18.85 },
-  rows: { gap: 8 },
+  rows: { gap: 6 },
   row: { minHeight: 64, paddingVertical: 11, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
   rowText: { flex: 1, minWidth: 0 },
   rowTitle: { fontSize: 15.5, lineHeight: 19.4 },

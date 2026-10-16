@@ -4,8 +4,8 @@ import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } fro
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { EmptyState, ModalHeader, TransactionRow, type StatusTone } from '@/components/design';
-import { SwipeRow } from '@/components/swipe-row';
+import { EmptyState, ModalHeader, type StatusTone } from '@/components/design';
+import { HistoryCard, IconTile } from '@/components/history-card';
 import { TOAST_BOTTOM_HISTORY, useToast } from '@/components/toast';
 import { AppRadius } from '@/constants/palette';
 import { deleteAdvanceSynced, deleteContributionSynced, deleteFundExpenseSynced, deleteFundTxnSynced } from '@/data/fundService';
@@ -19,7 +19,6 @@ import { FundExpenseForm } from '@/features/funds/FundExpenseForm';
 import { describeFundError, useFundData } from '@/features/funds/hooks';
 import { fundBalance } from '@/domain/funds';
 import { useColors } from '@/hooks/use-colors';
-import { withAlpha } from '@/utils/color';
 import { formatVnDate, todayStr } from '@/utils/date';
 import { formatVnd } from '@/utils/format';
 
@@ -238,8 +237,10 @@ export default function FundHistoryScreen() {
                         const cashOnly = entry.kind === 'advance' || entry.kind === 'payout' || entry.kind === 'refund'; // dòng tiền, không phải chi phí
                         const status = statusOf(entry);
                         const name = history.showFundName ? fundName(entry.fundId) : '';
+                        // Màu dấu +/−: thu / hoàn xanh lá, chi đỏ, dòng tiền xuất (giao ứng, quỹ trả) xám.
+                        const tint = cashOnly && !incoming ? colors.muted : incoming ? colors.success : colors.danger;
                         return (
-                          <SwipeRow
+                          <HistoryCard
                             key={`${entry.kind}:${entry.id}`}
                             open={openId === entry.id}
                             onOpen={() => setOpenId(entry.id)}
@@ -247,26 +248,21 @@ export default function FundHistoryScreen() {
                             onPressRow={() => pressEntry(entry)}
                             onEdit={() => (entry.kind === 'contribution' || entry.kind === 'expense' ? setEditing(entry) : entry.advanceId ? openAdvance(entry.advanceId) : toast.show('Muốn sửa, hãy xoá giao dịch này rồi ghi lại', { bottom: TOAST_BOTTOM_HISTORY }))}
                             onDelete={() => void remove(entry)}
-                            background={colors.bg}
-                            radius={AppRadius.field}
-                            accessibilityLabel={`${entry.title}, ${incoming ? '+' : '-'}${formatVnd(entry.amount)}`}>
-                            <TransactionRow
-                              bare
-                              icon={
-                                <View style={[styles.icon, { backgroundColor: withAlpha(cashOnly && !incoming ? colors.muted : incoming ? colors.success : colors.danger, 0.14) }]}>
-                                  <AppText weight="bold" color={cashOnly && !incoming ? colors.muted : incoming ? colors.success : colors.danger} style={styles.iconText}>
-                                    {incoming ? '+' : '−'}
-                                  </AppText>
-                                </View>
-                              }
-                              title={entry.title}
-                              subtitle={name ? `${name} · ${entry.meta}` : entry.meta}
-                              amount={`${incoming ? '+' : '−'}${formatVnd(entry.amount)}`}
-                              tone={cashOnly && !incoming ? 'mid' : incoming ? 'get' : 'owe'}
-                              badge={status?.label}
-                              badgeTone={status?.tone}
-                            />
-                          </SwipeRow>
+                            accessibilityLabel={`${entry.title}, ${incoming ? '+' : '-'}${formatVnd(entry.amount)}`}
+                            icon={
+                              <IconTile color={tint}>
+                                <AppText weight="bold" color={tint} style={styles.iconText}>
+                                  {incoming ? '+' : '−'}
+                                </AppText>
+                              </IconTile>
+                            }
+                            title={entry.title}
+                            subtitle={name ? `${name} · ${entry.meta}` : entry.meta}
+                            amount={`${incoming ? '+' : '−'}${formatVnd(entry.amount)}`}
+                            tone={cashOnly && !incoming ? 'mid' : incoming ? 'get' : 'owe'}
+                            badge={status?.label}
+                            badgeTone={status?.tone}
+                          />
                         );
                       })}
                     </View>
@@ -365,15 +361,15 @@ const styles = StyleSheet.create({
   summaryRight: { alignItems: 'flex-end' },
   summaryCount: { fontSize: 14, lineHeight: 19.5 },
   summaryAmount: { fontSize: 12, lineHeight: 15 },
-  body: { paddingHorizontal: 12, paddingTop: 2, paddingBottom: 12 },
+  body: { paddingHorizontal: 12, paddingBottom: 8 },
   balance: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 14, marginBottom: 12 },
   balanceLabel: { fontSize: 14, flexShrink: 1 },
   balanceValue: { fontSize: 16 },
   empty: { textAlign: 'center', fontSize: 15, paddingVertical: 28 },
-  day: { marginBottom: 6 },
-  dayHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, paddingHorizontal: 2, marginTop: 6, marginBottom: 6 },
+  day: {},
+  dayHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, paddingHorizontal: 2, marginTop: 8, marginBottom: 4 },
   dayName: { flexShrink: 1, fontSize: 13, lineHeight: 18.85 },
-  rows: { gap: 8 },
+  rows: { gap: 6 },
   row: { minHeight: 64, paddingVertical: 11, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
   icon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   iconText: { fontSize: 22, lineHeight: 26 },
