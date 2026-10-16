@@ -17,6 +17,7 @@ import { AppText } from '@/components/app-text';
 import { CalendarPanel } from '@/components/calendar-panel';
 import { CategoryIcon } from '@/components/category-icon';
 import { DateField } from '@/components/date-field';
+import { ScreenTitle } from '@/components/design';
 import { AmountField, FormLabel, PickButton, PickPanel, formStyles } from '@/components/expense-form-parts';
 import { useToast } from '@/components/toast';
 import { DEFAULT_CATEGORY_ID, MEMO_MAX } from '@/constants/categories';
@@ -98,10 +99,11 @@ export default function ExpenseFormScreen() {
   else if (ref && !expense.existing) body = <Notice text="Không tìm thấy khoản chi này. Có thể nó đã bị xoá." />;
   else body = <ExpenseForm settings={settings} existing={expense.existing} suggestedDate={params.d} period={period} />;
 
-  // Trang riêng: không có header; khoảng đệm phía trên = 12 + vùng an toàn (4 của trang + 8 của khung, như PWA).
+  // Trang riêng: không có thanh điều hướng; tiêu đề màn hình ("Thêm chi tiêu" / "Sửa chi tiêu") nằm ở đầu trang như các form khác.
   return (
-    <View style={[styles.flex, { backgroundColor: colors.bg, paddingTop: 12 + insets.top }]}>
+    <View style={[styles.flex, { backgroundColor: colors.bg }]}>
       <Stack.Screen options={{ title: ref ? 'Sửa chi tiêu' : 'Thêm chi tiêu', headerShown: false }} />
+      <ScreenTitle title={ref ? 'Sửa chi tiêu' : 'Thêm chi tiêu'} topInset={insets.top} />
       {body}
     </View>
   );
@@ -189,10 +191,6 @@ function ExpenseForm({ settings, existing, suggestedDate, period }: FormProps) {
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView style={styles.flex} contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
         <View style={[formStyles.card, { backgroundColor: colors.surface }]}>
-          <AppText weight="display" style={formStyles.title}>
-            {existing ? 'Sửa chi tiêu' : 'Thêm chi tiêu'}
-          </AppText>
-
           <AmountField
             value={amount}
             invalid={errors.amount}
