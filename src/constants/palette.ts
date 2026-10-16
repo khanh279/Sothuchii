@@ -26,6 +26,9 @@ export interface SoTienPalette {
   /** Tiền nhận / trạng thái tích cực. */
   success: string;
   successSoft: string;
+  /** Trạng thái "một phần" / cảnh báo nhẹ (vàng cam). */
+  warning: string;
+  warningSoft: string;
   /** Màu biểu tượng nhận diện nhóm chức năng (chia bill, công nợ, quỹ, chi tiêu). */
   iconBlue: string;
   iconPurple: string;
@@ -55,6 +58,8 @@ export const SoTienColors: { light: SoTienPalette; dark: SoTienPalette } = {
     accentSoft: '#E8EFFD',
     success: '#0F8A4B',
     successSoft: '#E3F5EA',
+    warning: '#B45309',
+    warningSoft: '#FEF1DC',
     iconBlue: '#2563EB',
     iconPurple: '#7C3AED',
     iconTeal: '#0D9488',
@@ -81,6 +86,8 @@ export const SoTienColors: { light: SoTienPalette; dark: SoTienPalette } = {
     accentSoft: '#172A4F',
     success: '#4CC38A',
     successSoft: '#163A2A',
+    warning: '#FBBF24',
+    warningSoft: '#3A2D12',
     iconBlue: '#6EA0FF',
     iconPurple: '#A78BFA',
     iconTeal: '#2DD4BF',

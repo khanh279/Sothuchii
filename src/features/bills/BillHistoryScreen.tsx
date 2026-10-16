@@ -4,16 +4,18 @@ import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { ChipRow, EmptyState, TransactionRow } from '@/components/design';
+import { ChipRow, EmptyState, SegmentedControl, TransactionRow } from '@/components/design';
 import { CategoryIcon } from '@/components/category-icon';
 import { SwipeRow } from '@/components/swipe-row';
 import { TOAST_BOTTOM_HISTORY, useToast } from '@/components/toast';
 import { AppRadius } from '@/constants/palette';
 import { deleteBillSynced } from '@/data/billService';
 import { formatMoney } from '@/domain/billForm';
+import { billSettled, billTransferStatuses } from '@/domain/billPayment';
 import { billTotal, buildBillHistory, filterBillsByCategory } from '@/domain/billHistory';
 import { categoriesInUse, dayHeading, periodFromParams, periodTitle, resolveCategory } from '@/domain/expenses';
-import { describeBillError, useBills } from '@/features/bills/hooks';
+import { describeBillError } from '@/features/bills/hooks';
+import { useDebtData } from '@/features/debts/hooks';
 import { useExpenseSettings } from '@/features/expenses/hooks';
 import { useColors } from '@/hooks/use-colors';
 import type { Period } from '@/types/expense';
@@ -26,6 +28,13 @@ import { formatVnDate, todayStr } from '@/utils/date';
  * Chạm một bill để mở màn Chi tiết bill (theo mã bill). Vuốt dòng sang trái để hiện Sửa / Xóa (Xóa bấm hai lần);
  * chỉ một dòng mở tại một thời điểm. Xóa bill sẽ dọn khoản chi cá nhân đã tạo từ bill đó.
  */
+type BillStatusFilter = 'all' | 'unpaid' | 'paid';
+const STATUS_OPTIONS: { value: BillStatusFilter; label: string }[] = [
+  { value: 'all', label: 'Tất cả' },
+  { value: 'unpaid', label: 'Chưa thanh toán' },
+  { value: 'paid', label: 'Đã thanh toán' },
+];
+
 export interface BillHistoryTabMode {
   /** Kỳ đang xem (do tab giữ, không lấy từ tham số route). */
   period: Period;
@@ -44,7 +53,7 @@ export default function BillHistoryScreen({ tab }: { tab?: BillHistoryTabMode } 
   const paramPeriod = useMemo(() => periodFromParams({ mode, month, year, from, to }, today), [mode, month, year, from, to, today]);
   const period = tab ? tab.period : paramPeriod;
   const { settings } = useExpenseSettings();
-  const { bills, loaded, error, reload } = useBills();
+  const { bills, pays, loaded, error, reload } = useDebtData();
   const { closeAll, rowProps } = useSingleOpenRow();
 
   // Chip danh mục (chỉ ở tab Chia bill): các mục chi có bill trong kỳ; chip đang chọn mà không còn bill nào thì quay về "Tất cả".
@@ -53,7 +62,16 @@ export default function BillHistoryScreen({ tab }: { tab?: BillHistoryTabMode } 
   const inUse = useMemo(() => categoriesInUse(periodBills.map((bill) => ({ c: bill.cat })), settings), [periodBills, settings]);
   const activeCat = tab && (catChip === 'all' || inUse.some((cat) => cat.id === catChip)) ? catChip : 'all';
   const catOptions = useMemo(() => [{ value: 'all', label: 'Tất cả' }, ...inUse.map((cat) => ({ value: cat.id, label: cat.name }))], [inUse]);
-  const history = useMemo(() => buildBillHistory(filterBillsByCategory(bills, settings, activeCat), period), [bills, settings, activeCat, period]);
+  // Trạng thái thanh toán chung của từng bill (đọc từ khoản trả thực tế, theo quy tắc phân bổ có sẵn): lọc Tất cả / Chưa / Đã thanh toán.
+  const [statusFilter, setStatusFilter] = usePersistedState<BillStatusFilter>('tab:chia-bill:status', () => 'all');
+  const transfers = useMemo(() => billTransferStatuses(bills, pays), [bills, pays]);
+  const settledOf = (id: string) => billSettled(transfers.get(id));
+  const activeStatus: BillStatusFilter = tab ? statusFilter : 'all';
+  const history = useMemo(() => {
+    const byCategory = filterBillsByCategory(bills, settings, activeCat);
+    const byStatus = activeStatus === 'all' ? byCategory : byCategory.filter((bill) => billSettled(transfers.get(bill.id)) === (activeStatus === 'paid'));
+    return buildBillHistory(byStatus, period);
+  }, [bills, settings, activeCat, activeStatus, transfers, period]);
 
   async function remove(id: string) {
     try {
@@ -81,6 +99,18 @@ export default function BillHistoryScreen({ tab }: { tab?: BillHistoryTabMode } 
       ) : (
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: (tab ? 110 : 24) + insets.bottom }]} onScrollBeginDrag={closeAll}>
           {tab && periodBills.length > 0 && (
+            <View style={styles.status}>
+              <SegmentedControl
+                options={STATUS_OPTIONS}
+                value={statusFilter}
+                onChange={(next) => {
+                  closeAll();
+                  setStatusFilter(next);
+                }}
+              />
+            </View>
+          )}
+          {tab && periodBills.length > 0 && (
             <View style={styles.chips}>
               <ChipRow
                 options={catOptions}
@@ -92,7 +122,7 @@ export default function BillHistoryScreen({ tab }: { tab?: BillHistoryTabMode } 
               />
             </View>
           )}
-          <View style={[styles.card, { backgroundColor: colors.surface }]}>
+          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.line }]}>
             <View style={styles.summary}>
               <View style={styles.summaryLeft}>
                 <AppText weight="semibold" style={styles.summaryTitle}>
@@ -114,7 +144,7 @@ export default function BillHistoryScreen({ tab }: { tab?: BillHistoryTabMode } 
 
             <View style={styles.body}>
               {history.days.length === 0 ? (
-                <EmptyState text={periodBills.length > 0 ? 'Không có bill nào thuộc danh mục này trong kỳ' : 'Không có bill trong khoảng này'} icon="check" />
+                <EmptyState text={periodBills.length > 0 ? 'Không có bill nào khớp bộ lọc trong kỳ' : 'Không có bill trong khoảng này'} icon="check" />
               ) : (
                 history.days.map((day) => (
                   <View key={day.date} style={styles.day}>
@@ -150,7 +180,9 @@ export default function BillHistoryScreen({ tab }: { tab?: BillHistoryTabMode } 
                               bare
                               icon={<CategoryIcon category={category} />}
                               title={bill.title || 'Không tên'}
-                              subtitle={`${category.name} · ${bill.people.length} người`}
+                              subtitle={`${category.name} · ${formatVnDate(bill.date)} · ${bill.people.length} người`}
+                              badge={settledOf(bill.id) ? 'Đã thanh toán' : 'Chưa thanh toán'}
+                              badgeTone={settledOf(bill.id) ? 'get' : 'owe'}
                               amount={formatMoney(billTotal(bill))}
                             />
                           </SwipeRow>
@@ -177,7 +209,8 @@ const styles = StyleSheet.create({
   noticeText: { fontSize: 15 },
   /** Hàng chip tràn hết bề rộng màn hình (bù đệm ngang của nội dung). */
   chips: { marginHorizontal: -12, marginBottom: 12 },
-  card: { borderRadius: AppRadius.card, overflow: 'hidden' },
+  status: { marginBottom: 12 },
+  card: { borderRadius: AppRadius.card, borderWidth: 1, overflow: 'hidden' },
   summary: { minHeight: 64, paddingVertical: 10, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   summaryLeft: { flex: 1, minWidth: 0 },
   summaryTitle: { fontSize: 16, lineHeight: 22 },

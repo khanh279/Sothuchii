@@ -254,8 +254,9 @@ interface TransactionRowProps {
   tone?: AmountTone;
   /** Nhãn nhỏ dưới số tiền (ví dụ ngày hoặc loại giao dịch). */
   meta?: string;
-  /** Nhãn liên kết dạng viên thuốc dưới dòng phụ (ví dụ "Liên kết bill"). */
+  /** Nhãn dạng viên thuốc dưới dòng phụ (ví dụ "Liên kết bill", trạng thái thanh toán) và màu của nó. */
   badge?: string;
+  badgeTone?: StatusTone;
   first?: boolean;
   onPress?: () => void;
   accessibilityLabel?: string;
@@ -263,8 +264,29 @@ interface TransactionRowProps {
   bare?: boolean;
 }
 
+/** Màu của nhãn trạng thái: get = xanh lá (đã xong / nhận), owe = đỏ (chưa / còn thiếu), warn = vàng cam (một phần), info = navy nhạt. */
+export type StatusTone = 'get' | 'owe' | 'warn' | 'info';
+
+/** Nhãn trạng thái nhỏ dạng viên thuốc, dùng chung (danh sách bill, chi tiết bill, nhãn liên kết). Chỉ nhãn đổi màu, không đổi cả thẻ. */
+export function StatusBadge({ label, tone = 'info' }: { label: string; tone?: StatusTone }) {
+  const colors = useColors();
+  const palette = {
+    get: { bg: colors.successSoft, fg: colors.success },
+    owe: { bg: colors.dangerSoft, fg: colors.danger },
+    warn: { bg: colors.warningSoft, fg: colors.warning },
+    info: { bg: colors.primarySoft, fg: colors.primary },
+  }[tone];
+  return (
+    <View style={[styles.badge, { backgroundColor: palette.bg }]}>
+      <AppText weight="semibold" color={palette.fg} style={styles.badgeText} numberOfLines={1}>
+        {label}
+      </AppText>
+    </View>
+  );
+}
+
 /** Dòng giao dịch: biểu tượng, nội dung + thông tin phụ bên trái, số tiền căn phải kèm nhãn nhỏ. */
-export function TransactionRow({ icon, title, subtitle, amount, tone, meta, badge, first, onPress, accessibilityLabel, bare }: TransactionRowProps) {
+export function TransactionRow({ icon, title, subtitle, amount, tone, meta, badge, badgeTone, first, onPress, accessibilityLabel, bare }: TransactionRowProps) {
   const colors = useColors();
   const toneColor = useToneColor();
   const content = (
@@ -279,13 +301,7 @@ export function TransactionRow({ icon, title, subtitle, amount, tone, meta, badg
             {subtitle}
           </AppText>
         )}
-        {!!badge && (
-          <View style={[styles.badge, { backgroundColor: colors.primarySoft }]}>
-            <AppText weight="semibold" color={colors.primary} style={styles.badgeText} numberOfLines={1}>
-              {badge}
-            </AppText>
-          </View>
-        )}
+        {!!badge && <StatusBadge label={badge} tone={badgeTone} />}
       </View>
       <View style={styles.txRight}>
         <AppText weight="bold" color={toneColor(tone)} style={styles.rowAmount}>
@@ -324,7 +340,7 @@ export function SegmentedControl<T extends string>({ options, value, onChange }:
             accessibilityState={{ selected }}
             onPress={() => onChange(option.value)}
             style={[styles.segmentedItem, selected && { backgroundColor: colors.primary }]}>
-            <AppText weight="semibold" color={selected ? colors.primaryInk : colors.muted} style={styles.segmentedText}>
+            <AppText weight="semibold" color={selected ? colors.primaryInk : colors.muted} style={styles.segmentedText} numberOfLines={1} adjustsFontSizeToFit>
               {option.label}
             </AppText>
           </Pressable>
