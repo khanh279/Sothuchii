@@ -143,6 +143,17 @@ describe('gộp nợ và hoàn tác', () => {
     expect(await json(PAYS)).toHaveLength(1);
   });
 
+  it('hoàn tác bị chặn khi sau lần gộp đã có giao dịch mới: báo lỗi, dữ liệu giữ nguyên', async () => {
+    await seedLoanAndBill();
+    await mergeDebtsSynced('An');
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await recordPaymentSynced('An', 'loan', 5); // giao dịch mới sau khi gộp
+    const before = await json(PAYS);
+    const group = before.find((x: { kind: string }) => x.kind === 'bt').grp as string;
+    await expect(undoMergeSynced(group)).rejects.toThrow('Không thể hoàn tác');
+    expect(await json(PAYS)).toEqual(before);
+  });
+
   it('không gộp được (cùng dấu hoặc một sổ bằng 0) → không ghi gì', async () => {
     await seedBills();
     expect((await mergeDebtsSynced('An')).value.recorded).toBe(false);

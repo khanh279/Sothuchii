@@ -4,6 +4,7 @@ import type { Pay } from '@/types/pay';
 import {
   allDebts,
   canMerge,
+  checkUndoMerge,
   debtEvents,
   eventLabel,
   finalizeNewPays,
@@ -181,6 +182,54 @@ describe('gộp nợ và hoàn tác', () => {
       { id: 'g3', date: '2025-10-05', createdAt: 8, loan: 4, bill: 0 },
       { id: 'g1', date: '2025-10-06', createdAt: 5, loan: 10, bill: 10 },
     ]);
+  });
+});
+
+describe('hoàn tác gộp nợ có kiểm tra giao dịch mới', () => {
+  const merged = [
+    LOAN,
+    pay('m1', 'An', 'Tôi', 30, { kind: 'bt', led: 'loan', grp: 'g1', createdAt: 20 }),
+    pay('m2', 'Tôi', 'An', 30, { kind: 'bt', led: 'bill', grp: 'g1', createdAt: 21 }),
+  ];
+
+  it('chưa có biến động nào sau lần gộp → được hoàn tác', () => {
+    expect(checkUndoMerge([B1], merged, 'g1')).toEqual({ ok: true });
+  });
+
+  it('có khoản trả mới với người đó sau lần gộp → chặn, báo rõ, không âm thầm sửa', () => {
+    const next = [...merged, pay('n', 'An', 'Tôi', 5, { kind: 'vay', createdAt: 30 })];
+    expect(checkUndoMerge([B1], next, 'g1')).toEqual({ ok: false, message: 'Không thể hoàn tác: đã có giao dịch mới với An sau lần gộp nợ này.' });
+  });
+
+  it('khoản mới ghi lùi ngày vẫn tính là mới (theo thời điểm tạo, không theo ngày)', () => {
+    const next = [...merged, pay('n', 'Tôi', 'An', 5, { kind: 'billpay', createdAt: 30, date: '2025-01-01' })];
+    expect(checkUndoMerge([B1], next, 'g1').ok).toBe(false);
+  });
+
+  it('bill mới có An sau lần gộp → chặn', () => {
+    const newBill = bill('B3', '2025-09-01', 40, [p('Tôi', 0), p('An', 20)]);
+    expect(checkUndoMerge([B1, newBill], merged, 'g1').ok).toBe(false);
+  });
+
+  it('biến động của người khác không ảnh hưởng', () => {
+    const next = [...merged, pay('n', 'Bình', 'Tôi', 5, { kind: 'vay', createdAt: 30 })];
+    expect(checkUndoMerge([B1], next, 'g1')).toEqual({ ok: true });
+  });
+
+  it('hai lần gộp liên tiếp: lần cũ bị chặn, lần mới nhất hoàn tác được (hoàn tác theo thứ tự ngược)', () => {
+    const next = [
+      ...merged,
+      pay('m3', 'An', 'Tôi', 10, { kind: 'bt', led: 'loan', grp: 'g2', createdAt: 50 }),
+      pay('m4', 'Tôi', 'An', 10, { kind: 'bt', led: 'bill', grp: 'g2', createdAt: 51 }),
+    ];
+    expect(checkUndoMerge([B1], next, 'g1').ok).toBe(false);
+    expect(checkUndoMerge([B1], next, 'g2')).toEqual({ ok: true });
+  });
+
+  it('nhóm không tồn tại → không có gì để hoàn tác; không sửa đầu vào', () => {
+    const copy = JSON.parse(JSON.stringify(merged));
+    expect(checkUndoMerge([B1], merged, 'g-khong-co')).toEqual({ ok: true });
+    expect(merged).toEqual(copy);
   });
 });
 

@@ -7,8 +7,9 @@
 
 import { loadBills, newBillId } from '@/data/billRepository';
 import { syncBillExpenses } from '@/data/billSync';
-import { appendPays, deletePayGroup, deletePays, loadPays, replacePayGroup, setPayNotes, updatePay, type PayPatch } from '@/data/payRepository';
+import { PayInputError, appendPays, deletePayGroup, deletePays, loadPays, replacePayGroup, setPayNotes, updatePay, type PayPatch } from '@/data/payRepository';
 import {
+  checkUndoMerge,
   debtEvents,
   finalizeNewPays,
   mergeAmount,
@@ -77,8 +78,14 @@ export async function mergeDebtsSynced(name: string): Promise<SyncedPayChange<Re
   return thenSync({ recorded: true, message: mergeMessage(amount) });
 }
 
-/** "Hoàn tác" một lần gộp nợ (bỏ mọi khoản cùng nhóm). Trả về số khoản đã bỏ. */
+/**
+ * "Hoàn tác" một lần gộp nợ (bỏ mọi khoản cùng nhóm). Trả về số khoản đã bỏ.
+ * Nếu sau lần gộp đã có giao dịch mới với người đó thì từ chối (ném `PayInputError`) và không sửa gì.
+ */
 export async function undoMergeSynced(group: string): Promise<SyncedPayChange<number>> {
+  const [bills, pays] = await Promise.all([loadBills(), loadPays()]);
+  const check = checkUndoMerge(bills, pays, group);
+  if (!check.ok) throw new PayInputError(check.message);
   return thenSync(await deletePayGroup(group));
 }
 

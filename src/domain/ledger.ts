@@ -252,6 +252,26 @@ export function mergeHistory(pays: readonly Pay[], name: string): MergeRecord[] 
   return order.sort((a, b) => b.createdAt - a.createdAt);
 }
 
+export type UndoMergeCheck = { ok: true } | { ok: false; message: string };
+
+/**
+ * Có được hoàn tác lần gộp nợ `group` không. Khác PWA (hoàn tác không điều kiện): chỉ cho hoàn tác khi, kể từ lúc gộp,
+ * người đó chưa có biến động nào khác ở cả hai sổ (bill, chuyển tiền, thanh toán, hoặc lần gộp khác). "Sau" tính theo `createdAt`
+ * (thời điểm tạo), không theo ngày ghi trên giao dịch. Nếu đã có, không khôi phục máy móc hai số dư cũ mà báo rõ để người dùng tự xử lý.
+ * Nhóm không tồn tại → ok (không có gì để hoàn tác).
+ */
+export function checkUndoMerge(bills: readonly Bill[], pays: readonly Pay[], group: string): UndoMergeCheck {
+  const members = pays.filter((pay) => pay.kind === 'bt' && pay.grp === group);
+  if (!members.length) return { ok: true };
+  const mergedAt = Math.max(...members.map((pay) => pay.createdAt || 0));
+  const first = members[0];
+  const person = isMe(clean(first.from)) ? clean(first.to) : clean(first.from);
+  const later = debtEvents(bills, pays).some((event) => event.who === person && event.pay?.grp !== group && event.c > mergedAt);
+  return later
+    ? { ok: false, message: `Không thể hoàn tác: đã có giao dịch mới với ${person} sau lần gộp nợ này.` }
+    : { ok: true };
+}
+
 /** Hoàn tác một lần gộp nợ = bỏ mọi khoản `grp` đó (số dư trở lại như trước khi gộp). */
 export function withoutMergeGroup(pays: readonly Pay[], group: string): Pay[] {
   return pays.filter((pay) => pay.grp !== group);
