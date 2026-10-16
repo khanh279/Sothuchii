@@ -4,6 +4,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View }
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
+import { PrimaryButton, ScreenTitle, SectionHeader } from '@/components/design';
 import { SvgIcon } from '@/components/svg-icon';
 import { useToast } from '@/components/toast';
 import { AppFonts } from '@/constants/fonts';
@@ -19,6 +20,7 @@ import { describeDebtError, useDebtData } from '@/features/debts/hooks';
 import { useExpenseSettings } from '@/features/expenses/hooks';
 import { useColors } from '@/hooks/use-colors';
 import { formatVnDate, todayStr } from '@/utils/date';
+import { r3 } from '@/domain/ledger';
 
 const TONE_COLOR = { get: '#0F8A4B', owe: '#D64545' } as const;
 const SIGN = { get: '+', owe: '−', mid: '' } as const;
@@ -75,8 +77,9 @@ export default function DebtDetailScreen() {
   }
 
   return (
-    <View style={[styles.screen, { backgroundColor: colors.bg, paddingTop: 12 + insets.top }]}>
+    <View style={[styles.screen, { backgroundColor: colors.bg }]}>
       <Stack.Screen options={{ title: 'Chi tiết nợ', headerShown: false }} />
+      <ScreenTitle title={params.name ?? 'Chi tiết nợ'} topInset={insets.top} />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
         {body}
       </ScrollView>
@@ -99,11 +102,22 @@ function PersonView({ name, detail, busy, run, periodLabel, today }: { name: str
 
   const pay = (option: DebtPayOption, amount?: number) => run(() => recordDebtPaymentSynced(name, option, amount));
 
+  const total = r3(detail.loan + detail.bill);
+  const totalSign = total > 0.05 ? '+' : total < -0.05 ? '−' : '';
   return (
-    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.line }]}>
-      <AppText weight="semibold" color={colors.muted} style={styles.title}>
-        {detail.name}
-      </AppText>
+    <View style={styles.personWrap}>
+      <View style={[styles.hero, { backgroundColor: colors.heroBg }]}>
+        <AppText weight="medium" color={colors.heroSoft} style={styles.heroLabel}>
+          Tổng nợ hiện tại (vay + bill)
+        </AppText>
+        <AppText weight="display" color={colors.heroInk} style={styles.heroAmount} numberOfLines={1} adjustsFontSizeToFit>
+          {totalSign}
+          {formatMoney(Math.abs(total))}
+        </AppText>
+        <AppText color={colors.heroSoft} style={styles.heroCaption}>
+          {detail.settled ? 'Không còn nợ' : total < -0.05 ? `Tôi nợ ${detail.name}` : total > 0.05 ? `${detail.name} nợ tôi` : 'Hai khoản nợ bù nhau'}
+        </AppText>
+      </View>
 
       {detail.hasLoan && (
         <Stack2 label="Nợ vay" sub={detail.loanSubtitle} balance={detail.loan} open={!!open.loan} onToggle={() => setOpen({ ...open, loan: !open.loan })}>
@@ -142,35 +156,24 @@ function PersonView({ name, detail, busy, run, periodLabel, today }: { name: str
       )}
 
       {detail.canMerge && (
-        <Pressable
-          accessibilityRole="button"
-          disabled={busy}
-          onPress={() => void run(() => mergeDebtsSynced(name))}
-          style={[styles.action, { backgroundColor: colors.primary }]}>
-          <AppText weight="bold" color={colors.primaryInk} style={styles.actionText}>
-            Gộp nợ
+        <View style={styles.actionBox}>
+          <PrimaryButton label={`Gộp nợ ${formatMoney(detail.mergeAmount)}`} disabled={busy} onPress={() => void run(() => mergeDebtsSynced(name))} />
+          <AppText color={colors.muted} style={styles.hint}>
+            Trừ giữa nợ vay và nợ bill; hai khoản trái dấu mới gộp được.
           </AppText>
-          <AppText color={colors.primaryInk} style={styles.smallInk}>
-            Trừ {formatMoney(detail.mergeAmount)} giữa nợ vay và nợ bill
-          </AppText>
-        </Pressable>
+        </View>
       )}
 
       {detail.canPay && (
-        <View style={styles.payBox}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ expanded: payOpen }}
+        <View style={styles.actionBox}>
+          <PrimaryButton
+            label="Thanh toán"
             disabled={busy}
             onPress={() => {
               setPayOpen((open) => !open);
               setPartial(false);
             }}
-            style={[styles.action, { backgroundColor: colors.primary, marginTop: 0 }]}>
-            <AppText weight="bold" color={colors.primaryInk} style={styles.actionText}>
-              Thanh toán
-            </AppText>
-          </Pressable>
+          />
           {payOpen && (
             <View style={styles.payChoices}>
               {detail.payActions.map((action) => (
@@ -273,14 +276,12 @@ function PersonView({ name, detail, busy, run, periodLabel, today }: { name: str
       )}
 
       {detail.history.length > 0 && (
-        <View style={[styles.history, { opacity: 0.55 }]}>
-          <AppText weight="semibold" color={colors.muted} style={styles.small}>
-            Lịch sử gộp nợ
-          </AppText>
+        <View style={styles.history}>
+          <SectionHeader title="Lịch sử gộp nợ" subtitle="Hoàn tác bằng cách bấm hai lần" />
           {detail.history.map((record) => {
             const armed = armedUndo === record.id;
             return (
-              <View key={record.id} style={[styles.historyRow, { backgroundColor: colors.bg }]}>
+              <View key={record.id} style={[styles.historyRow, { backgroundColor: colors.surface }]}>
                 <View style={styles.flex}>
                   <AppText weight="semibold" style={styles.rowTitle}>
                     Gộp nợ {formatMoney(Math.max(record.loan, record.bill))}
@@ -301,8 +302,8 @@ function PersonView({ name, detail, busy, run, periodLabel, today }: { name: str
                     setArmedUndo(null);
                     void run(() => undoMergeSynced(record.id), () => 'Đã hoàn tác gộp nợ');
                   }}
-                  style={[styles.undo, { backgroundColor: armed ? '#D64545' : colors.surface, borderColor: '#D64545', opacity: armed ? 1 / 0.55 : 1 }]}>
-                  <AppText weight="semibold" color={armed ? '#FFFFFF' : '#D64545'} style={styles.actionText}>
+                  style={[styles.undo, { backgroundColor: armed ? colors.danger : colors.surface, borderColor: colors.danger }]}>
+                  <AppText weight="semibold" color={armed ? '#FFFFFF' : colors.danger} style={styles.actionText}>
                     {armed ? 'Chắc chắn?' : 'Hoàn tác'}
                   </AppText>
                 </Pressable>
@@ -475,7 +476,7 @@ function Months({ months, openMonth, onToggle, today }: { months: MonthGroup[]; 
 function Stack2({ label, sub, balance, open, onToggle, children }: { label: string; sub: string; balance: number; open: boolean; onToggle: () => void; children: ReactNode }) {
   const colors = useColors();
   return (
-    <View style={[styles.stack, { backgroundColor: colors.bg }]}>
+    <View style={[styles.stack, { backgroundColor: colors.surface }]}>
       <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={onToggle} style={styles.stackHead}>
         <View style={styles.flex}>
           <AppText weight="bold" style={styles.stackTitle}>
@@ -499,15 +500,22 @@ function Stack2({ label, sub, balance, open, onToggle, children }: { label: stri
 const styles = StyleSheet.create({
   flex: { flex: 1, minWidth: 0 },
   screen: { flex: 1 },
-  content: { paddingHorizontal: 12, paddingTop: 4 },
+  content: { paddingHorizontal: 16, paddingTop: 4 },
   loading: { marginTop: 48 },
   notice: { padding: 16, borderRadius: 16 },
   noticeText: { fontSize: 15 },
   card: { borderRadius: AppRadius.card, borderWidth: 1, padding: 14, gap: 12 },
+  personWrap: { gap: 12 },
+  hero: { borderRadius: 22, padding: 20, gap: 4 },
+  heroLabel: { fontSize: 12.5 },
+  heroAmount: { fontSize: 34, lineHeight: 42, letterSpacing: -0.6 },
+  heroCaption: { fontSize: 13 },
+  actionBox: { gap: 8 },
+  hint: { fontSize: 12.5, lineHeight: 17, textAlign: 'center' },
   title: { fontSize: 15 },
   small: { fontSize: 12.5, lineHeight: 17 },
   empty: { textAlign: 'center', fontSize: 14, paddingVertical: 12 },
-  stack: { borderRadius: 14, overflow: 'hidden' },
+  stack: { borderRadius: AppRadius.card, overflow: 'hidden' },
   stackHead: { minHeight: 56, paddingVertical: 8, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
   stackTitle: { fontSize: 15.5 },
   stackBody: { paddingHorizontal: 12, paddingBottom: 4 },
@@ -533,8 +541,8 @@ const styles = StyleSheet.create({
   partButtons: { flexDirection: 'row', gap: 8 },
   half: { flex: 1 },
   small2: { minHeight: 46, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  history: { marginTop: 14, gap: 4 },
-  historyRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, paddingHorizontal: 2 },
+  history: { marginTop: 8, gap: 6 },
+  historyRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 14, borderRadius: AppRadius.field },
   undo: { minHeight: 34, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   pairHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   pairAmount: { fontSize: 30, lineHeight: 36 },

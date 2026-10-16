@@ -4,7 +4,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { EmptyState } from '@/components/design';
+import { EmptyState, TransactionRow } from '@/components/design';
 import { SvgIcon } from '@/components/svg-icon';
 import { SwipeRow } from '@/components/swipe-row';
 import { TOAST_BOTTOM_HISTORY, useToast } from '@/components/toast';
@@ -134,28 +134,18 @@ function PayRowView({ row, rowProps, onDelete }: { row: PayRow; rowProps: Return
       background={colors.bg}
       radius={AppRadius.field}
       accessibilityLabel={`${row.from} trả ${row.to}, ${formatMoney(row.amt)}`}>
-      <View style={styles.item}>
-        <View style={[styles.icon, { backgroundColor: withAlpha(tone, 0.16) }]}>
-          <SvgIcon name="tabTransactions" size={22} color={tone} />
-        </View>
-        <View style={styles.itemText}>
-          <AppText weight="semibold" style={styles.itemTitle}>
-            {row.from} → {row.to}
-          </AppText>
-          <AppText color={colors.muted} style={styles.itemSub}>
-            {row.title}
-          </AppText>
-          {!!subtitle && (
-            <AppText color={colors.muted} style={styles.itemSub}>
-              {subtitle}
-            </AppText>
-          )}
-        </View>
-        <AppText weight="bold" color={row.tone === 'mid' ? colors.ink : tone} style={styles.itemAmount}>
-          {sign}
-          {formatMoney(row.amt)}
-        </AppText>
-      </View>
+      <TransactionRow
+        bare
+        icon={
+          <View style={[styles.icon, { backgroundColor: withAlpha(tone, 0.16) }]}>
+            <SvgIcon name="tabTransactions" size={22} color={tone} />
+          </View>
+        }
+        title={`${row.from} → ${row.to}`}
+        subtitle={[row.title, subtitle].filter(Boolean).join(' · ')}
+        amount={`${sign}${formatMoney(row.amt)}`}
+        tone={row.tone}
+      />
     </SwipeRow>
   );
 }
