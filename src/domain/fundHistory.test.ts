@@ -85,3 +85,43 @@ describe('buildOverviewFundCard', () => {
     expect(buildOverviewFundCard({ funds: [], contribs: [], expenses: [] }, { mode: 'all' }, true)).toMatchObject({ rows: [], fundCount: 0 });
   });
 });
+
+describe('buildFundHistory với chi quỹ nâng cao', () => {
+  const data = {
+    funds: [{ id: 'f1', name: 'Quỹ' }],
+    contribs: [{ id: 'c1', fundId: 'f1', title: 'Đóng', date: '2025-10-01', people: [{ name: 'Tôi', amount: 1_000_000 }] }],
+    expenses: [
+      { id: 'e1', fundId: 'f1', title: 'Chi trực tiếp', date: '2025-10-02', amount: 100_000 },
+      { id: 'e2', fundId: 'f1', title: 'Cá nhân ứng', date: '2025-10-03', amount: 300_000, mode: 'personal' as const, payer: 'A' },
+      { id: 'e3', fundId: 'f1', title: 'Chi từ ứng', date: '2025-10-04', amount: 200_000, mode: 'advance' as const, payer: 'B', advanceId: 'a1' },
+    ],
+    advances: [{ id: 'a1', fundId: 'f1', person: 'B', title: 'Giao B', date: '2025-10-03', amount: 500_000 }],
+    txns: [
+      { id: 't1', fundId: 'f1', kind: 'refund' as const, person: 'B', amount: 300_000, date: '2025-10-05', advanceId: 'a1' },
+      { id: 't2', fundId: 'f1', kind: 'payout' as const, person: 'A', amount: 300_000, date: '2025-10-06', expenseId: 'e2' },
+    ],
+    cur: 'f1',
+  };
+
+  it('có đủ các loại dòng, tổng thu / chi chỉ tính thu và chi thực tế (không cộng giao tiền, hoàn tiền, thanh toán)', () => {
+    const history = buildFundHistory(data, 'all', { mode: 'all' });
+    expect(history.days.flatMap((day) => day.entries.map((entry) => entry.kind)).sort()).toEqual(['advance', 'contribution', 'expense', 'expense', 'expense', 'payout', 'refund']);
+    expect(history.totalIn).toBe(1_000_000);
+    expect(history.totalOut).toBe(600_000); // 100k + 300k + 200k, mỗi khoản chi đúng một lần
+    expect(history.balance).toBe(400_000); // thu − tổng chi thực tế, công thức có sẵn
+  });
+
+  it('khoản chi mang người chi / hồ sơ; dòng giao tiền và thanh toán không có trong tổng chi dù cùng kỳ', () => {
+    const entries = buildFundHistory(data, 'all', { mode: 'all' }).days.flatMap((day) => day.entries);
+    expect(entries.find((e) => e.id === 'e2')).toMatchObject({ person: 'A', meta: 'Chi quỹ · A ứng' });
+    expect(entries.find((e) => e.id === 'e3')).toMatchObject({ person: 'B', advanceId: 'a1', meta: 'Chi từ tiền ứng · B' });
+    expect(entries.find((e) => e.id === 'a1')).toMatchObject({ kind: 'advance', amount: 500_000 });
+  });
+
+  it('dữ liệu cũ (không có hồ sơ / giao dịch) cho kết quả như trước', () => {
+    const old = { funds: data.funds, contribs: data.contribs, expenses: [data.expenses[0]] };
+    const history = buildFundHistory(old, 'all', { mode: 'all' });
+    expect(history.count).toBe(2);
+    expect(history.totalOut).toBe(100_000);
+  });
+});

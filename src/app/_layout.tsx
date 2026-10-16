@@ -53,6 +53,7 @@ export default function RootLayout() {
             <Stack.Screen name="lich-su" />
             <Stack.Screen name="quy/lich-su" />
             <Stack.Screen name="quy/chi-tieu" />
+            <Stack.Screen name="quy/ung-truoc" />
             <Stack.Screen name="chia-bill/lich-su" />
             <Stack.Screen name="thiet-lap" />
             <Stack.Screen name="chia-bill/tao" />

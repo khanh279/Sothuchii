@@ -10,11 +10,14 @@ import { SvgIcon } from '@/components/svg-icon';
 import { useToast } from '@/components/toast';
 import { AppFonts } from '@/constants/fonts';
 import { FundInputError } from '@/data/fundRepository';
-import { saveFundExpenseSynced } from '@/data/fundService';
+import { createAdvanceSynced, saveFundExpenseSynced } from '@/data/fundService';
 import { AppRadius } from '@/constants/palette';
 import { FUND_TITLE_MAX, fundExpenseSavedMessage, overspends, validateFundExpense } from '@/domain/fundForms';
-import { addToAmount } from '@/domain/expenses';
+import { addToAmount, newExpenseId } from '@/domain/expenses';
+import type { ExpenseKind } from '@/domain/fundAdvance';
+import { OptionPicker } from '@/features/debts/OptionPicker';
 import { describeFundError } from '@/features/funds/hooks';
+import { PersonPicker } from '@/features/people/PersonPicker';
 import { useColors } from '@/hooks/use-colors';
 import type { Fund, FundExpense } from '@/types/fund';
 import type { Vnd } from '@/types/money';
@@ -49,7 +52,53 @@ interface Props {
   onPickFund?: (fundId: string) => void;
 }
 
-/** Form chi quỹ: số tiền (ĐỒNG, nhập thẳng), nội dung, ngày. Chi vượt số dư vẫn lưu nhưng có cảnh báo. */
+/** Ba hình thức chi quỹ (thứ tự và tên theo nghiệp vụ); mặc định khi mở form là quỹ chi trực tiếp. */
+const KIND_OPTIONS: { kind: ExpenseKind; label: string; icon: 'wallet' | 'person' | 'tabTransactions' }[] = [
+  { kind: 'direct', label: 'Quỹ chi trực tiếp', icon: 'wallet' },
+  { kind: 'personal', label: 'Cá nhân ứng tiền chi trước', icon: 'person' },
+  { kind: 'advance', label: 'Quỹ giao tiền ứng trước', icon: 'tabTransactions' },
+];
+
+/**
+ * Hai trường bổ sung của form chi quỹ (chỉ khi THÊM MỚI): "Hình thức chi" và, với hai hình thức liên quan đến cá nhân, "Người chi" /
+ * "Người nhận ứng" (chọn từ danh sách người có sẵn, như khi đóng quỹ). Hình thức trực tiếp không hiện thêm trường nào.
+ */
+function KindFields({ kind, person, onKind, onPerson }: { kind: ExpenseKind; person: string; onKind: () => void; onPerson: () => void }) {
+  const colors = useColors();
+  const current = KIND_OPTIONS.find((option) => option.kind === kind) ?? KIND_OPTIONS[0];
+  return (
+    <>
+      <View style={formStyles.field}>
+        <FormLabel>Hình thức chi</FormLabel>
+        <Pressable style={[formStyles.pickCurrent, { backgroundColor: colors.bg, borderColor: colors.line }]} onPress={onKind} accessibilityRole="button" accessibilityLabel={`Hình thức chi: ${current.label}`}>
+          <View style={[styles.fundBadge, { backgroundColor: colors.primarySoft }]}>
+            <SvgIcon name={current.icon} size={16} color={colors.primary} strokeWidth={2} />
+          </View>
+          <AppText weight="semibold" style={formStyles.pickName} numberOfLines={1}>
+            {current.label}
+          </AppText>
+          <SvgIcon name="chevronRight" size={16} color={colors.muted} strokeWidth={2} />
+        </Pressable>
+      </View>
+      {kind !== 'direct' && (
+        <View style={formStyles.field}>
+          <FormLabel>{kind === 'personal' ? 'Người chi' : 'Người nhận tiền ứng'}</FormLabel>
+          <Pressable style={[formStyles.pickCurrent, { backgroundColor: colors.bg, borderColor: colors.line }]} onPress={onPerson} accessibilityRole="button" accessibilityLabel={`${kind === 'personal' ? 'Người chi' : 'Người nhận tiền ứng'}: ${person || 'chưa chọn'}`}>
+            <View style={[styles.fundBadge, { backgroundColor: colors.primarySoft }]}>
+              <SvgIcon name="person" size={16} color={colors.primary} strokeWidth={2} />
+            </View>
+            <AppText weight="semibold" color={person ? colors.ink : colors.muted} style={formStyles.pickName} numberOfLines={1}>
+              {person || 'Chọn người'}
+            </AppText>
+            <SvgIcon name="chevronRight" size={16} color={colors.muted} strokeWidth={2} />
+          </Pressable>
+        </View>
+      )}
+    </>
+  );
+}
+
+/** Form chi quỹ: hình thức chi, số tiền (ĐỒNG, nhập thẳng), nội dung, ngày. Chi vượt số dư vẫn lưu nhưng có cảnh báo. */
 export function FundExpenseForm({ fund, balance, existing, onChanged, variant = 'compact', funds = [], onPickFund, showTitle = true }: Props) {
   const colors = useColors();
   const toast = useToast();
@@ -61,6 +110,13 @@ export function FundExpenseForm({ fund, balance, existing, onChanged, variant = 
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [kind, setKind] = useState<ExpenseKind>('direct');
+  const [person, setPerson] = useState('');
+  const [kindOpen, setKindOpen] = useState(false);
+  const [personOpen, setPersonOpen] = useState(false);
+  // Mã bản ghi sinh MỘT LẦN cho mỗi lần nhập: bấm lưu nhiều lần hoặc thử lại sau lỗi không tạo bản ghi trùng.
+  const [clientId, setClientId] = useState(() => newExpenseId(Date.now()));
+  const adding = !existing;
   const overlayOpen = calendarOpen || pickerOpen;
 
   // Android: nút Back đóng lịch / bảng chọn quỹ trước khi rời màn hình.
@@ -76,24 +132,55 @@ export function FundExpenseForm({ fund, balance, existing, onChanged, variant = 
 
   async function save() {
     if (busy) return;
-    const problem = validateFundExpense({ title, date, fundId: fund.id, amount });
+    const mode: ExpenseKind = adding ? kind : 'direct';
+    // Giao tiền ứng cho phép số tiền 0 (giao việc nhưng chưa cấp tiền); các hình thức còn lại giữ đúng kiểm tra cũ.
+    const problem =
+      mode === 'advance'
+        ? !person
+          ? 'Chọn người nhận tiền ứng.'
+          : !title.trim()
+            ? 'Nhập nội dung.'
+            : !date
+              ? 'Chọn ngày giao.'
+              : amount < 0
+                ? 'Số tiền giao không hợp lệ.'
+                : null
+        : mode === 'personal' && !person
+          ? 'Chọn người chi.'
+          : validateFundExpense({ title, date, fundId: fund.id, amount });
     if (problem) {
       setError(problem);
       return;
     }
     setBusy(true);
     try {
-      const result = await saveFundExpenseSynced({ id: existing?.id, fundId: fund.id, title: title.trim(), date, amount });
-      if (result.value === null) {
-        setError('Không tìm thấy khoản chi này. Có thể nó đã bị xoá.');
-        return;
+      if (mode === 'advance') {
+        await createAdvanceSynced({ clientId, fundId: fund.id, person, title: title.trim(), date, amount });
+        toast.show('Đã ghi nhận giao tiền ứng');
+      } else {
+        const result = await saveFundExpenseSynced({
+          id: existing?.id,
+          clientId: existing ? undefined : clientId,
+          fundId: fund.id,
+          title: title.trim(),
+          date,
+          amount,
+          ...(mode === 'personal' ? { mode: 'personal' as const, payer: person } : {}),
+        });
+        if (result.value === null) {
+          setError('Không tìm thấy khoản chi này. Có thể nó đã bị xoá.');
+          return;
+        }
+        toast.show(fundExpenseSavedMessage(!!existing, overspends(balance, amount, existing?.amount ?? 0)));
       }
-      toast.show(fundExpenseSavedMessage(!!existing, overspends(balance, amount, existing?.amount ?? 0)));
       if (!existing) {
         setAmount(0);
         setTitle('');
         setDate(todayStr());
         setError('');
+        setKind('direct');
+        setPerson('');
+        setClientId(newExpenseId(Date.now()));
       }
       onChanged();
     } catch (e) {
@@ -112,7 +199,10 @@ export function FundExpenseForm({ fund, balance, existing, onChanged, variant = 
           </AppText>
         )}
 
+        {adding && <KindFields kind={kind} person={person} onKind={() => setKindOpen(true)} onPerson={() => setPersonOpen(true)} />}
+
         <AmountField
+          label={adding && kind === 'advance' ? 'Số tiền giao' : 'Số tiền'}
           value={amount}
           onChange={(value) => {
             setAmount(value);
@@ -165,7 +255,7 @@ export function FundExpenseForm({ fund, balance, existing, onChanged, variant = 
             disabled={busy}
             accessibilityRole="button">
             <AppText weight="semibold" color={colors.primaryInk} style={formStyles.btnText}>
-              Lưu khoản chi
+              {adding && kind === 'advance' ? 'Lưu khoản giao tiền' : 'Lưu khoản chi'}
             </AppText>
           </Pressable>
         </View>
@@ -210,6 +300,31 @@ export function FundExpenseForm({ fund, balance, existing, onChanged, variant = 
             </View>
           </PickPanel>
         )}
+      {kindOpen && (
+        <OptionPicker
+          title="Chọn hình thức chi"
+          options={KIND_OPTIONS.map((option) => option.label)}
+          selected={(KIND_OPTIONS.find((option) => option.kind === kind) ?? KIND_OPTIONS[0]).label}
+          onClose={() => setKindOpen(false)}
+          onPick={(label) => {
+            setKind(KIND_OPTIONS.find((option) => option.label === label)?.kind ?? 'direct');
+            setError('');
+            setKindOpen(false);
+          }}
+        />
+      )}
+      {personOpen && (
+        <PersonPicker
+          title={kind === 'personal' ? 'Chọn người chi' : 'Chọn người nhận tiền ứng'}
+          selected={person || null}
+          onClose={() => setPersonOpen(false)}
+          onPick={(name) => {
+            setPerson(name);
+            setError('');
+            setPersonOpen(false);
+          }}
+        />
+      )}
       </View>
     );
   }
@@ -221,9 +336,10 @@ export function FundExpenseForm({ fund, balance, existing, onChanged, variant = 
           {existing ? 'Sửa chi tiêu quỹ' : 'Chi tiêu quỹ'}
         </AppText>
       )}
+      {adding && <KindFields kind={kind} person={person} onKind={() => setKindOpen(true)} onPerson={() => setPersonOpen(true)} />}
       <View>
         <AppText weight="medium" color={colors.muted} style={styles.label}>
-          Số tiền
+          {adding && kind === 'advance' ? 'Số tiền giao' : 'Số tiền'}
         </AppText>
         <AmountInput
           value={amount}
@@ -281,7 +397,7 @@ export function FundExpenseForm({ fund, balance, existing, onChanged, variant = 
         onPress={() => void save()}
         style={[styles.primary, { backgroundColor: colors.primary, borderColor: colors.primary }]}>
         <AppText weight="semibold" color={colors.primaryInk} style={styles.primaryText}>
-          Lưu khoản chi
+          {adding && kind === 'advance' ? 'Lưu khoản giao tiền' : 'Lưu khoản chi'}
         </AppText>
       </Pressable>
 
@@ -294,6 +410,31 @@ export function FundExpenseForm({ fund, balance, existing, onChanged, variant = 
           onConfirm={(picked) => {
             setDate(picked);
             setCalendarOpen(false);
+          }}
+        />
+      )}
+      {kindOpen && (
+        <OptionPicker
+          title="Chọn hình thức chi"
+          options={KIND_OPTIONS.map((option) => option.label)}
+          selected={(KIND_OPTIONS.find((option) => option.kind === kind) ?? KIND_OPTIONS[0]).label}
+          onClose={() => setKindOpen(false)}
+          onPick={(label) => {
+            setKind(KIND_OPTIONS.find((option) => option.label === label)?.kind ?? 'direct');
+            setError('');
+            setKindOpen(false);
+          }}
+        />
+      )}
+      {personOpen && (
+        <PersonPicker
+          title={kind === 'personal' ? 'Chọn người chi' : 'Chọn người nhận tiền ứng'}
+          selected={person || null}
+          onClose={() => setPersonOpen(false)}
+          onPick={(name) => {
+            setPerson(name);
+            setError('');
+            setPersonOpen(false);
           }}
         />
       )}

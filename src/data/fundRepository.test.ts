@@ -3,15 +3,22 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   FundInputError,
   createFund,
+  createAdvance,
+  deleteAdvance,
   deleteContribution,
   deleteFund,
   deleteFundExpense,
+  deleteFundTxn,
   loadFundData,
   renameFund,
   saveContribution,
   saveFundExpense,
+  saveFundTxn,
   setContributionLinks,
 } from './fundRepository';
+import { fundPosition } from '@/domain/fundAdvance';
+import { fundBalance } from '@/domain/funds';
+
 import { StorageCorruptError } from './storage';
 
 jest.mock('@react-native-async-storage/async-storage', () =>
@@ -30,7 +37,7 @@ beforeEach(async () => {
 
 describe('đọc', () => {
   it('chưa có dữ liệu → dữ liệu trống, không tự tạo khóa', async () => {
-    expect(await loadFundData()).toEqual({ funds: [], contribs: [], expenses: [], cur: '' });
+    expect(await loadFundData()).toEqual({ funds: [], contribs: [], expenses: [], advances: [], txns: [], cur: '' });
     expect(await AsyncStorage.getItem(KEY)).toBeNull();
   });
 
@@ -220,5 +227,104 @@ describe('an toàn khi ghi', () => {
     expect(await renameFund('khong-co', 'A')).toBe(false);
     expect(await deleteContribution('khong-co')).toBe(false);
     expect(await AsyncStorage.getItem(KEY)).toBeNull();
+  });
+});
+
+// ───────────────────────── Chi quỹ nâng cao: cá nhân ứng, ứng trước, hoàn tiền, thanh toán ─────────────────────────
+describe('chi quỹ nâng cao (lưu trữ)', () => {
+  const base = () => ({ funds: [{ id: 'f1', name: 'Quỹ lớp' }], contribs: [{ id: 'c1', fundId: 'f1', title: 'Đóng', date: '2025-10-01', people: [person('Tôi', 10_000_000)] }], expenses: [], cur: 'f1' });
+  const D = '2025-10-05';
+
+  it('tương thích dữ liệu cũ: khoản chi cũ không có trường mới vẫn là chi trực tiếp, trường lạ được giữ nguyên khi ghi', async () => {
+    await seed({ ...base(), expenses: [{ id: 'old', fundId: 'f1', title: 'Cũ', date: D, amount: 100_000, lạ: 'giữ' }], khoaLa: { a: 1 } });
+    await saveFundExpense({ fundId: 'f1', title: 'Mới', date: D, amount: 50_000 });
+    const stored = await raw();
+    expect(stored.khoaLa).toEqual({ a: 1 });
+    expect(stored.expenses[0]).toEqual({ id: 'old', fundId: 'f1', title: 'Cũ', date: D, amount: 100_000, lạ: 'giữ' });
+    expect(stored.expenses[1]).not.toHaveProperty('mode');
+    const data = await loadFundData();
+    expect(fundBalance(data, 'f1')).toBe(9_850_000);
+  });
+
+  it('cá nhân ứng: ghi ngay vào lịch sử chi (đủ nội dung, người chi), thanh toán KHÔNG tạo thêm khoản chi, tổng chi không đổi', async () => {
+    await seed(base());
+    const id = await saveFundExpense({ fundId: 'f1', title: 'Mua vật tư', date: D, amount: 300_000, mode: 'personal', payer: 'A' });
+    let data = await loadFundData();
+    expect(data.expenses).toEqual([{ id, fundId: 'f1', title: 'Mua vật tư', date: D, amount: 300_000, mode: 'personal', payer: 'A' }]);
+    expect(fundPosition(data, 'f1')).toMatchObject({ spent: 300_000, owed: 300_000, cash: 10_000_000 });
+
+    await saveFundTxn({ kind: 'payout', expenseId: id!, amount: 100_000, date: D });
+    await saveFundTxn({ kind: 'payout', expenseId: id!, amount: 200_000, date: D });
+    data = await loadFundData();
+    expect(data.expenses).toHaveLength(1);
+    expect(data.txns).toHaveLength(2);
+    expect(fundPosition(data, 'f1')).toMatchObject({ spent: 300_000, owed: 0, cash: 9_700_000, balance: 9_700_000 });
+    await expect(saveFundTxn({ kind: 'payout', expenseId: id!, amount: 1, date: D })).rejects.toBeInstanceOf(FundInputError); // hết nợ
+    await expect(deleteFundExpense(id!)).rejects.toBeInstanceOf(FundInputError); // còn thanh toán gắn kèm
+  });
+
+  it('bắt buộc chọn người chi khi cá nhân ứng', async () => {
+    await seed(base());
+    await expect(saveFundExpense({ fundId: 'f1', title: 'x', date: D, amount: 10, mode: 'personal', payer: '  ' })).rejects.toBeInstanceOf(FundInputError);
+    expect((await raw()).expenses).toEqual([]);
+  });
+
+  it('giao tiền ứng (cả 0 đồng), chi từ tiền ứng, hoàn thừa: tổng chi chỉ tăng ở khoản chi, tiền quỹ không trừ hai lần', async () => {
+    await seed(base());
+    const a = await createAdvance({ fundId: 'f1', person: 'A', title: 'Mua vật tư', date: D, amount: 500_000 });
+    const zero = await createAdvance({ fundId: 'f1', person: 'B', title: 'Giao việc', date: D, amount: 0 });
+    let data = await loadFundData();
+    expect(fundPosition(data, 'f1')).toMatchObject({ cash: 9_500_000, spent: 0, held: 500_000 });
+    expect(data.advances!.map((x) => x.id)).toEqual([a, zero]);
+
+    await saveFundExpense({ fundId: 'f1', title: 'Giấy', date: D, amount: 200_000, mode: 'advance', advanceId: a });
+    await saveFundExpense({ fundId: 'f1', title: 'Bút', date: D, amount: 100_000, mode: 'advance', advanceId: a });
+    data = await loadFundData();
+    expect(data.expenses.every((e) => e.advanceId === a && e.payer === 'A')).toBe(true);
+    expect(fundPosition(data, 'f1')).toMatchObject({ cash: 9_500_000, spent: 300_000, held: 200_000 });
+
+    await expect(saveFundTxn({ kind: 'refund', advanceId: a, amount: 300_000, date: D })).rejects.toBeInstanceOf(FundInputError); // vượt số còn giữ
+    await saveFundTxn({ kind: 'refund', advanceId: a, amount: 200_000, date: D });
+    data = await loadFundData();
+    expect(fundPosition(data, 'f1')).toMatchObject({ cash: 9_700_000, spent: 300_000, held: 0, balance: 9_700_000 });
+  });
+
+  it('chi vượt tiền ứng rồi quỹ trả thêm: ghi giao dịch thanh toán gắn hồ sơ, không có khoản chi thứ hai', async () => {
+    await seed(base());
+    const a = await createAdvance({ fundId: 'f1', person: 'A', title: 'Mua', date: D, amount: 500_000 });
+    await saveFundExpense({ fundId: 'f1', title: 'Mua nhiều', date: D, amount: 700_000, mode: 'advance', advanceId: a });
+    await saveFundTxn({ kind: 'payout', advanceId: a, amount: 200_000, date: D });
+    const data = await loadFundData();
+    expect(data.expenses).toHaveLength(1);
+    expect(fundPosition(data, 'f1')).toMatchObject({ spent: 700_000, owed: 0, cash: 9_300_000 });
+  });
+
+  it('chống ghi trùng: cùng clientId bấm lưu nhiều lần chỉ tạo một bản ghi', async () => {
+    await seed(base());
+    const clientId = 'cid-1';
+    await Promise.all([
+      saveFundExpense({ fundId: 'f1', title: 'x', date: D, amount: 10, clientId }),
+      saveFundExpense({ fundId: 'f1', title: 'x', date: D, amount: 10, clientId }),
+    ]);
+    expect((await raw()).expenses).toHaveLength(1);
+    await createAdvance({ fundId: 'f1', person: 'A', title: 'x', date: D, amount: 5, clientId: 'cid-2' });
+    await createAdvance({ fundId: 'f1', person: 'A', title: 'x', date: D, amount: 5, clientId: 'cid-2' });
+    expect((await raw()).advances).toHaveLength(1);
+  });
+
+  it('mở lại ứng dụng: dữ liệu đã lưu đọc lại đúng; xoá hồ sơ chỉ khi chưa có khoản gắn kèm; xoá quỹ dọn cả hồ sơ', async () => {
+    await seed(base());
+    const a = await createAdvance({ fundId: 'f1', person: 'A', title: 'Mua', date: D, amount: 500_000 });
+    await saveFundExpense({ fundId: 'f1', title: 'Chi', date: D, amount: 100_000, mode: 'advance', advanceId: a });
+    const t = await saveFundTxn({ kind: 'refund', advanceId: a, amount: 400_000, date: D });
+    const reopened = await loadFundData(); // đọc lại từ kho như khi mở lại ứng dụng
+    expect(reopened.advances).toHaveLength(1);
+    expect(reopened.txns).toEqual([{ id: t, fundId: 'f1', kind: 'refund', person: 'A', amount: 400_000, date: D, advanceId: a }]);
+    await expect(deleteAdvance(a)).rejects.toBeInstanceOf(FundInputError);
+    expect(await deleteFundTxn(t)).toBe(true);
+    expect(await deleteFund('f1')).toBe(true);
+    const after = await raw();
+    expect(after.advances).toEqual([]);
+    expect(after.fundTxns).toEqual([]);
   });
 });

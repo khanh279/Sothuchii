@@ -5,15 +5,21 @@
  */
 
 import {
+  createAdvance,
   createFund,
+  deleteAdvance,
   deleteContribution,
   deleteFund,
   deleteFundExpense,
+  deleteFundTxn,
   renameFund,
   saveContribution,
   saveFundExpense,
+  saveFundTxn,
+  type AdvanceInput,
   type ContributionInput,
   type FundExpenseInput,
+  type FundTxnInput,
 } from '@/data/fundRepository';
 import { syncFundExpenses } from '@/data/fundSync';
 import type { Fund } from '@/types/fund';
@@ -63,4 +69,22 @@ export async function deleteFundExpenseSynced(id: string): Promise<SyncedChange<
 /** Xoá quỹ; các khoản chi cá nhân tạo từ lần đóng của quỹ đó được dọn trong bước đồng bộ. */
 export async function deleteFundSynced(id: string): Promise<SyncedChange<boolean>> {
   return thenSync(await deleteFund(id));
+}
+
+/** Giao tiền ứng trước (hồ sơ ứng trước); không sinh khoản chi cá nhân nên chỉ chạy đồng bộ để cùng một đường với các thao tác Quỹ khác. */
+export async function createAdvanceSynced(input: AdvanceInput): Promise<SyncedChange<string>> {
+  return thenSync(await createAdvance(input));
+}
+
+export async function deleteAdvanceSynced(id: string): Promise<SyncedChange<boolean>> {
+  return thenSync(await deleteAdvance(id));
+}
+
+/** Hoàn tiền ứng / thanh toán cho cá nhân (chỉ dòng tiền và công nợ, không có chi phí mới). */
+export async function saveFundTxnSynced(input: FundTxnInput): Promise<SyncedChange<string>> {
+  return thenSync(await saveFundTxn(input));
+}
+
+export async function deleteFundTxnSynced(id: string): Promise<SyncedChange<boolean>> {
+  return thenSync(await deleteFundTxn(id));
 }

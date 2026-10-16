@@ -36,7 +36,7 @@ const contrib = (id: string, people: [string, number][], over: Partial<Contribut
 
 describe('normalizeFundData', () => {
   it('dữ liệu rỗng / hỏng cho ra dữ liệu trống an toàn', () => {
-    const empty = { funds: [], contribs: [], expenses: [], cur: '' };
+    const empty = { funds: [], contribs: [], expenses: [], advances: [], txns: [], cur: '' };
     expect(normalizeFundData(undefined, ctx)).toEqual(empty);
     expect(normalizeFundData(null, ctx)).toEqual(empty);
     expect(normalizeFundData('xyz', ctx)).toEqual(empty);

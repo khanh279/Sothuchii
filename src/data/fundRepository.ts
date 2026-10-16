@@ -13,9 +13,10 @@
 
 import { StorageCorruptError, StorageKeys, loadJsonStrict, saveJsonStrict } from '@/data/storage';
 import { newExpenseId } from '@/domain/expenses';
+import { checkPayout, checkRefund } from '@/domain/fundAdvance';
 import { FUND_NAME_MAX, normalizeFundData } from '@/domain/funds';
 import type { DateStr, ExpenseRef } from '@/types/expense';
-import type { ContributionPerson, Fund, FundData } from '@/types/fund';
+import type { ContributionPerson, Fund, FundData, FundExpenseMode, FundTxnKind } from '@/types/fund';
 import type { Vnd } from '@/types/money';
 
 type RawObject = Record<string, unknown>;
@@ -52,7 +53,7 @@ export async function readFundRaw(): Promise<RawObject | undefined> {
 }
 
 const arrayOf = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
-const LISTS = ['funds', 'contribs', 'expenses'] as const;
+const LISTS = ['funds', 'contribs', 'expenses', 'advances', 'fundTxns'] as const;
 
 /** Đọc, sửa bản thô rồi ghi lại; mọi khóa không đụng tới được giữ nguyên. */
 function mutate<T>(change: (raw: RawObject) => { next: RawObject; result: T }): Promise<T> {
@@ -129,6 +130,9 @@ export function deleteFund(id: string): Promise<boolean> {
         funds: arrayOf(raw.funds).filter((item) => !(isRecord(item) && String(item.id) === id)),
         contribs: arrayOf(raw.contribs).filter(keep),
         expenses: arrayOf(raw.expenses).filter(keep),
+        // Hồ sơ ứng trước và giao dịch hoàn tiền / thanh toán của quỹ bị xoá cũng bị xoá cùng quỹ (chỉ khi khóa đã tồn tại).
+        ...(raw.advances !== undefined ? { advances: arrayOf(raw.advances).filter(keep) } : {}),
+        ...(raw.fundTxns !== undefined ? { fundTxns: arrayOf(raw.fundTxns).filter(keep) } : {}),
       },
       result: true,
     };
@@ -181,11 +185,20 @@ export function deleteContribution(id: string): Promise<boolean> {
 
 export interface FundExpenseInput {
   id?: string;
+  /**
+   * Mã do giao diện sinh MỘT LẦN cho mỗi lần mở form: bấm lưu nhiều lần hoặc thử lại sau lỗi không tạo bản ghi trùng
+   * (đã có bản ghi mã này thì không ghi thêm). Chỉ dùng khi thêm mới (không có `id`).
+   */
+  clientId?: string;
   fundId: string;
   title: string;
   date: DateStr;
   /** ĐỒNG, nhập trực tiếp (khác ô đóng quỹ nhập nghìn đồng). */
   amount: Vnd;
+  /** Hình thức chi khi THÊM MỚI: bỏ trống = quỹ chi trực tiếp. 'personal' cần `payer`; 'advance' cần `advanceId` (người chi lấy từ hồ sơ). */
+  mode?: FundExpenseMode;
+  payer?: string;
+  advanceId?: string;
 }
 
 export function saveFundExpense(input: FundExpenseInput, now: number = Date.now()): Promise<string | null> {
@@ -198,21 +211,144 @@ export function saveFundExpense(input: FundExpenseInput, now: number = Date.now(
     const expenses = arrayOf(raw.expenses);
 
     if (input.id === undefined) {
-      const id = newExpenseId(now);
-      return { next: { ...raw, expenses: [...expenses, { id, ...fields }] }, result: id };
+      if (input.clientId && expenses.some((item) => isRecord(item) && String(item.id) === input.clientId)) return { next: raw, result: input.clientId };
+      const extra: Record<string, unknown> = {};
+      let targetFund = input.fundId;
+      if (input.mode === 'personal') {
+        const payer = String(input.payer ?? '').trim();
+        if (!payer) throw new FundInputError('Chọn người chi.');
+        Object.assign(extra, { mode: 'personal', payer });
+      } else if (input.mode === 'advance') {
+        const advance = arrayOf(raw.advances).find((item) => isRecord(item) && String(item.id) === input.advanceId);
+        if (!isRecord(advance)) throw new FundInputError('Không tìm thấy hồ sơ ứng trước.');
+        targetFund = String(advance.fundId);
+        Object.assign(extra, { mode: 'advance', payer: String(advance.person ?? ''), advanceId: String(advance.id) });
+      }
+      const id = input.clientId || newExpenseId(now);
+      return { next: { ...raw, expenses: [...expenses, { id, ...fields, fundId: targetFund, ...extra }] }, result: id };
     }
     let found = false;
     const updated = expenses.map((item) => {
       if (!isRecord(item) || String(item.id) !== input.id) return item;
       found = true;
-      return { ...item, ...fields };
+      // Khoản cá nhân đã ứng được sửa số tiền: không được thấp hơn số quỹ đã trả (tránh công nợ âm). Hình thức chi / người chi giữ nguyên.
+      if (item.mode === 'personal') {
+        const paid = arrayOf(raw.fundTxns).reduce<number>((sum, txn) => (isRecord(txn) && txn.kind === 'payout' && String(txn.expenseId) === input.id ? sum + (Number(txn.amount) || 0) : sum), 0);
+        if (fields.amount < paid) throw new FundInputError('Số tiền không được nhỏ hơn số quỹ đã thanh toán cho khoản này.');
+      }
+      return { ...item, ...fields, ...(item.mode === 'advance' ? { fundId: item.fundId } : {}) };
     });
     return { next: found ? { ...raw, expenses: updated } : raw, result: found ? input.id : null };
   });
 }
 
 export function deleteFundExpense(id: string): Promise<boolean> {
-  return removeById('expenses', id);
+  return mutate((raw) => {
+    // Khoản chi đã có thanh toán của quỹ thì phải xoá thanh toán trước (không để mất dấu dòng tiền).
+    if (arrayOf(raw.fundTxns).some((txn) => isRecord(txn) && String(txn.expenseId) === id)) {
+      throw new FundInputError('Khoản chi này đã có giao dịch thanh toán, hãy xoá thanh toán trước.');
+    }
+    const items = arrayOf(raw.expenses);
+    const rest = items.filter((item) => !(isRecord(item) && String(item.id) === id));
+    return rest.length === items.length ? { next: raw, result: false } : { next: { ...raw, expenses: rest }, result: true };
+  });
+}
+
+// ───────────────────────── Hồ sơ ứng trước ─────────────────────────
+
+export interface AdvanceInput {
+  /** Mã do giao diện sinh một lần cho mỗi lần mở form (chống ghi trùng khi bấm lưu nhiều lần). */
+  clientId?: string;
+  fundId: string;
+  person: string;
+  title: string;
+  date: DateStr;
+  /** ĐỒNG, được phép 0 (giao việc nhưng chưa cấp tiền). */
+  amount: Vnd;
+}
+
+/** Giao tiền ứng trước cho một người: tạo hồ sơ ứng trước (dòng tiền quỹ đã xuất, chưa phải chi phí). Trả về mã hồ sơ. */
+export function createAdvance(input: AdvanceInput, now: number = Date.now()): Promise<string> {
+  const person = String(input.person ?? '').trim();
+  if (!person) return Promise.reject(new FundInputError('Chọn người nhận tiền ứng.'));
+  if (!Number.isFinite(input.amount) || Math.round(input.amount) < 0) return Promise.reject(new FundInputError('Số tiền giao không hợp lệ.'));
+  return mutate((raw) => {
+    requireFund(raw, input.fundId);
+    const advances = arrayOf(raw.advances);
+    if (input.clientId && advances.some((item) => isRecord(item) && String(item.id) === input.clientId)) return { next: raw, result: input.clientId };
+    const id = input.clientId || `a_${newExpenseId(now)}`;
+    const record = { id, fundId: input.fundId, person, title: input.title, date: input.date, amount: Math.round(input.amount) };
+    return { next: { ...raw, advances: [...advances, record] }, result: id };
+  });
+}
+
+/** Xoá hồ sơ ứng trước chỉ khi chưa có khoản chi / hoàn tiền / thanh toán nào gắn với nó (không làm mất lịch sử). */
+export function deleteAdvance(id: string): Promise<boolean> {
+  return mutate((raw) => {
+    const linked =
+      arrayOf(raw.expenses).some((item) => isRecord(item) && String(item.advanceId) === id) ||
+      arrayOf(raw.fundTxns).some((item) => isRecord(item) && String(item.advanceId) === id);
+    if (linked) throw new FundInputError('Hồ sơ đã có khoản chi hoặc giao dịch, hãy xoá các khoản đó trước.');
+    const items = arrayOf(raw.advances);
+    const rest = items.filter((item) => !(isRecord(item) && String(item.id) === id));
+    return rest.length === items.length ? { next: raw, result: false } : { next: { ...raw, advances: rest }, result: true };
+  });
+}
+
+// ───────────────────────── Hoàn tiền ứng / thanh toán cho cá nhân ─────────────────────────
+
+export interface FundTxnInput {
+  clientId?: string;
+  kind: FundTxnKind;
+  date: DateStr;
+  /** ĐỒNG, > 0 và không vượt số còn giữ (hoàn) / còn nợ (thanh toán) — kiểm tra lại ngay trước khi ghi. */
+  amount: Vnd;
+  /** Hoàn tiền: bắt buộc `advanceId`. Thanh toán: `expenseId` (khoản cá nhân ứng) hoặc `advanceId` (phần chi vượt tiền ứng). */
+  advanceId?: string;
+  expenseId?: string;
+}
+
+/** Ghi giao dịch hoàn tiền / thanh toán. Chỉ đổi dòng tiền và công nợ: không tạo khoản chi, không đổi tổng chi. Trả về mã giao dịch. */
+export function saveFundTxn(input: FundTxnInput, now: number = Date.now()): Promise<string> {
+  return mutate((raw) => {
+    const txns = arrayOf(raw.fundTxns);
+    if (input.clientId && txns.some((item) => isRecord(item) && String(item.id) === input.clientId)) return { next: raw, result: input.clientId };
+    const data = normalizeFundData(raw);
+    let fundId = '';
+    let person = '';
+    let check;
+    if (input.kind === 'refund') {
+      if (!input.advanceId) throw new FundInputError('Chọn hồ sơ ứng trước.');
+      check = checkRefund(data, input.advanceId, input.amount);
+      const advance = data.advances?.find((a) => a.id === input.advanceId);
+      fundId = advance?.fundId ?? '';
+      person = advance?.person ?? '';
+    } else if (input.expenseId) {
+      check = checkPayout(data, { expenseId: input.expenseId }, input.amount);
+      const expense = data.expenses.find((e) => e.id === input.expenseId);
+      fundId = expense?.fundId ?? '';
+      person = expense?.payer ?? '';
+    } else if (input.advanceId) {
+      check = checkPayout(data, { advanceId: input.advanceId }, input.amount);
+      const advance = data.advances?.find((a) => a.id === input.advanceId);
+      fundId = advance?.fundId ?? '';
+      person = advance?.person ?? '';
+    } else throw new FundInputError('Chọn khoản cần thanh toán.');
+    if (!check.ok) throw new FundInputError(check.message);
+    const id = input.clientId || `t_${newExpenseId(now)}`;
+    const record: Record<string, unknown> = { id, fundId, kind: input.kind, person, amount: check.amount, date: input.date };
+    if (input.advanceId) record.advanceId = input.advanceId;
+    if (input.expenseId) record.expenseId = input.expenseId;
+    return { next: { ...raw, fundTxns: [...txns, record] }, result: id };
+  });
+}
+
+export function deleteFundTxn(id: string): Promise<boolean> {
+  return mutate((raw) => {
+    const items = arrayOf(raw.fundTxns);
+    const rest = items.filter((item) => !(isRecord(item) && String(item.id) === id));
+    return rest.length === items.length ? { next: raw, result: false } : { next: { ...raw, fundTxns: rest }, result: true };
+  });
 }
 
 function removeById(list: 'contribs' | 'expenses', id: string): Promise<boolean> {

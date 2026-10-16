@@ -9,7 +9,7 @@
 import { DETAIL_MAX, FUND_CATEGORY_ID, MEMO_MAX } from '@/constants/categories';
 import { isInPeriod, newExpenseId } from '@/domain/expenses';
 import type { DateStr, ExpenseRef, Period } from '@/types/expense';
-import type { Contribution, Fund, FundData, FundExpense, FundTotals } from '@/types/fund';
+import type { Advance, Contribution, Fund, FundData, FundExpense, FundTotals, FundTxn } from '@/types/fund';
 import type { Vnd } from '@/types/money';
 import { todayStr } from '@/utils/date';
 
@@ -78,16 +78,50 @@ export function normalizeFundData(raw: unknown, context: NormalizeContext = {}):
   const expenses: FundExpense[] = [];
   for (const item of Array.isArray(source.expenses) ? source.expenses : []) {
     if (!isRecord(item)) continue;
-    expenses.push({
+    const expense: FundExpense = {
       id: String(item.id || newId()),
       fundId: fundOf(item.fundId),
       title: String(item.title || ''),
       date: String(item.date || today),
       amount: Number(item.amount) || 0,
+    };
+    // Trường mới (tuỳ chọn): dữ liệu cũ không có thì là khoản quỹ chi trực tiếp.
+    if (item.mode === 'personal' || item.mode === 'advance') expense.mode = item.mode;
+    if (typeof item.payer === 'string' && item.payer) expense.payer = item.payer;
+    if (typeof item.advanceId === 'string' && item.advanceId) expense.advanceId = item.advanceId;
+    expenses.push(expense);
+  }
+
+  const advances: Advance[] = [];
+  for (const item of Array.isArray(source.advances) ? source.advances : []) {
+    if (!isRecord(item) || !item.id) continue;
+    advances.push({
+      id: String(item.id),
+      fundId: fundOf(item.fundId),
+      person: String(item.person || ''),
+      title: String(item.title || ''),
+      date: String(item.date || today),
+      amount: Math.max(0, Number(item.amount) || 0),
     });
   }
 
-  const data: FundData = { funds, contribs, expenses, cur: known.has(String(source.cur)) ? String(source.cur) : firstId };
+  const txns: FundTxn[] = [];
+  for (const item of Array.isArray(source.fundTxns) ? source.fundTxns : []) {
+    if (!isRecord(item) || !item.id || (item.kind !== 'refund' && item.kind !== 'payout')) continue;
+    const txn: FundTxn = {
+      id: String(item.id),
+      fundId: fundOf(item.fundId),
+      kind: item.kind,
+      person: String(item.person || ''),
+      amount: Math.max(0, Number(item.amount) || 0),
+      date: String(item.date || today),
+    };
+    if (typeof item.advanceId === 'string' && item.advanceId) txn.advanceId = item.advanceId;
+    if (typeof item.expenseId === 'string' && item.expenseId) txn.expenseId = item.expenseId;
+    txns.push(txn);
+  }
+
+  const data: FundData = { funds, contribs, expenses, advances, txns, cur: known.has(String(source.cur)) ? String(source.cur) : firstId };
   if (funds.length === 1 && funds[0].name === LEGACY_FUND_NAME && !contribs.length && !expenses.length) data.funds = [];
   return data;
 }

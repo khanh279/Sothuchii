@@ -54,14 +54,16 @@ interface AmountFieldProps {
   invalid?: boolean;
   /** Câu báo lỗi hiện dưới ô nhập khi `invalid`. */
   errorText?: string;
+  /** Nhãn của ô (mặc định "Số tiền"). */
+  label?: string;
 }
 
 /** Ô "Số tiền" + hàng nút nhập nhanh (+5k … +500k, ".000") + câu báo lỗi. */
-export function AmountField({ value, onChange, invalid = false, errorText }: AmountFieldProps) {
+export function AmountField({ value, onChange, invalid = false, errorText, label = 'Số tiền' }: AmountFieldProps) {
   const colors = useColors();
   return (
     <View style={formStyles.field}>
-      <FormLabel>Số tiền</FormLabel>
+      <FormLabel>{label}</FormLabel>
       <AmountInput value={value} invalid={invalid} onChangeValue={(next) => onChange(next)} />
       <View style={formStyles.quickRow}>
         {QUICK_ADDS.map((item) => (

@@ -1,16 +1,19 @@
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { EmptyState, ModalHeader, TransactionRow } from '@/components/design';
+import { EmptyState, ModalHeader, TransactionRow, type StatusTone } from '@/components/design';
 import { SwipeRow } from '@/components/swipe-row';
 import { TOAST_BOTTOM_HISTORY, useToast } from '@/components/toast';
 import { AppRadius } from '@/constants/palette';
-import { deleteContributionSynced, deleteFundExpenseSynced } from '@/data/fundService';
+import { deleteAdvanceSynced, deleteContributionSynced, deleteFundExpenseSynced, deleteFundTxnSynced } from '@/data/fundService';
 import { dayHeading, periodFromParams, periodTitle } from '@/domain/expenses';
+import { ADVANCE_STATE_LABEL, PAY_STATE_LABEL, advanceById, advanceSummary, fundPosition, personalDebt, type PayState } from '@/domain/fundAdvance';
 import { buildFundHistory, type FundHistoryEntry } from '@/domain/fundHistory';
+import { FundActionSheet, type FundActionTarget } from '@/features/funds/FundActionSheet';
+import { ADVANCE_TONE } from '@/features/funds/FundAdvanceScreen';
 import { ContributionForm } from '@/features/funds/ContributionForm';
 import { FundExpenseForm } from '@/features/funds/FundExpenseForm';
 import { describeFundError, useFundData } from '@/features/funds/hooks';
@@ -23,7 +26,8 @@ import { formatVnd } from '@/utils/format';
 /** Màu thu / chi của Quỹ (`--in`, `--out` của PWA). */
 
 /**
- * Lịch sử Quỹ nhóm trong một kỳ: số dư, rồi các lần đóng và khoản chi gom theo ngày. Vuốt dòng để Sửa / Xoá.
+ * Lịch sử Quỹ nhóm trong một kỳ: số dư, rồi các lần đóng, khoản chi thực tế và dòng tiền ứng trước (giao tiền ứng, hoàn tiền, quỹ trả cá nhân) gom theo ngày.
+ * Vuốt dòng để Sửa / Xoá. Khoản cá nhân ứng hiện trạng thái thanh toán (chạm để ghi nhận quỹ trả); dòng thuộc hồ sơ ứng trước chạm để mở chi tiết hồ sơ.
  * Tham số route: kỳ (`mode`, `month`, `year`, `from`, `to`) và `fund` (`all` hoặc id quỹ, như bấm một quỹ ở Tổng quan).
  */
 export default function FundHistoryScreen() {
@@ -38,6 +42,7 @@ export default function FundHistoryScreen() {
   const { data, loaded, error, reload } = useFundData();
   const [openId, setOpenId] = useState<string | null>(null);
   const [editing, setEditing] = useState<FundHistoryEntry | null>(null);
+  const [action, setAction] = useState<FundActionTarget | null>(null);
 
   const history = useMemo(() => buildFundHistory(data, params.fund || 'all', period), [data, params.fund, period]);
   const single = history.filter !== 'all' ? history.funds[0] : null;
@@ -46,9 +51,11 @@ export default function FundHistoryScreen() {
   async function remove(entry: FundHistoryEntry) {
     try {
       if (entry.kind === 'contribution') await deleteContributionSynced(entry.id);
-      else await deleteFundExpenseSynced(entry.id);
+      else if (entry.kind === 'expense') await deleteFundExpenseSynced(entry.id);
+      else if (entry.kind === 'advance') await deleteAdvanceSynced(entry.id);
+      else await deleteFundTxnSynced(entry.id);
       setOpenId(null);
-      toast.show(entry.kind === 'contribution' ? 'Đã xóa lần đóng quỹ' : 'Đã xóa khoản chi', { bottom: TOAST_BOTTOM_HISTORY });
+      toast.show(entry.kind === 'contribution' ? 'Đã xóa lần đóng quỹ' : entry.kind === 'expense' ? 'Đã xóa khoản chi' : 'Đã xóa', { bottom: TOAST_BOTTOM_HISTORY });
       await reload();
     } catch (e) {
       toast.show(describeFundError(e), { bottom: TOAST_BOTTOM_HISTORY });
@@ -58,6 +65,43 @@ export default function FundHistoryScreen() {
   const editingContribution = editing?.kind === 'contribution' ? data.contribs.find((c) => c.id === editing.id) : undefined;
   const editingExpense = editing?.kind === 'expense' ? data.expenses.find((e) => e.id === editing.id) : undefined;
   const editingFund = editing ? data.funds.find((fund) => fund.id === editing.fundId) : undefined;
+  const position = fundPosition(data, history.filter === 'all' ? 'all' : history.filter);
+
+  const openAdvance = (advanceId?: string) => advanceId && router.push({ pathname: '/quy/ung-truoc', params: { id: advanceId } });
+
+  /** Nhãn trạng thái của một dòng: khoản cá nhân ứng → trạng thái thanh toán; dòng thuộc hồ sơ ứng trước → trạng thái quyết toán. */
+  function statusOf(entry: FundHistoryEntry): { label: string; tone: StatusTone } | null {
+    if (entry.kind === 'expense') {
+      const expense = data.expenses.find((e) => e.id === entry.id);
+      if (expense?.mode === 'personal') {
+        const debt = personalDebt(data, expense);
+        const tone: Record<PayState, StatusTone> = { paid: 'get', partial: 'warn', unpaid: 'owe' };
+        const label = debt.state === 'paid' ? PAY_STATE_LABEL.paid : `${PAY_STATE_LABEL[debt.state]} · còn nợ ${formatVnd(debt.remaining)}`;
+        return { label, tone: tone[debt.state] };
+      }
+    }
+    if (entry.advanceId && (entry.kind === 'advance' || entry.kind === 'expense')) {
+      const advance = advanceById(data, entry.advanceId);
+      if (advance) {
+        const state = advanceSummary(data, advance).state;
+        return { label: ADVANCE_STATE_LABEL[state], tone: ADVANCE_TONE[state] };
+      }
+    }
+    return null;
+  }
+
+  function pressEntry(entry: FundHistoryEntry) {
+    setOpenId(null);
+    if (entry.kind === 'expense') {
+      const expense = data.expenses.find((e) => e.id === entry.id);
+      if (expense?.mode === 'personal') {
+        const debt = personalDebt(data, expense);
+        if (debt.remaining > 0) setAction({ mode: 'payout', expenseId: expense.id, person: expense.payer ?? '', max: debt.remaining });
+        return;
+      }
+    }
+    openAdvance(entry.advanceId);
+  }
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg, paddingTop: 12 + insets.top }]}>
@@ -108,6 +152,13 @@ export default function FundHistoryScreen() {
                   </AppText>
                 </View>
               )}
+              {data.funds.length > 0 && position.advanced && (
+                <View style={[styles.balance, styles.position, { backgroundColor: colors.bg }]}>
+                  <PositionRow label="Tiền thực tế trong quỹ" value={formatVnd(position.cash)} />
+                  <PositionRow label="Cá nhân đang giữ tiền ứng" value={formatVnd(position.held)} color={position.held > 0 ? colors.warning : undefined} />
+                  <PositionRow label="Quỹ nợ cá nhân" value={formatVnd(position.owed)} color={position.owed > 0 ? colors.danger : undefined} />
+                </View>
+              )}
 
               {history.days.length === 0 ? (
                 <EmptyState text="Không có khoản nào trong khoảng này" icon="check" />
@@ -127,7 +178,9 @@ export default function FundHistoryScreen() {
                     </View>
                     <View style={styles.rows}>
                       {day.entries.map((entry) => {
-                        const incoming = entry.kind === 'contribution';
+                        const incoming = entry.kind === 'contribution' || entry.kind === 'refund';
+                        const cashOnly = entry.kind === 'advance' || entry.kind === 'payout' || entry.kind === 'refund'; // dòng tiền, không phải chi phí
+                        const status = statusOf(entry);
                         const name = history.showFundName ? fundName(entry.fundId) : '';
                         return (
                           <SwipeRow
@@ -135,8 +188,8 @@ export default function FundHistoryScreen() {
                             open={openId === entry.id}
                             onOpen={() => setOpenId(entry.id)}
                             onClose={() => setOpenId((current) => (current === entry.id ? null : current))}
-                            onPressRow={() => setOpenId(null)}
-                            onEdit={() => setEditing(entry)}
+                            onPressRow={() => pressEntry(entry)}
+                            onEdit={() => (entry.kind === 'contribution' || entry.kind === 'expense' ? setEditing(entry) : entry.advanceId ? openAdvance(entry.advanceId) : toast.show('Muốn sửa, hãy xoá giao dịch này rồi ghi lại', { bottom: TOAST_BOTTOM_HISTORY }))}
                             onDelete={() => void remove(entry)}
                             background={colors.bg}
                             radius={AppRadius.field}
@@ -144,8 +197,8 @@ export default function FundHistoryScreen() {
                             <TransactionRow
                               bare
                               icon={
-                                <View style={[styles.icon, { backgroundColor: withAlpha(incoming ? colors.success : colors.danger, 0.14) }]}>
-                                  <AppText weight="bold" color={incoming ? colors.success : colors.danger} style={styles.iconText}>
+                                <View style={[styles.icon, { backgroundColor: withAlpha(cashOnly && !incoming ? colors.muted : incoming ? colors.success : colors.danger, 0.14) }]}>
+                                  <AppText weight="bold" color={cashOnly && !incoming ? colors.muted : incoming ? colors.success : colors.danger} style={styles.iconText}>
                                     {incoming ? '+' : '−'}
                                   </AppText>
                                 </View>
@@ -153,7 +206,9 @@ export default function FundHistoryScreen() {
                               title={entry.title}
                               subtitle={name ? `${name} · ${entry.meta}` : entry.meta}
                               amount={`${incoming ? '+' : '−'}${formatVnd(entry.amount)}`}
-                              tone={incoming ? 'get' : 'owe'}
+                              tone={cashOnly && !incoming ? 'mid' : incoming ? 'get' : 'owe'}
+                              badge={status?.label}
+                              badgeTone={status?.tone}
                             />
                           </SwipeRow>
                         );
@@ -165,6 +220,18 @@ export default function FundHistoryScreen() {
             </View>
           </View>
         </ScrollView>
+      )}
+
+      {action && (
+        <FundActionSheet
+          target={action}
+          data={data}
+          onClose={() => setAction(null)}
+          onDone={() => {
+            setAction(null);
+            void reload();
+          }}
+        />
       )}
 
       {editing && editingFund && (editingContribution || editingExpense) && (
@@ -204,6 +271,20 @@ export default function FundHistoryScreen() {
   );
 }
 
+function PositionRow({ label, value, color }: { label: string; value: string; color?: string }) {
+  const colors = useColors();
+  return (
+    <View style={styles.positionRow}>
+      <AppText color={colors.muted} style={styles.balanceLabel} numberOfLines={1}>
+        {label}
+      </AppText>
+      <AppText weight="semibold" color={color} style={styles.positionValue}>
+        {value}
+      </AppText>
+    </View>
+  );
+}
+
 // Số đo theo CSS `.mod-b` của PWA: thẻ bo 16 viền 1; tóm tắt cao 64; dòng cao 64, bo 14, biểu tượng 40×40 bo 12.
 const styles = StyleSheet.create({
   flex: { flex: 1 },
@@ -213,6 +294,9 @@ const styles = StyleSheet.create({
   notice: { marginHorizontal: 12, padding: 16, borderRadius: 16 },
   noticeText: { fontSize: 15 },
   card: { borderRadius: AppRadius.card, overflow: 'hidden' },
+  position: { flexDirection: 'column', alignItems: 'stretch', gap: 6 },
+  positionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  positionValue: { fontSize: 14, lineHeight: 20 },
   summary: { minHeight: 64, paddingVertical: 10, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   summaryLeft: { flex: 1, minWidth: 0 },
   summaryTitle: { fontSize: 16, lineHeight: 22 },

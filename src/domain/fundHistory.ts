@@ -14,15 +14,25 @@ export const OVERVIEW_FUND_LIMIT = 4;
 
 export type FundFilter = 'all' | string;
 
+/**
+ * Loại dòng lịch sử. 'contribution' (thu) và 'expense' (chi thực tế) là hai loại duy nhất tính vào tổng thu / tổng chi; 'advance' (giao tiền ứng),
+ * 'refund' (hoàn tiền ứng) và 'payout' (quỹ trả cho cá nhân) chỉ là dòng tiền của quỹ, KHÔNG tính vào tổng chi.
+ */
+export type FundHistoryKind = 'contribution' | 'expense' | 'advance' | 'refund' | 'payout';
+
 export interface FundHistoryEntry {
-  kind: 'contribution' | 'expense';
+  kind: FundHistoryKind;
   id: string;
   date: DateStr;
   title: string;
   fundId: string;
   amount: Vnd;
-  /** Dòng phụ: "N người đóng" hoặc "Chi quỹ". */
+  /** Dòng phụ: "N người đóng", "Chi quỹ", "Chi quỹ · A ứng", "Giao tiền ứng · A"... */
   meta: string;
+  /** Người liên quan (người chi / nhận ứng / nhận thanh toán), nếu có. */
+  person?: string;
+  /** Hồ sơ ứng trước liên quan (để mở chi tiết hồ sơ). */
+  advanceId?: string;
 }
 
 export interface FundHistoryDay {
@@ -52,7 +62,7 @@ function newestFirst(a: FundHistoryEntry, b: FundHistoryEntry): number {
   return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
 }
 
-export function buildFundHistory(data: Pick<FundData, 'funds' | 'contribs' | 'expenses'>, filter: FundFilter, period: Period): FundHistory {
+export function buildFundHistory(data: Pick<FundData, 'funds' | 'contribs' | 'expenses'> & Partial<Pick<FundData, 'advances' | 'txns'>>, filter: FundFilter, period: Period): FundHistory {
   const funds = filter === 'all' ? data.funds : data.funds.filter((fund) => fund.id === filter);
   const effective: FundFilter = filter !== 'all' && funds.length ? filter : 'all';
   const shown = effective === 'all' ? data.funds : funds;
@@ -73,7 +83,26 @@ export function buildFundHistory(data: Pick<FundData, 'funds' | 'contribs' | 'ex
   }
   for (const e of data.expenses) {
     if (!ids.has(e.fundId) || !isInPeriod(e.date, period)) continue;
-    entries.push({ kind: 'expense', id: e.id, date: e.date, title: e.title || DEFAULT_EXPENSE_TITLE, fundId: e.fundId, amount: e.amount, meta: 'Chi quỹ' });
+    const meta = e.mode === 'personal' ? `Chi quỹ · ${e.payer || 'cá nhân'} ứng` : e.mode === 'advance' ? `Chi từ tiền ứng · ${e.payer || ''}`.trim() : 'Chi quỹ';
+    entries.push({ kind: 'expense', id: e.id, date: e.date, title: e.title || DEFAULT_EXPENSE_TITLE, fundId: e.fundId, amount: e.amount, meta, person: e.payer, advanceId: e.advanceId });
+  }
+  for (const a of data.advances ?? []) {
+    if (!ids.has(a.fundId) || !isInPeriod(a.date, period)) continue;
+    entries.push({ kind: 'advance', id: a.id, date: a.date, title: a.title || 'Giao tiền ứng', fundId: a.fundId, amount: a.amount, meta: `Giao tiền ứng · ${a.person}`, person: a.person, advanceId: a.id });
+  }
+  for (const t of data.txns ?? []) {
+    if (!ids.has(t.fundId) || !isInPeriod(t.date, period)) continue;
+    entries.push({
+      kind: t.kind === 'refund' ? 'refund' : 'payout',
+      id: t.id,
+      date: t.date,
+      title: t.kind === 'refund' ? 'Hoàn tiền ứng' : `Thanh toán cho ${t.person}`,
+      fundId: t.fundId,
+      amount: t.amount,
+      meta: t.kind === 'refund' ? `Hoàn tiền ứng · ${t.person}` : 'Quỹ trả cá nhân',
+      person: t.person,
+      advanceId: t.advanceId,
+    });
   }
   entries.sort(newestFirst);
 
