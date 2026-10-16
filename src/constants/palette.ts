@@ -1,6 +1,7 @@
 /**
  * Bộ màu "Minimal Finance" của ứng dụng: nền trắng / xám rất nhạt, xanh navy đậm là màu chủ đạo (thẻ số liệu, nút chính),
- * xanh teal nhẹ làm màu nhấn, xanh lá cho tiền nhận, đỏ cho tiền phải trả / cảnh báo, còn lại là màu trung tính.
+ * xanh dương làm màu nhấn (liên kết, nút +, chip), xanh lá cho tiền nhận, đỏ cho tiền phải trả / cảnh báo, còn lại là màu trung tính.
+ * Bốn màu `icon*` dành cho biểu tượng nhận diện từng nhóm chức năng ở các ô Tổng quan.
  * Dùng `useColors()` để lấy bộ màu theo chế độ sáng/tối của thiết bị.
  */
 export interface SoTienPalette {
@@ -19,12 +20,17 @@ export interface SoTienPalette {
   heroTrack: string;
   danger: string;
   dangerSoft: string;
-  /** Màu nhấn teal nhẹ (biểu tượng lối vào, chip đang chọn). */
+  /** Màu nhấn xanh dương (liên kết, nút +). */
   accent: string;
   accentSoft: string;
   /** Tiền nhận / trạng thái tích cực. */
   success: string;
   successSoft: string;
+  /** Màu biểu tượng nhận diện nhóm chức năng (chia bill, công nợ, quỹ, chi tiêu). */
+  iconBlue: string;
+  iconPurple: string;
+  iconTeal: string;
+  iconOrange: string;
   scrim: string;
 }
 
@@ -36,19 +42,23 @@ export const SoTienColors: { light: SoTienPalette; dark: SoTienPalette } = {
     ink: '#0F1B2D',
     muted: '#6B7789',
     line: '#E8ECF2',
-    primary: '#0B2A4A',
+    primary: '#1B2A4E',
     primaryInk: '#FFFFFF',
-    primarySoft: '#E6EDF6',
-    heroBg: '#0B2A4A',
+    primarySoft: '#E8ECF5',
+    heroBg: '#1B2A4E',
     heroInk: '#FFFFFF',
     heroSoft: 'rgba(255,255,255,0.72)',
     heroTrack: 'rgba(255,255,255,0.22)',
     danger: '#D64545',
     dangerSoft: '#FCEBEB',
-    accent: '#0E8F9B',
-    accentSoft: '#E2F4F5',
+    accent: '#2563EB',
+    accentSoft: '#E8EFFD',
     success: '#0F8A4B',
     successSoft: '#E3F5EA',
+    iconBlue: '#2563EB',
+    iconPurple: '#7C3AED',
+    iconTeal: '#0D9488',
+    iconOrange: '#D97706',
     scrim: 'rgba(0,0,0,0.48)',
   },
   dark: {
@@ -61,16 +71,20 @@ export const SoTienColors: { light: SoTienPalette; dark: SoTienPalette } = {
     primary: '#4F83E8',
     primaryInk: '#FFFFFF',
     primarySoft: '#1B2B4A',
-    heroBg: '#143A66',
+    heroBg: '#1E3560',
     heroInk: '#FFFFFF',
     heroSoft: 'rgba(255,255,255,0.74)',
     heroTrack: 'rgba(255,255,255,0.22)',
     danger: '#F08A84',
     dangerSoft: '#3A2224',
-    accent: '#3DC1CC',
-    accentSoft: '#143338',
+    accent: '#6EA0FF',
+    accentSoft: '#172A4F',
     success: '#4CC38A',
     successSoft: '#163A2A',
+    iconBlue: '#6EA0FF',
+    iconPurple: '#A78BFA',
+    iconTeal: '#2DD4BF',
+    iconOrange: '#FBBF24',
     scrim: 'rgba(0,0,0,0.62)',
   },
 };

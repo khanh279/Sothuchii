@@ -74,7 +74,7 @@ export function AddExpenseFab({ onAddPersonal, onAddFund, onTransfer, onCreateBi
     <>
       {!open && (
         <Animated.View style={[styles.fabWrap, { bottom: 76 + insets.bottom, transform: [{ translateY: y }] }]} pointerEvents={hidden ? 'none' : 'box-none'}>
-          <Pressable style={[styles.fab, { backgroundColor: colors.primary }]} accessibilityRole="button" accessibilityLabel="Thêm nhanh" onPress={show}>
+          <Pressable style={[styles.fab, { backgroundColor: colors.accent }]} accessibilityRole="button" accessibilityLabel="Thêm nhanh" onPress={show}>
             <SvgIcon name="plus" size={22} color={colors.primaryInk} strokeWidth={2.4} />
           </Pressable>
         </Animated.View>

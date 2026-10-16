@@ -18,7 +18,7 @@ interface StatProps {
 /** Thẻ số liệu "Chia bill" (chỉ xem): số bill và tổng tiền các bill trong kỳ đang xem. */
 export function BillStatCard({ bills, period, style }: StatProps) {
   const card = useMemo(() => buildBillOverviewCard(bills, period, true), [bills, period]);
-  return <SummaryCard label="Chia bill" value={formatMoney(card.total)} caption={`${card.count} bill`} style={style} />;
+  return <SummaryCard label="Chia bill" icon="receipt" tint="blue" value={formatMoney(card.total)} caption={`${card.count} bill`} style={style} />;
 }
 
 interface DetailProps {

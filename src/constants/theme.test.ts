@@ -16,8 +16,8 @@ describe('bộ màu Minimal Finance', () => {
     }
   });
 
-  it('màu chủ đạo là navy, nền trắng / xám nhạt, tiền nhận xanh lá, tiền trả đỏ', () => {
-    expect(SoTienColors.light).toMatchObject({ bg: '#F5F7FA', surface: '#FFFFFF', primary: '#0B2A4A', heroBg: '#0B2A4A', success: '#0F8A4B', danger: '#D64545', accent: '#0E8F9B' });
+  it('màu chủ đạo là navy, nhấn xanh dương, nền trắng / xám nhạt, tiền nhận xanh lá, tiền trả đỏ', () => {
+    expect(SoTienColors.light).toMatchObject({ bg: '#F5F7FA', surface: '#FFFFFF', primary: '#1B2A4E', heroBg: '#1B2A4E', success: '#0F8A4B', danger: '#D64545', accent: '#2563EB' });
     expect(SoTienColors.dark).toMatchObject({ bg: '#0A1220', surface: '#121C2E', primary: '#4F83E8', success: '#4CC38A', danger: '#F08A84' });
   });
 

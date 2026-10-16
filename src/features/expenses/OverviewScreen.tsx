@@ -14,6 +14,7 @@ import {
   suggestedDateFor,
   summarizeByCategory,
 } from '@/domain/expenses';
+import { averagePerDay } from '@/domain/overviewStats';
 import { AddExpenseFab } from '@/features/expenses/AddExpenseFab';
 import { useExpenseSettings, useExpenses } from '@/features/expenses/hooks';
 import { BillDetailSection, BillStatCard } from '@/features/bills/BillOverviewCard';
@@ -48,6 +49,7 @@ export default function OverviewScreen() {
 
   const total = useMemo(() => sumAmounts(items), [items]);
   const summaries = useMemo(() => summarizeByCategory(items, settings), [items, settings]);
+  const average = useMemo(() => averagePerDay(total, period), [total, period]);
   const budget = useMemo(() => budgetSummary(total, period, settings, today), [total, period, settings, today]);
   const message = settingsError ?? error;
 
@@ -70,6 +72,8 @@ export default function OverviewScreen() {
               period={period}
               loaded={loaded}
               total={total}
+              count={items.length}
+              average={average}
               budget={budget}
               summaries={summaries}
               expanded={expanded}
@@ -85,8 +89,8 @@ export default function OverviewScreen() {
                 <DebtStatCard bills={debt.bills} pays={debt.pays} period={period} style={styles.gridItem} />
               </View>
               <View style={styles.grid}>
-                <NavTile icon="tabOverview" label="Chi tiêu" caption="Lịch sử chi tiêu" style={styles.gridItem} onPress={() => router.push({ pathname: '/lich-su', params: periodParams })} />
-                <NavTile icon="people" label="Quỹ nhóm" caption="Đóng quỹ, chi quỹ" style={styles.gridItem} onPress={() => router.push('/quy')} />
+                <NavTile icon="tabOverview" tint="orange" label="Chi tiêu" caption="Lịch sử chi tiêu" style={styles.gridItem} onPress={() => router.push({ pathname: '/lich-su', params: periodParams })} />
+                <NavTile icon="people" tint="teal" label="Quỹ nhóm" caption="Đóng quỹ, chi quỹ" style={styles.gridItem} onPress={() => router.push('/quy')} />
               </View>
               <RecentTransactions pays={debt.pays} paysLoaded={debt.loaded} paysError={debt.error} />
               <BillDetailSection

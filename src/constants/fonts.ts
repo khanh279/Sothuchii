@@ -1,9 +1,6 @@
 /**
- * Font của PWA (xác minh từ <link> Google Fonts và biến `--st-font-ui`, `--st-font-display`):
- * - Be Vietnam Pro 400 / 500 / 600 / 700: chữ giao diện.
- * - Bricolage Grotesque: chữ "hiển thị" cho số tiền lớn và tiêu đề — mọi chỗ dùng đều ở độ đậm 700
- *   (số tổng ở thẻ Đã chi, ô nhập số tiền, "₫" cạnh ô nhập, tiêu đề form/thiết lập).
- *   Bản PWA nạp cả trục opsz 12–96; bản React Native chỉ có bản tĩnh (xấp xỉ).
+ * Một họ chữ cho toàn ứng dụng: Be Vietnam Pro 400 / 500 / 600 / 700. Chữ "hiển thị" (số tiền lớn, tiêu đề) dùng cùng họ này ở độ đậm 700
+ * để chữ đồng bộ (trước đây dùng thêm Bricolage Grotesque theo PWA).
  * Tên bên dưới trùng với tên font đăng ký trong `font-assets.ts`.
  *
  * React Native không dùng `fontWeight` với font tuỳ chỉnh, nên mỗi độ đậm là một tên font riêng.
@@ -13,7 +10,7 @@ export const AppFonts = {
   medium: 'BeVietnamPro_500Medium',
   semibold: 'BeVietnamPro_600SemiBold',
   bold: 'BeVietnamPro_700Bold',
-  display: 'BricolageGrotesque_700Bold',
+  display: 'BeVietnamPro_700Bold',
 } as const;
 
 export type AppFontKey = keyof typeof AppFonts;

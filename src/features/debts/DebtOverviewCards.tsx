@@ -27,6 +27,8 @@ export function DebtStatCard({ bills, pays, period, style }: Props & { style?: R
   return (
     <SummaryCard
       label="Công nợ"
+      icon="tabTransactions"
+      tint="purple"
       value={`${SIGN[tone]}${formatMoney(Math.abs(balance))}`}
       tone={tone}
       caption={`Tôi nợ ${formatMoney(overview.owe)}\nNợ tôi ${formatMoney(overview.get)}`}
@@ -65,5 +67,5 @@ export function DebtPeopleSection({ bills, pays, period, onOpenPerson }: Props &
 /** Lối vào lịch sử giao dịch (chuyển tiền / trả bill): số khoản và tổng vào / ra của kỳ. */
 export function PaysEntry({ bills, pays, period, onOpen }: Props & { onOpen: () => void }) {
   const history = useMemo(() => buildPayHistory(pays, bills, period), [pays, bills, period]);
-  return <NavTile icon="tabTransactions" label="Giao dịch" caption={`${history.count} khoản · +${formatMoney(history.totalIn)} · −${formatMoney(history.totalOut)}`} onPress={onOpen} />;
+  return <NavTile icon="tabTransactions" tint="orange" label="Giao dịch" caption={`${history.count} khoản · +${formatMoney(history.totalIn)} · −${formatMoney(history.totalOut)}`} onPress={onOpen} />;
 }

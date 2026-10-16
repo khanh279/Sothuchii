@@ -4,7 +4,6 @@ import {
   BeVietnamPro_600SemiBold,
   BeVietnamPro_700Bold,
 } from '@expo-google-fonts/be-vietnam-pro';
-import { BricolageGrotesque_700Bold } from '@expo-google-fonts/bricolage-grotesque';
 
 import { AppFonts } from '@/constants/fonts';
 
@@ -14,5 +13,4 @@ export const FONT_ASSETS = {
   [AppFonts.medium]: BeVietnamPro_500Medium,
   [AppFonts.semibold]: BeVietnamPro_600SemiBold,
   [AppFonts.bold]: BeVietnamPro_700Bold,
-  [AppFonts.display]: BricolageGrotesque_700Bold,
 };

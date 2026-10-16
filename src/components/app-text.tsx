@@ -4,7 +4,7 @@ import { AppFonts, type AppFontKey } from '@/constants/fonts';
 import { useColors } from '@/hooks/use-colors';
 
 interface Props extends TextProps {
-  /** Độ đậm / kiểu chữ: regular 400, medium 500, semibold 600, bold 700, display = Bricolage 700. */
+  /** Độ đậm / kiểu chữ: regular 400, medium 500, semibold 600, bold 700, display = số/tiêu đề lớn, cùng họ chữ ở độ đậm 700. */
   weight?: AppFontKey;
   /** Màu chữ; mặc định là màu chữ chính của chủ đề. */
   color?: string;

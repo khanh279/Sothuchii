@@ -72,23 +72,38 @@ export function SectionHeader({ title, subtitle, actionLabel, onAction }: Sectio
 
 // ───────────────────────── Thẻ số liệu (chỉ xem) ─────────────────────────
 
+/** Màu biểu tượng nhận diện nhóm chức năng (token `icon*`). */
+export type TileTint = 'blue' | 'purple' | 'teal' | 'orange';
+
+function useTint(tint: TileTint): string {
+  const colors = useColors();
+  return { blue: colors.iconBlue, purple: colors.iconPurple, teal: colors.iconTeal, orange: colors.iconOrange }[tint];
+}
+
 interface SummaryCardProps {
   label: string;
   value: string;
   tone?: AmountTone;
   caption?: string;
+  /** Biểu tượng nhỏ cạnh nhãn (tuỳ chọn) và màu của nó. */
+  icon?: IconName;
+  tint?: TileTint;
   style?: StyleProp<ViewStyle>;
 }
 
-/** Thẻ tổng hợp số liệu, KHÔNG bấm được: nền trắng, không mũi tên. */
-export function SummaryCard({ label, value, tone, caption, style }: SummaryCardProps) {
+/** Thẻ tổng hợp số liệu, KHÔNG bấm được: nền trắng, viền mảnh, không mũi tên. */
+export function SummaryCard({ label, value, tone, caption, icon, tint = 'blue', style }: SummaryCardProps) {
   const colors = useColors();
   const toneColor = useToneColor();
+  const tintColor = useTint(tint);
   return (
-    <View style={[styles.card, { backgroundColor: colors.surface }, style]} accessibilityLabel={`${label}: ${value}`}>
-      <AppText weight="medium" color={colors.muted} style={styles.cardLabel} numberOfLines={1}>
-        {label}
-      </AppText>
+    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.line }, style]} accessibilityLabel={`${label}: ${value}`}>
+      <View style={styles.cardHead}>
+        {icon && <SvgIcon name={icon} size={18} color={tintColor} strokeWidth={2} />}
+        <AppText weight="medium" color={colors.muted} style={styles.cardLabel} numberOfLines={1}>
+          {label}
+        </AppText>
+      </View>
       <AppText weight="bold" color={toneColor(tone)} style={styles.cardValue} numberOfLines={1} adjustsFontSizeToFit>
         {value}
       </AppText>
@@ -105,27 +120,29 @@ export function SummaryCard({ label, value, tone, caption, style }: SummaryCardP
 
 interface NavTileProps {
   icon: IconName;
+  tint?: TileTint;
   label: string;
   caption?: string;
   onPress: () => void;
   style?: StyleProp<ViewStyle>;
 }
 
-/** Lối vào một chức năng: biểu tượng teal trong ô tròn nhạt, tên ngắn và mũi tên (khác thẻ số liệu chỉ xem). */
-export function NavTile({ icon, label, caption, onPress, style }: NavTileProps) {
+/** Lối vào một chức năng: biểu tượng màu cạnh tên (cùng dáng với thẻ số liệu), mũi tên bên phải (khác thẻ số liệu chỉ xem). */
+export function NavTile({ icon, tint = 'teal', label, caption, onPress, style }: NavTileProps) {
   const colors = useColors();
+  const tintColor = useTint(tint);
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [styles.card, styles.tile, { backgroundColor: colors.surface, opacity: pressed ? 0.85 : 1 }, style]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [styles.card, styles.tile, { backgroundColor: colors.surface, borderColor: colors.line, opacity: pressed ? 0.85 : 1 }, style]}>
       <View style={styles.tileTop}>
-        <View style={[styles.tileIcon, { backgroundColor: colors.accentSoft }]}>
-          <SvgIcon name={icon} size={20} color={colors.accent} strokeWidth={2} />
+        <View style={styles.cardHead}>
+          <SvgIcon name={icon} size={18} color={tintColor} strokeWidth={2} />
+          <AppText weight="medium" color={colors.muted} style={styles.cardLabel} numberOfLines={1}>
+            {label}
+          </AppText>
         </View>
         <SvgIcon name="chevronRight" size={16} color={colors.muted} strokeWidth={2} />
       </View>
       <View>
-        <AppText weight="semibold" style={styles.tileLabel} numberOfLines={1}>
-          {label}
-        </AppText>
         {!!caption && (
           <AppText color={colors.muted} style={styles.caption} numberOfLines={2}>
             {caption}
@@ -138,10 +155,10 @@ export function NavTile({ icon, label, caption, onPress, style }: NavTileProps) 
 
 // ───────────────────────── Khung nhóm dòng ─────────────────────────
 
-/** Khung trắng bo vừa phải chứa một nhóm dòng (không viền, tách bằng nền trang xám nhạt). */
+/** Khung trắng bo vừa phải, viền mảnh, chứa một nhóm dòng. */
 export function Panel({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
   const colors = useColors();
-  return <View style={[styles.panel, { backgroundColor: colors.surface }, style]}>{children}</View>;
+  return <View style={[styles.panel, { backgroundColor: colors.surface, borderColor: colors.line }, style]}>{children}</View>;
 }
 
 // ───────────────────────── Dòng tên – số tiền ─────────────────────────
@@ -417,14 +434,13 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 17, lineHeight: 24 },
   caption: { fontSize: 12, lineHeight: 16 },
   action: { fontSize: 13.5 },
-  card: { borderRadius: AppRadius.card, padding: 14, gap: 4 },
-  cardLabel: { fontSize: 12.5, lineHeight: 17 },
-  cardValue: { fontSize: 20, lineHeight: 26, letterSpacing: -0.3 },
-  tile: { gap: 10 },
-  tileTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  tileIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  tileLabel: { fontSize: 15, lineHeight: 20 },
-  panel: { borderRadius: AppRadius.card, paddingHorizontal: 16, paddingVertical: 4 },
+  card: { borderRadius: AppRadius.card, borderWidth: 1, padding: 14, gap: 6 },
+  cardHead: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
+  cardLabel: { fontSize: 13, lineHeight: 18, flexShrink: 1 },
+  cardValue: { fontSize: 22, lineHeight: 28, letterSpacing: -0.3 },
+  tile: { gap: 6 },
+  tileTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
+  panel: { borderRadius: AppRadius.card, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 4 },
   row: { minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
   rowName: { fontSize: 15.5, lineHeight: 21 },
   rowAmount: { fontSize: 16, lineHeight: 22, textAlign: 'right' },

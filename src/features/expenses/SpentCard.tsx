@@ -13,6 +13,9 @@ interface Props {
   period: Period;
   loaded: boolean;
   total: number;
+  /** Số khoản chi và chi trung bình mỗi ngày của kỳ (null: không xác định, ẩn). */
+  count: number;
+  average: number | null;
   budget: BudgetSummary | null;
   summaries: CategorySummary[];
   expanded: boolean;
@@ -25,7 +28,7 @@ interface Props {
  * Thẻ "Tổng chi tiêu" nổi bật ở đầu Tổng quan (nền navy, chữ trắng): tổng chi của kỳ đang chọn, ngân sách nếu có, và khi bấm thì
  * hiện chi tiêu cá nhân theo từng mục ngay dưới (nền trắng), trong cùng một khung. Chỉ dùng số liệu chi tiêu cá nhân sẵn có.
  */
-export function SpentCard({ period, loaded, total, budget, summaries, expanded, onToggle, onOpenCategory, onOpenAll }: Props) {
+export function SpentCard({ period, loaded, total, count, average, budget, summaries, expanded, onToggle, onOpenCategory, onOpenAll }: Props) {
   const colors = useColors();
 
   return (
@@ -47,9 +50,29 @@ export function SpentCard({ period, loaded, total, budget, summaries, expanded, 
               ₫
             </AppText>
           </AppText>
-          <AppText color={colors.heroSoft} style={styles.period}>
-            {periodTitle(period)}
-          </AppText>
+        </View>
+
+        {/* Số liệu phụ: số khoản chi và trung bình mỗi ngày (không đổi công thức tổng). */}
+        <View style={[styles.statsRule, { backgroundColor: colors.heroTrack }]} />
+        <View style={styles.row}>
+          <View>
+            <AppText color={colors.heroSoft} style={styles.statLabel}>
+              Số khoản chi
+            </AppText>
+            <AppText weight="bold" color={colors.heroInk} style={styles.statValue}>
+              {count}
+            </AppText>
+          </View>
+          {average !== null && (
+            <View style={styles.statRight}>
+              <AppText color={colors.heroSoft} style={styles.statLabel}>
+                Trung bình/ngày
+              </AppText>
+              <AppText weight="bold" color={colors.heroInk} style={styles.statValue}>
+                {formatVnd(average)}
+              </AppText>
+            </View>
+          )}
         </View>
 
         {budget && (
@@ -144,7 +167,10 @@ const styles = StyleSheet.create({
   card: { borderRadius: AppRadius.hero, overflow: 'hidden' },
   hero: { paddingTop: 20, paddingHorizontal: 20, paddingBottom: 18, gap: 12 },
   label: { fontSize: 13.5, lineHeight: 20 },
-  period: { fontSize: 12.5, lineHeight: 18, marginTop: 2 },
+  statsRule: { height: 1, marginTop: 2 },
+  statLabel: { fontSize: 13, lineHeight: 18 },
+  statValue: { fontSize: 20, lineHeight: 28 },
+  statRight: { alignItems: 'flex-end' },
   total: { fontSize: 40, lineHeight: 46, letterSpacing: -0.8, marginTop: 2 },
   currency: { fontSize: 21.5, lineHeight: 24, letterSpacing: 0 },
   track: { height: 8, borderRadius: 99, overflow: 'hidden', marginTop: 1 },
