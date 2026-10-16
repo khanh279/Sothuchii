@@ -4,7 +4,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View, useWindowDi
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { EmptyState } from '@/components/design';
+import { EmptyState, PrimaryButton, TransactionRow } from '@/components/design';
 import { CategoryIcon } from '@/components/category-icon';
 import { SwipeRow } from '@/components/swipe-row';
 import { TOAST_BOTTOM_HISTORY, useToast } from '@/components/toast';
@@ -19,6 +19,7 @@ import {
   periodTitle,
   periodToParams,
   resolveCategory,
+  suggestedDateFor,
   sumAmounts,
 } from '@/domain/expenses';
 import { linkedExpenseNotice } from '@/domain/linkedExpense';
@@ -89,6 +90,10 @@ export default function HistoryScreen({ tab }: { tab?: HistoryTabMode } = {}) {
     }
   }
 
+  function openDetail(item: ExpenseWithId) {
+    router.push({ pathname: '/chi-tieu/chi-tiet', params: { m: monthOf(item.d), id: item.id } });
+  }
+
   function edit(item: ExpenseWithId) {
     const notice = linkedExpenseNotice(item);
     if (notice) {
@@ -116,6 +121,14 @@ export default function HistoryScreen({ tab }: { tab?: HistoryTabMode } = {}) {
           contentContainerStyle={[styles.content, { paddingBottom: (tab ? 110 : 24) + insets.bottom }]}
           onScrollBeginDrag={() => setOpenId(null)}
           keyboardShouldPersistTaps="handled">
+          {tab && (
+            <View style={styles.addRow}>
+              <PrimaryButton
+                label="Thêm khoản chi"
+                onPress={() => router.push({ pathname: '/chi-tieu/nhap', params: { ...periodToParams(period), d: suggestedDateFor(period, today) } })}
+              />
+            </View>
+          )}
           <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.line, minHeight: Math.max(0, height - 300) }]}>
             <View style={styles.summary}>
               <View style={styles.summaryLeft}>
@@ -185,8 +198,11 @@ export default function HistoryScreen({ tab }: { tab?: HistoryTabMode } = {}) {
                             open={openId === item.id}
                             onOpen={() => setOpenId(item.id)}
                             onClose={() => setOpenId((current) => (current === item.id ? null : current))}
-                            onPressRow={() => setOpenId(null)}
-                            onPressLocked={() => toast.show(linkedExpenseNotice(item) ?? '', { bottom: TOAST_BOTTOM_HISTORY })}
+                            onPressRow={() => {
+                              setOpenId(null);
+                              openDetail(item);
+                            }}
+                            onPressLocked={() => openDetail(item)}
                             onEdit={() => edit(item)}
                             onDelete={() => remove(item)}
                           />
@@ -210,12 +226,12 @@ function Chip({ label, selected, onPress }: { label: string; selected: boolean; 
     <Pressable
       style={[
         styles.chip,
-        selected ? { backgroundColor: colors.ink, borderColor: colors.ink } : { backgroundColor: colors.surface, borderColor: colors.line },
+        selected ? { backgroundColor: colors.primary, borderColor: colors.primary } : { backgroundColor: colors.surface, borderColor: colors.line },
       ]}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ selected }}>
-      <AppText weight="medium" color={selected ? colors.bg : colors.ink} style={styles.chipText}>
+      <AppText weight="medium" color={selected ? colors.primaryInk : colors.ink} style={styles.chipText}>
         {label}
       </AppText>
     </Pressable>
@@ -251,20 +267,13 @@ function ExpenseRow({ item, settings, open, onOpen, onClose, onPressRow, onPress
       background={colors.bg}
       radius={AppRadius.field}
       accessibilityLabel={`${item.n || category.name}, ${formatVnd(item.a)}`}>
-      <View style={styles.row}>
-        <CategoryIcon category={category} />
-        <View style={styles.rowText}>
-          <AppText weight="semibold" style={styles.rowTitle} numberOfLines={2}>
-            {item.n || category.name}
-          </AppText>
-          <AppText color={colors.muted} style={styles.rowSub} numberOfLines={3}>
-            {item.i || category.name}
-          </AppText>
-        </View>
-        <AppText weight="bold" style={styles.rowAmount}>
-          {formatVnd(item.a)}
-        </AppText>
-      </View>
+      <TransactionRow
+        bare
+        icon={<CategoryIcon category={category} />}
+        title={item.n || category.name}
+        subtitle={item.i || category.name}
+        amount={formatVnd(item.a)}
+      />
     </SwipeRow>
   );
 }
@@ -286,6 +295,7 @@ const styles = StyleSheet.create({
   summaryAmount: { fontSize: 12, lineHeight: 15 },
   /** Thân thẻ: đệm 2/12/12, các khối cách nhau 12. Chip tràn hết bề rộng thẻ. */
   body: { paddingTop: 2, paddingBottom: 12, gap: 12 },
+  addRow: { marginBottom: 12 },
   chipsScroll: { flexGrow: 0 },
   chips: { gap: 8, paddingHorizontal: 12, paddingBottom: 4.8 },
   chip: { height: 36, paddingHorizontal: 14, borderRadius: AppRadius.pill, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },

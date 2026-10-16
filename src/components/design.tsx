@@ -189,6 +189,62 @@ export function PersonAmountRow({ name, amount, tone, caption, onPress, first, a
   );
 }
 
+// ───────────────────────── Dòng giao dịch ─────────────────────────
+
+interface TransactionRowProps {
+  icon: ReactNode;
+  title: string;
+  subtitle?: string;
+  /** Số tiền đã định dạng (kèm dấu nếu cần) căn phải. */
+  amount: string;
+  tone?: AmountTone;
+  /** Nhãn nhỏ dưới số tiền (ví dụ ngày hoặc loại giao dịch). */
+  meta?: string;
+  first?: boolean;
+  onPress?: () => void;
+  accessibilityLabel?: string;
+  /** Không vẽ đường phân cách và đệm ngang (khi đặt trong `SwipeRow` đã có khung riêng). */
+  bare?: boolean;
+}
+
+/** Dòng giao dịch: biểu tượng, nội dung + thông tin phụ bên trái, số tiền căn phải kèm nhãn nhỏ. */
+export function TransactionRow({ icon, title, subtitle, amount, tone, meta, first, onPress, accessibilityLabel, bare }: TransactionRowProps) {
+  const colors = useColors();
+  const toneColor = useToneColor();
+  const content = (
+    <>
+      {icon}
+      <View style={styles.flex}>
+        <AppText weight="semibold" style={styles.txTitle} numberOfLines={2}>
+          {title}
+        </AppText>
+        {!!subtitle && (
+          <AppText color={colors.muted} style={styles.caption} numberOfLines={2}>
+            {subtitle}
+          </AppText>
+        )}
+      </View>
+      <View style={styles.txRight}>
+        <AppText weight="bold" color={toneColor(tone)} style={styles.rowAmount}>
+          {amount}
+        </AppText>
+        {!!meta && (
+          <AppText color={colors.muted} style={styles.caption} numberOfLines={1}>
+            {meta}
+          </AppText>
+        )}
+      </View>
+    </>
+  );
+  const rowStyle = [styles.txRow, !bare && !first && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line }];
+  if (!onPress) return <View style={rowStyle}>{content}</View>;
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel} onPress={onPress} style={({ pressed }) => [rowStyle, { opacity: pressed ? 0.7 : 1 }]}>
+      {content}
+    </Pressable>
+  );
+}
+
 // ───────────────────────── Trạng thái trống ─────────────────────────
 
 export function EmptyState({ text, icon }: { text: string; icon?: IconName }) {
@@ -312,6 +368,9 @@ const styles = StyleSheet.create({
   row: { minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
   rowName: { fontSize: 15.5, lineHeight: 21 },
   rowAmount: { fontSize: 16, lineHeight: 22, textAlign: 'right' },
+  txRow: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
+  txTitle: { fontSize: 15, lineHeight: 20 },
+  txRight: { alignItems: 'flex-end', maxWidth: '40%' },
   empty: { alignItems: 'center', gap: 8, paddingVertical: 28, paddingHorizontal: 16 },
   emptyText: { fontSize: 14, textAlign: 'center' },
   button: { minHeight: 50, borderRadius: AppRadius.field, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },

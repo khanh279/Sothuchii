@@ -22,6 +22,7 @@ import { useDebtData } from '@/features/debts/hooks';
 import { FundOverviewCard } from '@/features/funds/FundOverviewCard';
 import { useFundData } from '@/features/funds/hooks';
 import { PeriodBar } from '@/features/expenses/PeriodBar';
+import { RecentTransactions } from '@/features/expenses/RecentTransactions';
 import { SpentCard } from '@/features/expenses/SpentCard';
 import { useChromeScroll } from '@/hooks/use-chrome';
 import { useColors } from '@/hooks/use-colors';
@@ -87,6 +88,7 @@ export default function OverviewScreen() {
                 <NavTile icon="tabOverview" label="Chi tiêu" caption="Lịch sử chi tiêu" style={styles.gridItem} onPress={() => router.push({ pathname: '/lich-su', params: periodParams })} />
                 <NavTile icon="people" label="Quỹ nhóm" caption="Đóng quỹ, chi quỹ" style={styles.gridItem} onPress={() => router.push('/quy')} />
               </View>
+              <RecentTransactions pays={debt.pays} paysLoaded={debt.loaded} paysError={debt.error} />
               <BillDetailSection
                 bills={debt.bills}
                 pays={debt.pays}

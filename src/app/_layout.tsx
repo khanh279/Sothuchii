@@ -49,6 +49,7 @@ export default function RootLayout() {
           <Stack screenOptions={{ headerShown: false, gestureEnabled: true }}>
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="chi-tieu/nhap" />
+            <Stack.Screen name="chi-tieu/chi-tiet" />
             <Stack.Screen name="lich-su" />
             <Stack.Screen name="quy/lich-su" />
             <Stack.Screen name="quy/chi-tieu" />
