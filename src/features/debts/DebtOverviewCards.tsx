@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/app-text';
 import { SvgIcon } from '@/components/svg-icon';
 import { formatMoney } from '@/domain/billForm';
+import { billTotal, billsInPeriod } from '@/domain/billHistory';
 import { buildDebtOverview } from '@/domain/debtOverview';
 import { periodTitle } from '@/domain/expenses';
 import { buildPayHistory } from '@/domain/payForm';
@@ -11,6 +12,7 @@ import { useDebtData } from '@/features/debts/hooks';
 import { useColors } from '@/hooks/use-colors';
 import type { Period } from '@/types/expense';
 import { withAlpha } from '@/utils/color';
+import { formatVnDate } from '@/utils/date';
 
 const GET = '#0F8A4B';
 const OWE = '#D64545';
@@ -20,21 +22,22 @@ interface Props {
   period: Period;
   /** Bấm một người để xem nợ với người đó. */
   onOpenPerson: (name: string) => void;
-  /** Bấm một cặp (bill giữa hai người trong kỳ). */
-  onOpenPair: (from: string, to: string) => void;
+  /** Bấm một bill trong mục "Chi tiết" để mở chi tiết bill (theo mã bill). */
+  onOpenBill: (id: string) => void;
   /** Bấm khung "Giao dịch" để xem lịch sử khoản trả của kỳ. */
   onOpenPays: () => void;
 }
 
 /**
  * Các khung Công nợ ở Tổng quan (`#debt-box`, `#dsx-box`, `#tqTx` của PWA): "Nợ" (Tôi nợ / Người khác nợ tôi, mỗi người một
- * số tổng nợ (vay + bill, có dấu), kèm mục "Chi tiết" theo cặp trong kỳ) và "Giao dịch" (số khoản và +vào −ra của kỳ). Như PWA, luôn hiện.
+ * số tổng nợ (vay + bill, có dấu), kèm mục "Chi tiết": danh sách bill đã chia trong kỳ đang xem) và "Giao dịch" (số khoản và +vào −ra của kỳ). Như PWA, luôn hiện.
  */
-export function DebtOverviewCards({ period, onOpenPerson, onOpenPair, onOpenPays }: Props) {
+export function DebtOverviewCards({ period, onOpenPerson, onOpenBill, onOpenPays }: Props) {
   const colors = useColors();
   const { bills, pays, loaded, error } = useDebtData();
   const [detailOpen, setDetailOpen] = useState(false);
   const overview = useMemo(() => buildDebtOverview(bills, pays, period), [bills, pays, period]);
+  const periodBills = useMemo(() => billsInPeriod(bills, period), [bills, period]);
   const history = useMemo(() => buildPayHistory(pays, bills, period), [pays, bills, period]);
 
   if (error || !loaded) return null;
@@ -101,37 +104,35 @@ export function DebtOverviewCards({ period, onOpenPerson, onOpenPair, onOpenPays
               </AppText>
             </AppText>
             <AppText color={colors.muted} style={styles.small}>
-              {overview.pairs.length} khoản
+              {periodBills.length} bill
             </AppText>
             <View style={{ transform: [{ rotate: detailOpen ? '-90deg' : '90deg' }] }}>
               <SvgIcon name="chevronRight" size={18} color={colors.muted} />
             </View>
           </Pressable>
           {detailOpen &&
-            (overview.pairs.length === 0 ? (
+            (periodBills.length === 0 ? (
               <AppText color={colors.muted} style={styles.empty}>
-                Không còn khoản nợ nào
+                Không có bill trong khoảng này
               </AppText>
             ) : (
-              overview.pairs.map((pair, index) => (
+              periodBills.map((bill, index) => (
                 <Pressable
-                  key={`${pair.from}>${pair.to}`}
+                  key={bill.id}
                   accessibilityRole="button"
-                  accessibilityLabel={`Chi tiết bill ${pair.from} nợ ${pair.to}`}
-                  onPress={() => onOpenPair(pair.from, pair.to)}
+                  accessibilityLabel={`Chi tiết bill ${bill.title || 'Không tên'}, ${formatMoney(billTotal(bill))}`}
+                  onPress={() => onOpenBill(bill.id)}
                   style={[styles.pair, index > 0 && { borderTopWidth: 1, borderTopColor: colors.line }]}>
-                  <AppText weight="semibold" color={pair.from === 'Tôi' ? colors.primary : colors.ink} style={styles.box} numberOfLines={2}>
-                    {pair.from}
-                  </AppText>
-                  <AppText color={pair.tone === 'owe' ? OWE : pair.tone === 'get' ? GET : colors.muted} style={styles.arrow} accessibilityLabel="trả cho">
-                    →
-                  </AppText>
-                  <AppText weight="semibold" color={pair.to === 'Tôi' ? colors.primary : colors.ink} style={[styles.box, styles.boxTo]} numberOfLines={2}>
-                    {pair.to}
-                  </AppText>
-                  <AppText weight="bold" color={pair.tone === 'owe' ? OWE : pair.tone === 'get' ? GET : colors.ink} style={styles.pairAmount}>
-                    {SIGN[pair.tone]}
-                    {formatMoney(pair.amt)}
+                  <View style={styles.billText}>
+                    <AppText weight="semibold" style={styles.box} numberOfLines={1}>
+                      {bill.title || 'Không tên'}
+                    </AppText>
+                    <AppText color={colors.muted} style={styles.small}>
+                      {formatVnDate(bill.date)}
+                    </AppText>
+                  </View>
+                  <AppText weight="bold" style={styles.pairAmount}>
+                    {formatMoney(billTotal(bill))}
                   </AppText>
                   <SvgIcon name="chevronRight" size={16} color={colors.muted} />
                 </Pressable>
@@ -164,7 +165,7 @@ export function DebtOverviewCards({ period, onOpenPerson, onOpenPair, onOpenPays
 }
 
 // Số đo theo `.debtcard` / `.tqc` / `.dsx` của PWA: thẻ bo 16 viền 1 đệm 14 (đáy 6); tiêu đề 17/700; hai ô tổng bo 14 đệm 8/12;
-// dòng người đệm 9/0, tên 15.5–17/600, hai dòng Vay / Bill cỡ 14–16; "Chi tiết" cao 46; dòng cặp cao 44–50.
+// dòng người đệm 9/0, tên 15.5–17/600, hai dòng Vay / Bill cỡ 14–16; "Chi tiết" cao 46; dòng bill cao 50.
 const styles = StyleSheet.create({
   card: { borderRadius: 16, borderWidth: 1 },
   debtCard: { paddingTop: 14, paddingHorizontal: 14, paddingBottom: 6 },
@@ -182,9 +183,8 @@ const styles = StyleSheet.create({
   detailHead: { minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 8 },
   detailTitle: { flex: 1, fontSize: 16 },
   pair: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  box: { flexShrink: 1, maxWidth: '32%', fontSize: 15.5 },
-  boxTo: { flex: 1, maxWidth: undefined },
-  arrow: { fontSize: 24, paddingHorizontal: 8 },
+  billText: { flex: 1, minWidth: 0 },
+  box: { fontSize: 15.5 },
   pairAmount: { fontSize: 16, marginLeft: 'auto' },
   payCard: { paddingVertical: 6, paddingHorizontal: 16, minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 10 },
   payRight: { marginLeft: 'auto', alignItems: 'flex-end', gap: 2 },
