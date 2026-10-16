@@ -10,14 +10,15 @@ import { useColors } from '@/hooks/use-colors';
 
 interface Props {
   onAddPersonal: () => void;
+  /** Có giá trị khi đã có Quỹ nhóm: hiện thêm mục "Chi tiêu quỹ". */
+  onAddFund?: () => void;
 }
 
 /**
  * Nút nổi "+ Chi tiêu" của PWA (`#stFab`). Bấm thì nút ẩn đi và hiện menu lựa chọn ngay phía trên
- * (`#stFabMenu`); bấm ra ngoài thì trở lại. Mục "Chi tiêu quỹ" chỉ có khi đã có Quỹ nhóm — module này
- * chưa chuyển sang mobile nên menu hiện chỉ có "Chi tiêu cá nhân".
+ * (`#stFabMenu`); bấm ra ngoài thì trở lại. Mục "Chi tiêu quỹ" chỉ có khi đã có Quỹ nhóm (`onAddFund`).
  */
-export function AddExpenseFab({ onAddPersonal }: Props) {
+export function AddExpenseFab({ onAddPersonal, onAddFund }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
@@ -44,6 +45,20 @@ export function AddExpenseFab({ onAddPersonal }: Props) {
             onPress={() => setOpen(false)}
           />
           <View style={[styles.menu, { bottom: 82 + insets.bottom }]} pointerEvents="box-none">
+            {onAddFund && (
+              <Pressable
+                style={[styles.menuItem, { backgroundColor: colors.primary }]}
+                accessibilityRole="button"
+                onPress={() => {
+                  setOpen(false);
+                  onAddFund();
+                }}>
+                <SvgIcon name="people" size={22} color={colors.primaryInk} strokeWidth={2} />
+                <AppText weight="bold" color={colors.primaryInk} style={styles.menuText}>
+                  Chi tiêu quỹ
+                </AppText>
+              </Pressable>
+            )}
             <Pressable
               style={[styles.menuItem, { backgroundColor: colors.primary }]}
               accessibilityRole="button"

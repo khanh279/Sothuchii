@@ -18,6 +18,7 @@ import { useExpenseSettings, useExpenses } from '@/features/expenses/hooks';
 import { BillOverviewCard } from '@/features/bills/BillOverviewCard';
 import { DebtOverviewCards } from '@/features/debts/DebtOverviewCards';
 import { FundOverviewCard } from '@/features/funds/FundOverviewCard';
+import { useFundData } from '@/features/funds/hooks';
 import { PeriodBar } from '@/features/expenses/PeriodBar';
 import { SpentCard } from '@/features/expenses/SpentCard';
 import { useChromeScroll } from '@/hooks/use-chrome';
@@ -39,6 +40,7 @@ export default function OverviewScreen() {
 
   const { settings, error: settingsError } = useExpenseSettings();
   const { items, loaded, error } = useExpenses(period);
+  const hasFunds = useFundData().data.funds.length > 0;
 
   const total = useMemo(() => sumAmounts(items), [items]);
   const summaries = useMemo(() => summarizeByCategory(items, settings), [items, settings]);
@@ -87,6 +89,7 @@ export default function OverviewScreen() {
       </ScrollView>
 
       <AddExpenseFab
+        onAddFund={hasFunds ? () => router.push('/quy/chi-tieu') : undefined}
         onAddPersonal={() =>
           router.push({ pathname: '/chi-tieu/nhap', params: { ...periodParams, d: suggestedDateFor(period, today) } })
         }
