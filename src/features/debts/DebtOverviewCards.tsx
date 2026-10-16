@@ -27,8 +27,8 @@ interface Props {
 }
 
 /**
- * Các khung Công nợ ở Tổng quan (`#debt-box`, `#dsx-box`, `#tqTx` của PWA): "Nợ" (Tôi nợ / Người khác nợ tôi, từng người với
- * dòng Vay và Bill, kèm mục "Chi tiết" theo cặp trong kỳ) và "Giao dịch" (số khoản và +vào −ra của kỳ). Như PWA, luôn hiện.
+ * Các khung Công nợ ở Tổng quan (`#debt-box`, `#dsx-box`, `#tqTx` của PWA): "Nợ" (Tôi nợ / Người khác nợ tôi, mỗi người một
+ * số tổng nợ (vay + bill, có dấu), kèm mục "Chi tiết" theo cặp trong kỳ) và "Giao dịch" (số khoản và +vào −ra của kỳ). Như PWA, luôn hiện.
  */
 export function DebtOverviewCards({ period, onOpenPerson, onOpenPair, onOpenPays }: Props) {
   const colors = useColors();
@@ -82,17 +82,10 @@ export function DebtOverviewCards({ period, onOpenPerson, onOpenPair, onOpenPays
               <AppText weight="semibold" style={styles.name} numberOfLines={2}>
                 {person.name}
               </AppText>
-              <View style={styles.lines}>
-                {person.lines.map((line) => (
-                  <AppText key={line.label} weight="bold" color={line.tone === 'get' ? GET : OWE} style={styles.lineValue}>
-                    <AppText weight="medium" color={colors.muted} style={styles.lineLabel}>
-                      {line.label}{' '}
-                    </AppText>
-                    {SIGN[line.tone]}
-                    {formatMoney(Math.abs(line.value))}
-                  </AppText>
-                ))}
-              </View>
+              <AppText weight="bold" color={person.tone === 'get' ? GET : person.tone === 'owe' ? OWE : colors.muted} style={styles.lineValue}>
+                {SIGN[person.tone]}
+                {formatMoney(Math.abs(person.total))}
+              </AppText>
               <SvgIcon name="chevronRight" size={16} color={colors.muted} />
             </Pressable>
           ))
@@ -183,9 +176,7 @@ const styles = StyleSheet.create({
   empty: { textAlign: 'center', fontSize: 14, paddingTop: 12, paddingBottom: 8 },
   person: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9 },
   name: { flex: 1, minWidth: 0, fontSize: 16 },
-  lines: { alignItems: 'flex-end', gap: 1 },
   lineValue: { fontSize: 15, lineHeight: 19 },
-  lineLabel: { fontSize: 11.5 },
   small: { fontSize: 12.5 },
   detail: { marginTop: 8, borderTopWidth: 1 },
   detailHead: { minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 8 },
