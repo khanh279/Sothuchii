@@ -75,7 +75,7 @@ export default function DebtDetailScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
       <Stack.Screen options={{ title: 'Chi tiết nợ', headerShown: false }} />
-      <ScreenTitle title={params.name ?? 'Chi tiết nợ'} topInset={insets.top} />
+      <ScreenTitle title={params.name ? `Công nợ với ${params.name}` : 'Chi tiết công nợ'} topInset={insets.top} />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
         {body}
       </ScrollView>

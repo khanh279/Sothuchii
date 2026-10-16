@@ -94,7 +94,7 @@ export function AddExpenseFab({ onAddPersonal, onAddFund, onTransfer, onCreateBi
               ]}>
               <View style={[styles.handle, { backgroundColor: colors.line }]} />
               <AppText weight="bold" style={styles.sheetTitle}>
-                Thêm nhanh
+                Chọn loại giao dịch
               </AppText>
               {options.map((option, index) => (
                 <Pressable

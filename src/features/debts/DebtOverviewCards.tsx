@@ -42,7 +42,7 @@ export function DebtPeopleSection({ bills, pays, period, onOpenPerson }: Props &
   const overview = useMemo(() => buildDebtOverview(bills, pays, period), [bills, pays, period]);
   return (
     <>
-      <SectionHeader title="Công nợ" subtitle="Tổng nợ vay và nợ bill của từng người" />
+      <SectionHeader title="Từng người" subtitle="Tổng nợ vay và nợ bill của từng người" />
       <Panel>
         {overview.people.length === 0 ? (
           <EmptyState text="Không còn khoản nợ nào" icon="check" />

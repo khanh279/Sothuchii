@@ -35,6 +35,21 @@ export function ScreenTitle({ title, topInset = 0, right }: { title: string; top
   );
 }
 
+/** Tiêu đề của modal / tờ nổi (bottom sheet): tên thao tác bên trái, nút đóng bên phải. Nhỏ hơn `ScreenTitle` để phân cấp rõ với tiêu đề màn hình. */
+export function ModalHeader({ title, onClose }: { title: string; onClose: () => void }) {
+  const colors = useColors();
+  return (
+    <View style={styles.modalHeader}>
+      <AppText weight="bold" style={styles.modalTitle} accessibilityRole="header" numberOfLines={2}>
+        {title}
+      </AppText>
+      <Pressable accessibilityRole="button" accessibilityLabel="Đóng" hitSlop={10} onPress={onClose} style={[styles.modalClose, { backgroundColor: colors.surface2 }]}>
+        <SvgIcon name="close" size={16} color={colors.muted} strokeWidth={2.4} />
+      </Pressable>
+    </View>
+  );
+}
+
 /**
  * Nút thao tác chính ở bên phải hàng tiêu đề của các tab chức năng ("+ Chi tiêu", "+ Tạo bill", "+ Giao dịch", "+ Giao dịch quỹ"):
  * nền navy, chữ trắng, biểu tượng dấu +. Dùng cùng `ScreenTitle` (tham số `right`) để mọi tab có cùng kích thước và vị trí.
@@ -452,6 +467,9 @@ const styles = StyleSheet.create({
   flex: { flex: 1, minWidth: 0 },
   screenTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 8 },
   screenTitle: { fontSize: 26, lineHeight: 32, letterSpacing: -0.4 },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  modalTitle: { flex: 1, fontSize: 18, lineHeight: 26 },
+  modalClose: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   titleAction: { height: 40, borderRadius: AppRadius.pill, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 6 },
   titleActionText: { fontSize: 14, flexShrink: 1 },
   sectionHeader: { flexDirection: 'row', alignItems: 'flex-end', gap: 12, paddingHorizontal: 4, marginBottom: 8 },

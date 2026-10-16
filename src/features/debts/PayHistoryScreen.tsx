@@ -66,7 +66,7 @@ export default function PayHistoryScreen() {
             <View style={styles.summary}>
               <View style={styles.summaryLeft}>
                 <AppText weight="semibold" style={styles.summaryTitle}>
-                  Giao dịch
+                  Lịch sử giao dịch
                 </AppText>
                 <AppText weight="medium" color={colors.muted} style={styles.summaryPeriod}>
                   {periodTitle(period)}

@@ -3,7 +3,7 @@ import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, TextInput,
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { ScreenTitle, SecondaryButton, TitleAction } from '@/components/design';
+import { ModalHeader, ScreenTitle, SecondaryButton, TitleAction } from '@/components/design';
 import { SvgIcon } from '@/components/svg-icon';
 import { SwipeRow } from '@/components/swipe-row';
 import { useToast } from '@/components/toast';
@@ -205,11 +205,7 @@ export default function FundListScreen() {
             <Pressable style={styles.flex} onPress={() => setSheetMode(null)} accessibilityLabel="Đóng" />
             <View style={[styles.sheet, { backgroundColor: colors.surface, paddingBottom: 16 + insets.bottom }]}>
               <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.sheetContent}>
-                <Pressable accessibilityRole="button" accessibilityLabel="Đóng" onPress={() => setSheetMode(null)} style={styles.close}>
-                  <AppText weight="bold" color={colors.muted} style={styles.closeText}>
-                    ×
-                  </AppText>
-                </Pressable>
+                <ModalHeader title={sheetMode === 'thu' ? 'Thu quỹ' : 'Chi tiêu quỹ'} onClose={() => setSheetMode(null)} />
                 {data.funds.length > 1 && (
                   <View style={styles.fundChips}>
                     {data.funds.map((fund) => {
@@ -242,6 +238,7 @@ export default function FundListScreen() {
                   <FundExpenseForm
                     key={sheetFund.id}
                     fund={sheetFund}
+                    showTitle={false}
                     balance={fundBalance(data, sheetFund.id)}
                     onChanged={() => {
                       setSheetMode(null);
@@ -261,9 +258,7 @@ export default function FundListScreen() {
             <Pressable style={styles.flex} onPress={() => setMenuOpen(false)} accessibilityLabel="Đóng" />
             <View style={[styles.sheet, { backgroundColor: colors.surface, paddingBottom: 16 + insets.bottom }]}>
               <View style={styles.sheetContent}>
-                <AppText weight="bold" style={styles.menuTitle}>
-                  Giao dịch quỹ
-                </AppText>
+                <ModalHeader title="Giao dịch quỹ" onClose={() => setMenuOpen(false)} />
                 {data.funds.length === 0 && (
                   <AppText color={colors.muted} style={styles.menuHint}>
                     Chưa có quỹ — tạo quỹ mới trước khi ghi giao dịch.
@@ -406,7 +401,6 @@ const styles = StyleSheet.create({
   smallText: { fontSize: 13.5 },
   addButton: { minHeight: 46, borderRadius: 10, borderWidth: 1, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
   addText: { fontSize: 16 },
-  menuTitle: { fontSize: 18, lineHeight: 26 },
   menuOption: { minHeight: 64, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 10 },
   menuLabel: { fontSize: 15.5, lineHeight: 21 },
   menuHint: { fontSize: 12.5, lineHeight: 17 },

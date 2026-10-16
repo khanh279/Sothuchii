@@ -101,7 +101,7 @@ export default function ExpenseFormScreen() {
   // Trang riêng: không có header; khoảng đệm phía trên = 12 + vùng an toàn (4 của trang + 8 của khung, như PWA).
   return (
     <View style={[styles.flex, { backgroundColor: colors.bg, paddingTop: 12 + insets.top }]}>
-      <Stack.Screen options={{ title: ref ? 'Sửa khoản chi' : 'Thêm khoản chi', headerShown: false }} />
+      <Stack.Screen options={{ title: ref ? 'Sửa chi tiêu' : 'Thêm chi tiêu', headerShown: false }} />
       {body}
     </View>
   );
@@ -190,7 +190,7 @@ function ExpenseForm({ settings, existing, suggestedDate, period }: FormProps) {
       <ScrollView style={styles.flex} contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
         <View style={[formStyles.card, { backgroundColor: colors.surface }]}>
           <AppText weight="display" style={formStyles.title}>
-            {existing ? 'Sửa khoản chi' : 'Thêm khoản chi'}
+            {existing ? 'Sửa chi tiêu' : 'Thêm chi tiêu'}
           </AppText>
 
           <AmountField

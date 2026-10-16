@@ -4,6 +4,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
+import { ScreenTitle } from '@/components/design';
 import { loadBills } from '@/data/billRepository';
 import BillCalcScreen from '@/features/bills/BillCalcScreen';
 import { describeBillError } from '@/features/bills/hooks';
@@ -48,8 +49,9 @@ export default function EditBillRoute() {
   } else body = <BillCalcScreen existing={state.bill} onFinished={leave} />;
 
   return (
-    <View style={[styles.screen, { backgroundColor: colors.bg, paddingTop: 12 + insets.top }]}>
+    <View style={[styles.screen, { backgroundColor: colors.bg }]}>
       <Stack.Screen options={{ title: 'Sửa bill', headerShown: false }} />
+      <ScreenTitle title="Sửa bill" topInset={insets.top} />
       {body}
     </View>
   );

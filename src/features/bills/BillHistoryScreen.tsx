@@ -77,7 +77,7 @@ export default function BillHistoryScreen({ tab }: { tab?: BillHistoryTabMode } 
             <View style={styles.summary}>
               <View style={styles.summaryLeft}>
                 <AppText weight="semibold" style={styles.summaryTitle}>
-                  Chia bill
+                  {tab ? 'Danh sách bill' : 'Lịch sử bill'}
                 </AppText>
                 <AppText weight="medium" color={colors.muted} style={styles.summaryPeriod}>
                   {periodTitle(period)}

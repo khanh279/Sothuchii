@@ -4,6 +4,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
+import { ScreenTitle } from '@/components/design';
 import { fundBalance } from '@/domain/funds';
 import { FundExpenseForm } from '@/features/funds/FundExpenseForm';
 import { useFundData } from '@/features/funds/hooks';
@@ -51,6 +52,7 @@ export default function FundExpenseScreen() {
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
         <FundExpenseForm
           variant="page"
+          showTitle={false}
           fund={fund}
           funds={data.funds}
           onPickFund={setPickedId}
@@ -62,13 +64,9 @@ export default function FundExpenseScreen() {
   }
 
   return (
-    <View style={[styles.screen, { backgroundColor: colors.bg, paddingTop: 12 + insets.top }]}>
+    <View style={[styles.screen, { backgroundColor: colors.bg }]}>
       <Stack.Screen options={{ title: 'Chi tiêu quỹ', headerShown: false }} />
-      <View style={styles.bar}>
-        <AppText weight="semibold" style={styles.barTitle}>
-          Chi tiêu quỹ
-        </AppText>
-      </View>
+      <ScreenTitle title="Chi tiêu quỹ" topInset={insets.top} />
       {body}
     </View>
   );

@@ -4,7 +4,7 @@ import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } fro
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { EmptyState, TransactionRow } from '@/components/design';
+import { EmptyState, ModalHeader, TransactionRow } from '@/components/design';
 import { SwipeRow } from '@/components/swipe-row';
 import { TOAST_BOTTOM_HISTORY, useToast } from '@/components/toast';
 import { AppRadius } from '@/constants/palette';
@@ -173,11 +173,7 @@ export default function FundHistoryScreen() {
             <Pressable style={styles.flex} onPress={() => setEditing(null)} accessibilityLabel="Đóng" />
             <View style={[styles.sheet, { backgroundColor: colors.surface, paddingBottom: 16 + insets.bottom }]}>
               <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.sheetContent}>
-                <Pressable accessibilityRole="button" accessibilityLabel="Đóng" onPress={() => setEditing(null)} style={styles.close}>
-                  <AppText weight="bold" color={colors.muted} style={styles.closeText}>
-                    ×
-                  </AppText>
-                </Pressable>
+                <ModalHeader title={editingContribution ? 'Sửa thu quỹ' : 'Sửa chi tiêu quỹ'} onClose={() => setEditing(null)} />
                 {editingContribution ? (
                   <ContributionForm
                     fund={editingFund}
@@ -191,6 +187,7 @@ export default function FundHistoryScreen() {
                   <FundExpenseForm
                     fund={editingFund}
                     existing={editingExpense}
+                    showTitle={false}
                     balance={fundBalance(data, editingFund.id)}
                     onChanged={() => {
                       setEditing(null);

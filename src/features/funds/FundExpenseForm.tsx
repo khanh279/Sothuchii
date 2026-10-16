@@ -42,13 +42,15 @@ interface Props {
    * Chi tiêu cá nhân (khung form, Số tiền + nút nhanh, Nội dung, hàng Ngày | Quỹ, bảng chọn quỹ phủ lên khung).
    */
   variant?: 'compact' | 'page';
+  /** Hiện tiêu đề của form (mặc định có). Tắt khi nơi chứa (màn hình / tờ nổi) đã có tiêu đề riêng, để không trùng. */
+  showTitle?: boolean;
   /** Danh sách quỹ để chọn ở dạng 'page'. */
   funds?: readonly Fund[];
   onPickFund?: (fundId: string) => void;
 }
 
 /** Form chi quỹ: số tiền (ĐỒNG, nhập thẳng), nội dung, ngày. Chi vượt số dư vẫn lưu nhưng có cảnh báo. */
-export function FundExpenseForm({ fund, balance, existing, onChanged, variant = 'compact', funds = [], onPickFund }: Props) {
+export function FundExpenseForm({ fund, balance, existing, onChanged, variant = 'compact', funds = [], onPickFund, showTitle = true }: Props) {
   const colors = useColors();
   const toast = useToast();
   const today = todayStr();
@@ -104,9 +106,11 @@ export function FundExpenseForm({ fund, balance, existing, onChanged, variant = 
   if (variant === 'page') {
     return (
       <View style={[formStyles.card, { backgroundColor: colors.surface }]}>
-        <AppText weight="display" style={formStyles.title}>
-          {existing ? 'Sửa khoản chi quỹ' : 'Thêm khoản chi quỹ'}
-        </AppText>
+        {showTitle && (
+          <AppText weight="display" style={formStyles.title}>
+            {existing ? 'Sửa chi tiêu quỹ' : 'Chi tiêu quỹ'}
+          </AppText>
+        )}
 
         <AmountField
           value={amount}
@@ -212,9 +216,11 @@ export function FundExpenseForm({ fund, balance, existing, onChanged, variant = 
 
   return (
     <View style={styles.form}>
-      <AppText weight="bold" style={styles.heading}>
-        {existing ? 'Sửa khoản chi quỹ' : 'Thêm khoản chi quỹ'}
-      </AppText>
+      {showTitle && (
+        <AppText weight="bold" style={styles.heading}>
+          {existing ? 'Sửa chi tiêu quỹ' : 'Chi tiêu quỹ'}
+        </AppText>
+      )}
       <View>
         <AppText weight="medium" color={colors.muted} style={styles.label}>
           Số tiền

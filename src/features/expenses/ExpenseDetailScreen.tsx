@@ -77,8 +77,8 @@ export default function ExpenseDetailScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
-      <Stack.Screen options={{ title: 'Chi tiết khoản chi', headerShown: false }} />
-      <ScreenTitle title="Chi tiết khoản chi" topInset={insets.top} />
+      <Stack.Screen options={{ title: 'Chi tiết chi tiêu', headerShown: false }} />
+      <ScreenTitle title="Chi tiết chi tiêu" topInset={insets.top} />
       {body}
     </View>
   );

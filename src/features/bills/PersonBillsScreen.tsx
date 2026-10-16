@@ -236,7 +236,7 @@ export default function PersonBillsScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
       <Stack.Screen options={{ title: 'Bill của người', headerShown: false }} />
-      <ScreenTitle title={name} topInset={insets.top} />
+      <ScreenTitle title={name ? `Bill của ${name}` : 'Bill của người'} topInset={insets.top} />
       {body}
 
       {confirmAmount !== null && (

@@ -2,6 +2,7 @@ import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ScreenTitle } from '@/components/design';
 import PayFormScreen from '@/features/debts/PayFormScreen';
 import { useColors } from '@/hooks/use-colors';
 
@@ -18,8 +19,9 @@ export default function EditPayRoute() {
   const insets = useSafeAreaInsets();
   const list = (ids ?? '').split(',').filter(Boolean);
   return (
-    <View style={[styles.screen, { backgroundColor: colors.bg, paddingTop: 12 + insets.top }]}>
+    <View style={[styles.screen, { backgroundColor: colors.bg }]}>
       <Stack.Screen options={{ title: 'Sửa giao dịch', headerShown: false }} />
+      <ScreenTitle title="Sửa giao dịch" topInset={insets.top} />
       <PayFormScreen editIds={list} onFinished={leave} />
     </View>
   );

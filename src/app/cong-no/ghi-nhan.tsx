@@ -2,6 +2,7 @@ import { Stack, router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ScreenTitle } from '@/components/design';
 import PayFormScreen from '@/features/debts/PayFormScreen';
 import { useColors } from '@/hooks/use-colors';
 
@@ -16,8 +17,9 @@ export default function RecordTransferRoute() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   return (
-    <View style={[styles.screen, { backgroundColor: colors.bg, paddingTop: 12 + insets.top }]}>
+    <View style={[styles.screen, { backgroundColor: colors.bg }]}>
       <Stack.Screen options={{ title: 'Ghi nhận chuyển tiền', headerShown: false }} />
+      <ScreenTitle title="Ghi nhận chuyển tiền" topInset={insets.top} />
       <PayFormScreen onFinished={leave} />
     </View>
   );

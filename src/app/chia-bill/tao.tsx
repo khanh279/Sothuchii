@@ -2,6 +2,7 @@ import { Stack, router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ScreenTitle } from '@/components/design';
 import BillCalcScreen from '@/features/bills/BillCalcScreen';
 import { useColors } from '@/hooks/use-colors';
 
@@ -16,8 +17,9 @@ export default function CreateBillRoute() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   return (
-    <View style={[styles.screen, { backgroundColor: colors.bg, paddingTop: 12 + insets.top }]}>
+    <View style={[styles.screen, { backgroundColor: colors.bg }]}>
       <Stack.Screen options={{ title: 'Tạo bill', headerShown: false }} />
+      <ScreenTitle title="Tạo bill" topInset={insets.top} />
       <BillCalcScreen onFinished={leave} />
     </View>
   );
