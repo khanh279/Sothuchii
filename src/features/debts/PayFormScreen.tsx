@@ -154,7 +154,7 @@ function PayForm({ bills, pays, people, editIds, source, reload, onFinished }: F
 
   return (
     <ScrollView ref={scrollRef} {...scrollProps} contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
-      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.line }]}>
+      <View style={[styles.card, { backgroundColor: colors.surface }]}>
         <View style={styles.row}>
           <View style={styles.dateBox}>
             <DateField value={date} onPress={() => setCalendarOpen(true)} accessibilityLabel="Thời gian" />
@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
   loading: { marginTop: 40 },
   notice: { marginHorizontal: 12, marginTop: 12, padding: 14, borderRadius: 14 },
   noticeText: { fontSize: 14, lineHeight: 20 },
-  card: { borderRadius: AppRadius.card, borderWidth: 1, padding: 14, gap: 10 },
+  card: { borderRadius: AppRadius.card, padding: 14, gap: 10 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   dateBox: { width: 150 },
   input: { height: 46, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, fontSize: 16 },

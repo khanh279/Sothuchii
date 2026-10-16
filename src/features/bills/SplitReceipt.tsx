@@ -8,8 +8,6 @@ import { useColors } from '@/hooks/use-colors';
 import type { BillSplit } from '@/types/bill';
 
 /** Màu nhận lại / còn thiếu (`--in`, `--out` của PWA). */
-const GET_COLOR = '#0F8A4B';
-const OWE_COLOR = '#D64545';
 
 interface Props {
   split: BillSplit;
@@ -40,7 +38,7 @@ export function SplitReceipt({ split, showTotal, framed = true }: Props) {
   }
 
   return (
-    <View style={[styles.box, framed && { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: AppRadius.card, padding: 14 }]}>
+    <View style={[styles.box, framed && { backgroundColor: colors.surface, borderRadius: AppRadius.card, padding: 14 }]}>
       <View style={styles.totRow}>
         {showTotal && (
           <View style={styles.totCell}>
@@ -83,7 +81,7 @@ export function SplitReceipt({ split, showTotal, framed = true }: Props) {
                 <AppText color={colors.muted} style={styles.statusLabel}>
                   {status.kind === 'get' ? 'Nhận lại' : 'Còn thiếu'}
                 </AppText>
-                <AppText weight="bold" color={status.kind === 'get' ? GET_COLOR : OWE_COLOR} style={styles.statusAmount}>
+                <AppText weight="bold" color={status.kind === 'get' ? colors.success : colors.danger} style={styles.statusAmount}>
                   {status.kind === 'get' ? '+' : '−'}
                   {formatMoney(status.amount / 1e3)}
                 </AppText>

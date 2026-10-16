@@ -39,7 +39,6 @@ import { useChromeScroll } from '@/hooks/use-chrome';
 import { useColors } from '@/hooks/use-colors';
 import type { Bill } from '@/types/bill';
 import type { DateStr } from '@/types/expense';
-import { withAlpha } from '@/utils/color';
 import { todayStr } from '@/utils/date';
 
 /** Các mục chi của bill và thứ tự hiển thị, như PWA (`ne`). */
@@ -134,7 +133,7 @@ export default function BillCalcScreen({ existing = null, onFinished }: { existi
 
   return (
     <ScrollView ref={scrollRef} {...scrollProps} contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
-      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.line }]}>
+      <View style={[styles.card, { backgroundColor: colors.surface }]}>
         <TextInput
           value={title}
           onChangeText={setTitle}
@@ -186,7 +185,7 @@ export default function BillCalcScreen({ existing = null, onFinished }: { existi
         </View>
       </View>
 
-      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.line }]}>
+      <View style={[styles.card, { backgroundColor: colors.surface }]}>
         <AppText color={colors.muted} style={styles.hint}>
           Vuốt sang trái để chọn hệ số hoặc số tiền cố định
         </AppText>
@@ -235,7 +234,7 @@ export default function BillCalcScreen({ existing = null, onFinished }: { existi
 
       {pickingCategory && (
         <Modal transparent animationType="fade" visible onRequestClose={() => setPickingCategory(false)}>
-          <View style={[styles.scrim, { backgroundColor: withAlpha('#000000', 0.45) }]}>
+          <View style={[styles.scrim, { backgroundColor: colors.scrim }]}>
             <Pressable style={styles.flex} onPress={() => setPickingCategory(false)} accessibilityLabel="Đóng" />
             <View style={[styles.sheet, { backgroundColor: colors.surface, paddingBottom: 16 + insets.bottom }]}>
               <AppText weight="bold" style={styles.sheetTitle}>
@@ -416,7 +415,7 @@ function PersonRow({ index, row, open, caption, onOpen, onChange }: PersonRowPro
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { paddingHorizontal: 12, paddingTop: 4, gap: 12 },
-  card: { borderRadius: AppRadius.card, borderWidth: 1, padding: 14, gap: 10 },
+  card: { borderRadius: AppRadius.card, padding: 14, gap: 10 },
   input: { height: 46, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, fontSize: 16 },
   categoryButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 6, paddingRight: 12, borderWidth: 1, borderRadius: 12 },
   categoryName: { flex: 1, fontSize: 16 },

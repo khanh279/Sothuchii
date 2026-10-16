@@ -167,7 +167,7 @@ export default function FundListScreen() {
             busy={busy}
             onSave={save}
             onCancel={() => setEditing(null)}
-            style={{ backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: 14 }}
+            style={{ backgroundColor: colors.surface, borderRadius: 16 }}
           />
         )}
 

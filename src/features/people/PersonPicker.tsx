@@ -7,7 +7,6 @@ import { SvgIcon } from '@/components/svg-icon';
 import { loadPeople } from '@/data/peopleRepository';
 import { pickerOptions } from '@/domain/people';
 import { useColors } from '@/hooks/use-colors';
-import { withAlpha } from '@/utils/color';
 
 interface Props {
   title: string;
@@ -41,7 +40,7 @@ export function PersonPicker({ title, selected, onPick, onClose }: Props) {
 
   return (
     <Modal transparent animationType="fade" visible onRequestClose={onClose}>
-      <View style={[styles.scrim, { backgroundColor: withAlpha('#000000', 0.45) }]}>
+      <View style={[styles.scrim, { backgroundColor: colors.scrim }]}>
         <Pressable style={styles.flex} onPress={onClose} accessibilityLabel="Đóng" />
         <View style={[styles.sheet, { backgroundColor: colors.surface, paddingBottom: 12 + insets.bottom }]}>
           <View style={styles.header}>

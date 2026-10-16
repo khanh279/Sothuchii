@@ -103,7 +103,7 @@ export function FundExpenseForm({ fund, balance, existing, onChanged, variant = 
 
   if (variant === 'page') {
     return (
-      <View style={[formStyles.card, { backgroundColor: colors.surface, borderColor: colors.line }]}>
+      <View style={[formStyles.card, { backgroundColor: colors.surface }]}>
         <AppText weight="display" style={formStyles.title}>
           {existing ? 'Sửa khoản chi quỹ' : 'Thêm khoản chi quỹ'}
         </AppText>

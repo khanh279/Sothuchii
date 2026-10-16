@@ -188,7 +188,7 @@ function ExpenseForm({ settings, existing, suggestedDate, period }: FormProps) {
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView style={styles.flex} contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
-        <View style={[formStyles.card, { backgroundColor: colors.surface, borderColor: colors.line }]}>
+        <View style={[formStyles.card, { backgroundColor: colors.surface }]}>
           <AppText weight="display" style={formStyles.title}>
             {existing ? 'Sửa khoản chi' : 'Thêm khoản chi'}
           </AppText>

@@ -129,7 +129,7 @@ export default function HistoryScreen({ tab }: { tab?: HistoryTabMode } = {}) {
               />
             </View>
           )}
-          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.line, minHeight: Math.max(0, height - 300) }]}>
+          <View style={[styles.card, { backgroundColor: colors.surface, minHeight: Math.max(0, height - 300) }]}>
             <View style={styles.summary}>
               <View style={styles.summaryLeft}>
                 <AppText weight="semibold" style={styles.summaryTitle} numberOfLines={1}>
@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
   loading: { marginTop: 48 },
   notice: { marginHorizontal: 12, padding: 16, borderRadius: 16 },
   noticeText: { fontSize: 15 },
-  card: { borderRadius: AppRadius.card, borderWidth: 1, overflow: 'hidden' },
+  card: { borderRadius: AppRadius.card, overflow: 'hidden' },
   /** Tóm tắt: cao 64, đệm 10/14 (đo từ PWA). */
   summary: { minHeight: 64, paddingVertical: 10, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   summaryLeft: { flex: 1, minWidth: 0 },

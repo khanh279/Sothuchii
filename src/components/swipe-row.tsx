@@ -5,8 +5,7 @@ import { AppText } from '@/components/app-text';
 import { SWIPE_ACTIONS_WIDTH, swipeIntent, swipeOffset, swipeSettle } from '@/domain/swipe';
 import { useColors } from '@/hooks/use-colors';
 
-/** Màu hai nút đo từ PWA: Xoá #D64545, đã bấm một lần (`arm`) #B42318. */
-const DELETE_COLOR = '#D64545';
+/** Nút Xoá dùng màu `danger`; khi đã bấm một lần (`arm`) đậm hơn (không có token riêng cho trạng thái này). */
 const DELETE_ARMED_COLOR = '#B42318';
 
 interface Props {
@@ -120,7 +119,7 @@ export function SwipeRow({ open, onOpen, onClose, onEdit, onDelete, onPressRow, 
           </AppText>
         </Pressable>
         <Pressable
-          style={[styles.action, { backgroundColor: armedNow ? DELETE_ARMED_COLOR : DELETE_COLOR }]}
+          style={[styles.action, { backgroundColor: armedNow ? DELETE_ARMED_COLOR : colors.danger }]}
           accessibilityRole="button"
           accessibilityLabel={armedNow ? 'Xoá, chạm lần nữa để xác nhận' : 'Xoá'}
           onPress={() => {

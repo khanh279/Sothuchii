@@ -40,7 +40,7 @@ export default function FundExpenseScreen() {
     body = <ActivityIndicator style={styles.loading} color={colors.primary} />;
   } else if (!fund) {
     body = (
-      <View style={[styles.notice, { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1 }]}>
+      <View style={[styles.notice, { backgroundColor: colors.surface }]}>
         <AppText color={colors.muted} style={styles.noticeText}>
           Chưa có quỹ nào. Hãy tạo quỹ ở trang Giao dịch trước khi ghi chi tiêu quỹ.
         </AppText>

@@ -20,7 +20,6 @@ import { withAlpha } from '@/utils/color';
 import { formatVnDate, todayStr } from '@/utils/date';
 
 /** Màu theo chiều tiền (`.lg-ico.get/owe/mid` của PWA). */
-const TONE_COLOR = { get: '#17794F', owe: '#C2332A', mid: '#7C8A86' } as const;
 
 /**
  * Lịch sử khoản trả (khung "Giao dịch" của trang Lịch sử PWA) trong một kỳ: gom theo ngày, mới nhất trước.
@@ -63,7 +62,7 @@ export default function PayHistoryScreen() {
         <ActivityIndicator style={styles.loading} color={colors.primary} />
       ) : (
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} onScrollBeginDrag={closeAll}>
-          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.line }]}>
+          <View style={[styles.card, { backgroundColor: colors.surface }]}>
             <View style={styles.summary}>
               <View style={styles.summaryLeft}>
                 <AppText weight="semibold" style={styles.summaryTitle}>
@@ -78,10 +77,10 @@ export default function PayHistoryScreen() {
                   {history.count} khoản
                 </AppText>
                 <AppText weight="medium" style={styles.summaryAmount}>
-                  <AppText color={TONE_COLOR.get} style={styles.summaryAmount}>
+                  <AppText color={colors.success} style={styles.summaryAmount}>
                     +{formatMoney(history.totalIn)}
                   </AppText>
-                  <AppText color={TONE_COLOR.owe} style={styles.summaryAmount}>
+                  <AppText color={colors.danger} style={styles.summaryAmount}>
                     {'  '}−{formatMoney(history.totalOut)}
                   </AppText>
                 </AppText>
@@ -123,7 +122,7 @@ export default function PayHistoryScreen() {
 
 function PayRowView({ row, rowProps, onDelete }: { row: PayRow; rowProps: ReturnType<ReturnType<typeof useSingleOpenRow>['rowProps']>; onDelete: () => void }) {
   const colors = useColors();
-  const tone = TONE_COLOR[row.tone];
+  const tone = row.tone === 'get' ? colors.success : row.tone === 'owe' ? colors.danger : colors.muted;
   const sign = row.tone === 'get' ? '+' : row.tone === 'owe' ? '−' : '';
   const subtitle = payRowSubtitle(row);
   return (
@@ -157,7 +156,7 @@ const styles = StyleSheet.create({
   loading: { marginTop: 48 },
   notice: { marginHorizontal: 12, marginTop: 12, padding: 16, borderRadius: 16 },
   noticeText: { fontSize: 15 },
-  card: { borderRadius: AppRadius.card, borderWidth: 1, overflow: 'hidden' },
+  card: { borderRadius: AppRadius.card, overflow: 'hidden' },
   summary: { minHeight: 64, paddingVertical: 10, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   summaryLeft: { flex: 1, minWidth: 0 },
   summaryTitle: { fontSize: 16, lineHeight: 22 },

@@ -8,7 +8,6 @@ import { createBackupText, restoreFromText, wipeSection } from '@/data/backupRep
 import { StorageCorruptError } from '@/data/storage';
 import { SECTION_LABELS, backupFileName, parseBackup, type BackupSection } from '@/domain/backup';
 import { useColors } from '@/hooks/use-colors';
-import { withAlpha } from '@/utils/color';
 
 interface Props {
   onClose: () => void;
@@ -128,7 +127,7 @@ export function DataSheet({ onClose, onDataChanged }: Props) {
   const noteStyle = [styles.note, { color: colors.muted }];
   return (
     <Modal transparent animationType="fade" visible onRequestClose={onClose}>
-      <View style={[styles.scrim, { backgroundColor: withAlpha('#000000', 0.45) }]}>
+      <View style={[styles.scrim, { backgroundColor: colors.scrim }]}>
         <Pressable style={styles.flex} onPress={onClose} accessibilityLabel="Đóng" />
         <View style={[styles.sheet, { backgroundColor: colors.surface, paddingBottom: 12 + insets.bottom }]}>
           <View style={styles.header}>
@@ -241,7 +240,7 @@ function Button({
   disabled?: boolean;
 }) {
   const colors = useColors();
-  const background = armed ? '#D64545' : primary ? colors.primary : colors.bg;
+  const background = armed ? colors.danger : primary ? colors.primary : colors.bg;
   const color = armed ? '#FFFFFF' : primary ? colors.primaryInk : danger ? colors.danger : colors.ink;
   return (
     <Pressable

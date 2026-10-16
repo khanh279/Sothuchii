@@ -10,10 +10,10 @@ import { useToast } from '@/components/toast';
 import { AppFonts } from '@/constants/fonts';
 import { AppRadius } from '@/constants/palette';
 import { PayInputError } from '@/data/payRepository';
-import { mergeDebtsSynced, recordDebtPaymentSynced, recordPairPaymentSynced, undoMergeSynced, type RecordResult, type SyncedPayChange } from '@/data/payService';
+import { mergeDebtsSynced, recordDebtPaymentSynced, undoMergeSynced, type RecordResult, type SyncedPayChange } from '@/data/payService';
 import { formatMoney } from '@/domain/billForm';
 import type { DebtPayOption } from '@/domain/debtPay';
-import { buildDebtDetail, buildPairDetail, type DayGroup, type DebtRow, type MonthGroup, type Tone } from '@/domain/debtDetail';
+import { buildDebtDetail, type DayGroup, type DebtRow, type MonthGroup, type Tone } from '@/domain/debtDetail';
 import { dayHeading, periodFromParams, periodTitle, resolveCategory } from '@/domain/expenses';
 import { maskPayAmount, parsePayAmount } from '@/domain/payForm';
 import { describeDebtError, useDebtData } from '@/features/debts/hooks';
@@ -22,17 +22,15 @@ import { useColors } from '@/hooks/use-colors';
 import { formatVnDate, todayStr } from '@/utils/date';
 import { r3 } from '@/domain/ledger';
 
-const TONE_COLOR = { get: '#0F8A4B', owe: '#D64545' } as const;
 const SIGN = { get: '+', owe: '−', mid: '' } as const;
 
 /**
- * Chi tiết nợ (`#v-debt` của PWA). Hai kiểu, chọn bằng tham số route:
- * - `name`: nợ với MỘT người — hai ngăn Nợ vay / Nợ bill, thanh toán toàn bộ / một phần, gộp nợ, lịch sử gộp và hoàn tác;
- * - `x` và `z`: bill giữa MỘT CẶP người trong kỳ, kèm thanh toán toàn bộ và gộp nợ.
+ * Chi tiết nợ với MỘT người (tham số route `name`): hai ngăn Nợ vay / Nợ bill, thanh toán (nợ bill, nợ vay, một phần, toàn bộ),
+ * gộp nợ, lịch sử gộp và hoàn tác.
  * Kỳ xem lấy từ tham số (`mode`, `month`, `year`, `from`, `to`) và chỉ lọc danh sách bill; số dư luôn là toàn thời gian.
  */
 export default function DebtDetailScreen() {
-  const params = useLocalSearchParams<{ name?: string; x?: string; z?: string; mode?: string; month?: string; year?: string; from?: string; to?: string }>();
+  const params = useLocalSearchParams<{ name?: string; mode?: string; month?: string; year?: string; from?: string; to?: string }>();
   const today = todayStr();
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -70,8 +68,6 @@ export default function DebtDetailScreen() {
     );
   } else if (!loaded) {
     body = <ActivityIndicator style={styles.loading} color={colors.primary} />;
-  } else if (params.x && params.z) {
-    body = <PairView x={params.x} z={params.z} detail={buildPairDetail(bills, pays, params.x, params.z, period, categoryName)} busy={busy} run={run} period={period} />;
   } else {
     body = <PersonView name={params.name ?? ''} detail={buildDebtDetail(bills, pays, params.name ?? '', period, categoryName)} busy={busy} run={run} periodLabel={periodTitle(period)} today={today} />;
   }
@@ -316,84 +312,13 @@ function PersonView({ name, detail, busy, run, periodLabel, today }: { name: str
   );
 }
 
-// ───────────────────────── Một cặp ─────────────────────────
-
-function PairView({ x, z, detail, busy, run, period }: { x: string; z: string; detail: ReturnType<typeof buildPairDetail>; busy: boolean; run: Run; period: ReturnType<typeof periodFromParams> }) {
-  const colors = useColors();
-  const today = todayStr();
-  const [openMonth, setOpenMonth] = useState<string | null>(null);
-  const toneColor = detail.tone === 'mid' ? colors.ink : TONE_COLOR[detail.tone];
-  return (
-    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.line }]}>
-      <View style={styles.pairHead}>
-        <View style={styles.flex}>
-          <AppText weight="semibold" color={colors.muted} style={styles.title}>
-            {detail.empty ? `${x} · ${z}` : detail.label}
-          </AppText>
-          <AppText color={colors.muted} style={styles.small}>
-            {periodTitle(period)}
-          </AppText>
-        </View>
-        <AppText weight="bold" color={detail.empty ? colors.ink : toneColor} style={styles.pairAmount}>
-          {detail.empty ? '0 ₫' : `${SIGN[detail.tone]}${formatMoney(detail.amount)}`}
-        </AppText>
-      </View>
-
-      {detail.empty ? (
-        <AppText color={colors.muted} style={styles.empty}>
-          Không có bill nào trong khoảng này
-        </AppText>
-      ) : (
-        <>
-          <AppText weight="semibold" color={colors.muted} style={styles.small}>
-            Các bill trong khoảng này
-          </AppText>
-          {detail.monthMode ? <Days days={detail.days} today={today} /> : <Months months={detail.months} openMonth={openMonth} onToggle={(month) => setOpenMonth(openMonth === month ? null : month)} today={today} />}
-        </>
-      )}
-
-      {(detail.canPay || detail.canMerge) && (
-        <View style={styles.payButtons}>
-          {detail.canPay && (
-            <Pressable
-              accessibilityRole="button"
-              disabled={busy}
-              onPress={() => void run(() => recordPairPaymentSynced(x, z, period))}
-              style={[styles.payAll, { backgroundColor: colors.primary }]}>
-              <AppText weight="semibold" color={colors.primaryInk} style={styles.actionText}>
-                Thanh toán toàn bộ
-              </AppText>
-            </Pressable>
-          )}
-          {detail.canMerge && detail.other && (
-            <Pressable
-              accessibilityRole="button"
-              disabled={busy}
-              onPress={() => void run(() => mergeDebtsSynced(detail.other as string))}
-              style={[styles.payPart, { borderColor: colors.line, backgroundColor: colors.bg }]}>
-              <AppText weight="semibold" style={styles.actionText}>
-                Gộp nợ
-              </AppText>
-            </Pressable>
-          )}
-        </View>
-      )}
-      {detail.canMerge && detail.other && (
-        <AppText color={colors.muted} style={styles.small}>
-          Gộp {formatMoney(detail.mergeAmount)} giữa nợ vay và nợ bill của {detail.other}
-        </AppText>
-      )}
-    </View>
-  );
-}
-
 // ───────────────────────── Thành phần dùng chung ─────────────────────────
 
 function Amount({ value, tone }: { value: number; tone?: Tone }) {
   const colors = useColors();
   const resolved: Tone = tone ?? (value > 5e-4 ? 'get' : value < -5e-4 ? 'owe' : 'mid');
   return (
-    <AppText weight="bold" color={resolved === 'mid' ? colors.muted : TONE_COLOR[resolved]} style={styles.amount}>
+    <AppText weight="bold" color={resolved === 'mid' ? colors.muted : resolved === 'get' ? colors.success : colors.danger} style={styles.amount}>
       {SIGN[resolved]}
       {formatMoney(Math.abs(value))}
     </AppText>
@@ -504,7 +429,6 @@ const styles = StyleSheet.create({
   loading: { marginTop: 48 },
   notice: { padding: 16, borderRadius: 16 },
   noticeText: { fontSize: 15 },
-  card: { borderRadius: AppRadius.card, borderWidth: 1, padding: 14, gap: 12 },
   personWrap: { gap: 12 },
   hero: { borderRadius: 22, padding: 20, gap: 4 },
   heroLabel: { fontSize: 12.5 },
@@ -529,11 +453,8 @@ const styles = StyleSheet.create({
   smallInk: { fontSize: 12, lineHeight: 16, opacity: 0.9 },
   actionText: { fontSize: 14 },
   payBox: { marginTop: 14, gap: 8 },
-  payButtons: { flexDirection: 'row', gap: 8 },
   payChoices: { gap: 8 },
   choice: { minHeight: 52, borderRadius: 12, borderWidth: 1, paddingVertical: 8, paddingHorizontal: 12, justifyContent: 'center' },
-  payAll: { flex: 1.3, minHeight: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
-  payPart: { flex: 1, minHeight: 46, paddingHorizontal: 8, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   partCol: { gap: 8 },
   partInputWrap: { justifyContent: 'center' },
   partInput: { minHeight: 52, borderWidth: 1, borderRadius: 12, paddingLeft: 10, paddingRight: 51, fontSize: 18, textAlign: 'right' },
@@ -544,6 +465,4 @@ const styles = StyleSheet.create({
   history: { marginTop: 8, gap: 6 },
   historyRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 14, borderRadius: AppRadius.field },
   undo: { minHeight: 34, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  pairHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  pairAmount: { fontSize: 30, lineHeight: 36 },
 });

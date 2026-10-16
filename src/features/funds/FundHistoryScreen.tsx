@@ -21,8 +21,6 @@ import { formatVnDate, todayStr } from '@/utils/date';
 import { formatVnd } from '@/utils/format';
 
 /** Màu thu / chi của Quỹ (`--in`, `--out` của PWA). */
-const IN_COLOR = '#0F8A4B';
-const OUT_COLOR = '#D64545';
 
 /**
  * Lịch sử Quỹ nhóm trong một kỳ: số dư, rồi các lần đóng và khoản chi gom theo ngày. Vuốt dòng để Sửa / Xoá.
@@ -74,7 +72,7 @@ export default function FundHistoryScreen() {
         <ActivityIndicator style={styles.loading} color={colors.primary} />
       ) : (
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} onScrollBeginDrag={() => setOpenId(null)}>
-          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.line }]}>
+          <View style={[styles.card, { backgroundColor: colors.surface }]}>
             <View style={styles.summary}>
               <View style={styles.summaryLeft}>
                 <AppText weight="semibold" style={styles.summaryTitle} numberOfLines={1}>
@@ -89,10 +87,10 @@ export default function FundHistoryScreen() {
                   {single ? `${history.count} khoản` : `${history.funds.length} quỹ`}
                 </AppText>
                 <AppText weight="medium" style={styles.summaryAmount}>
-                  <AppText color={IN_COLOR} style={styles.summaryAmount}>
+                  <AppText color={colors.success} style={styles.summaryAmount}>
                     +{formatVnd(history.totalIn)}
                   </AppText>
-                  <AppText color={OUT_COLOR} style={styles.summaryAmount}>
+                  <AppText color={colors.danger} style={styles.summaryAmount}>
                     {'  '}−{formatVnd(history.totalOut)}
                   </AppText>
                 </AppText>
@@ -105,7 +103,7 @@ export default function FundHistoryScreen() {
                   <AppText color={colors.muted} style={styles.balanceLabel}>
                     {single ? `Số dư ${single.name}` : 'Số dư các quỹ'}
                   </AppText>
-                  <AppText weight="bold" color={history.balance < 0 ? OUT_COLOR : IN_COLOR} style={styles.balanceValue}>
+                  <AppText weight="bold" color={history.balance < 0 ? colors.danger : colors.success} style={styles.balanceValue}>
                     {formatVnd(history.balance)}
                   </AppText>
                 </View>
@@ -146,8 +144,8 @@ export default function FundHistoryScreen() {
                             <TransactionRow
                               bare
                               icon={
-                                <View style={[styles.icon, { backgroundColor: withAlpha(incoming ? IN_COLOR : OUT_COLOR, 0.14) }]}>
-                                  <AppText weight="bold" color={incoming ? IN_COLOR : OUT_COLOR} style={styles.iconText}>
+                                <View style={[styles.icon, { backgroundColor: withAlpha(incoming ? colors.success : colors.danger, 0.14) }]}>
+                                  <AppText weight="bold" color={incoming ? colors.success : colors.danger} style={styles.iconText}>
                                     {incoming ? '+' : '−'}
                                   </AppText>
                                 </View>
@@ -171,7 +169,7 @@ export default function FundHistoryScreen() {
 
       {editing && editingFund && (editingContribution || editingExpense) && (
         <Modal transparent animationType="fade" visible onRequestClose={() => setEditing(null)}>
-          <View style={[styles.scrim, { backgroundColor: withAlpha('#000000', 0.45) }]}>
+          <View style={[styles.scrim, { backgroundColor: colors.scrim }]}>
             <Pressable style={styles.flex} onPress={() => setEditing(null)} accessibilityLabel="Đóng" />
             <View style={[styles.sheet, { backgroundColor: colors.surface, paddingBottom: 16 + insets.bottom }]}>
               <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.sheetContent}>
@@ -217,7 +215,7 @@ const styles = StyleSheet.create({
   loading: { marginTop: 48 },
   notice: { marginHorizontal: 12, padding: 16, borderRadius: 16 },
   noticeText: { fontSize: 15 },
-  card: { borderRadius: AppRadius.card, borderWidth: 1, overflow: 'hidden' },
+  card: { borderRadius: AppRadius.card, overflow: 'hidden' },
   summary: { minHeight: 64, paddingVertical: 10, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   summaryLeft: { flex: 1, minWidth: 0 },
   summaryTitle: { fontSize: 16, lineHeight: 22 },

@@ -76,7 +76,7 @@ export default function BillHistoryScreen({ tab }: { tab?: BillHistoryTabMode } 
       ) : (
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: (tab ? 110 : 24) + insets.bottom }]} onScrollBeginDrag={closeAll}>
           {tab?.top}
-          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.line }]}>
+          <View style={[styles.card, { backgroundColor: colors.surface }]}>
             <View style={styles.summary}>
               <View style={styles.summaryLeft}>
                 <AppText weight="semibold" style={styles.summaryTitle}>
@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
   loading: { marginTop: 48 },
   notice: { marginHorizontal: 12, marginTop: 12, padding: 16, borderRadius: 16 },
   noticeText: { fontSize: 15 },
-  card: { borderRadius: AppRadius.card, borderWidth: 1, overflow: 'hidden' },
+  card: { borderRadius: AppRadius.card, overflow: 'hidden' },
   summary: { minHeight: 64, paddingVertical: 10, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   summaryLeft: { flex: 1, minWidth: 0 },
   summaryTitle: { fontSize: 16, lineHeight: 22 },

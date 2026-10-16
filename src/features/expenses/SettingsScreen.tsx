@@ -358,7 +358,7 @@ function Section({ title, first, topInset = 0, children }: { title: string; firs
 /** Khung trắng của PWA (`.panel`): bo 22, đệm 16, các khối cách nhau 14. */
 function Panel({ children }: { children: ReactNode }) {
   const colors = useColors();
-  return <View style={[styles.panel, { backgroundColor: colors.surface, borderColor: colors.line }]}>{children}</View>;
+  return <View style={[styles.panel, { backgroundColor: colors.surface }]}>{children}</View>;
 }
 
 function Label({ children }: { children: string }) {
@@ -378,7 +378,7 @@ const styles = StyleSheet.create({
   noticeText: { fontSize: 15 },
   section: { paddingBottom: 18, gap: 12 },
   sectionTitle: { fontSize: 18, lineHeight: 26 },
-  panel: { borderRadius: AppRadius.hero, borderWidth: 1, padding: 16, gap: 14 },
+  panel: { borderRadius: AppRadius.hero, padding: 16, gap: 14 },
   field: { gap: 6 },
   label: { fontSize: 13, lineHeight: 19 },
   monthPill: { alignSelf: 'flex-start', height: 42, borderRadius: AppRadius.pill, borderWidth: 1, padding: 3, flexDirection: 'row', alignItems: 'center', gap: 2 },
