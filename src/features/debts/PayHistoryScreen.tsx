@@ -1,5 +1,5 @@
 import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -10,10 +10,9 @@ import { TOAST_BOTTOM_HISTORY, useToast } from '@/components/toast';
 import { AppRadius } from '@/constants/palette';
 import { deletePaySynced } from '@/data/payService';
 import { formatMoney } from '@/domain/billForm';
-import { dayHeading, periodFromParams, periodTitle, periodViewFromPeriod, periodOf } from '@/domain/expenses';
+import { dayHeading, periodFromParams, periodTitle } from '@/domain/expenses';
 import { buildPayHistory, payRowSubtitle, type PayRow } from '@/domain/payForm';
 import { describeDebtError, useDebtData } from '@/features/debts/hooks';
-import { PeriodBar } from '@/features/expenses/PeriodBar';
 import { useColors } from '@/hooks/use-colors';
 import { useSingleOpenRow } from '@/hooks/use-single-open-row';
 import { withAlpha } from '@/utils/color';
@@ -31,8 +30,9 @@ export default function PayHistoryScreen() {
   const today = todayStr();
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const [view, setView] = useState(() => periodViewFromPeriod(periodFromParams(params, today), today));
-  const period = useMemo(() => periodOf(view), [view]);
+  // Mở từ Tổng quan: dùng đúng kỳ đang xem ở đó, không có ô chọn lại ngày.
+  const { mode, month, year, from, to } = params;
+  const period = useMemo(() => periodFromParams({ mode, month, year, from, to }, today), [mode, month, year, from, to, today]);
   const toast = useToast();
   const { bills, pays, loaded, error, reload } = useDebtData();
   const { closeAll, rowProps } = useSingleOpenRow();
@@ -50,9 +50,8 @@ export default function PayHistoryScreen() {
   }
 
   return (
-    <View style={[styles.screen, { backgroundColor: colors.bg, paddingTop: insets.top }]}>
+    <View style={[styles.screen, { backgroundColor: colors.bg, paddingTop: 12 + insets.top }]}>
       <Stack.Screen options={{ title: 'Lịch sử giao dịch', headerShown: false }} />
-      <PeriodBar view={view} onChange={setView} today={today} />
       {error ? (
         <View style={[styles.notice, { backgroundColor: colors.dangerSoft }]}>
           <AppText color={colors.danger} style={styles.noticeText}>

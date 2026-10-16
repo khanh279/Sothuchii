@@ -45,13 +45,15 @@ export default function RootLayout() {
     <ThemeProvider value={navigationTheme(scheme === 'dark' ? 'dark' : 'light')}>
       <ToastProvider>
         <ChromeProvider>
-          <Stack screenOptions={{ headerShown: false }}>
+          {/* Màn con: không có thanh tiêu đề / nút Back; vuốt từ cạnh trái sang phải để quay lại (native stack của Expo Router, chỉ từ mép nên không vướng vuốt hàng Sửa/Xoá). */}
+          <Stack screenOptions={{ headerShown: false, gestureEnabled: true }}>
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="chi-tieu/nhap" />
             <Stack.Screen name="lich-su" />
             <Stack.Screen name="quy/lich-su" />
             <Stack.Screen name="quy/chi-tieu" />
             <Stack.Screen name="chia-bill/lich-su" />
+            <Stack.Screen name="chia-bill/chi-tiet" />
             <Stack.Screen name="chia-bill/sua" />
             <Stack.Screen name="cong-no/lich-su" />
             <Stack.Screen name="cong-no/sua" />

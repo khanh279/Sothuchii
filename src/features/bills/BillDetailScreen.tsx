@@ -126,9 +126,6 @@ export default function BillDetailScreen() {
     <View style={[styles.screen, { backgroundColor: colors.bg, paddingTop: 12 + insets.top }]}>
       <Stack.Screen options={{ title: 'Chi tiết bill', headerShown: false }} />
       <View style={styles.bar}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Quay lại" onPress={leave} style={styles.back}>
-          <SvgIcon name="chevronLeft" size={22} color={colors.ink} strokeWidth={2} />
-        </Pressable>
         <AppText weight="semibold" style={styles.barTitle}>
           Chi tiết bill
         </AppText>
@@ -140,8 +137,7 @@ export default function BillDetailScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  bar: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, minHeight: 48 },
-  back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  bar: { paddingHorizontal: 16, minHeight: 44, justifyContent: 'center' },
   barTitle: { fontSize: 17 },
   content: { paddingHorizontal: 12, paddingTop: 4 },
   loading: { marginTop: 48 },
