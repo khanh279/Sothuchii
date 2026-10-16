@@ -35,6 +35,28 @@ export function ScreenTitle({ title, topInset = 0, right }: { title: string; top
   );
 }
 
+/**
+ * Nút thao tác chính ở bên phải hàng tiêu đề của các tab chức năng ("+ Chi tiêu", "+ Tạo bill", "+ Giao dịch", "+ Giao dịch quỹ"):
+ * nền navy, chữ trắng, biểu tượng dấu +. Dùng cùng `ScreenTitle` (tham số `right`) để mọi tab có cùng kích thước và vị trí.
+ */
+export function TitleAction({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) {
+  const colors = useColors();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`+ ${label}`}
+      accessibilityState={{ disabled: !!disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [styles.titleAction, { backgroundColor: colors.primary, opacity: disabled ? 0.45 : pressed ? 0.88 : 1 }]}>
+      <SvgIcon name="plus" size={16} color={colors.primaryInk} strokeWidth={2.4} />
+      <AppText weight="semibold" color={colors.primaryInk} style={styles.titleActionText} numberOfLines={1}>
+        {label}
+      </AppText>
+    </Pressable>
+  );
+}
+
 // ───────────────────────── Tiêu đề khu vực ─────────────────────────
 
 interface SectionHeaderProps {
@@ -430,6 +452,8 @@ const styles = StyleSheet.create({
   flex: { flex: 1, minWidth: 0 },
   screenTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 8 },
   screenTitle: { fontSize: 26, lineHeight: 32, letterSpacing: -0.4 },
+  titleAction: { height: 40, borderRadius: AppRadius.pill, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  titleActionText: { fontSize: 14, flexShrink: 1 },
   sectionHeader: { flexDirection: 'row', alignItems: 'flex-end', gap: 12, paddingHorizontal: 4, marginBottom: 8 },
   sectionTitle: { fontSize: 17, lineHeight: 24 },
   caption: { fontSize: 12, lineHeight: 16 },

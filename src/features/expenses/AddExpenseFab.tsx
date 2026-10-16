@@ -17,7 +17,7 @@ interface Props {
   onTransfer: () => void;
   /** Mở màn tạo bill để chia tiền. */
   onCreateBill: () => void;
-  /** Đã có ít nhất một quỹ nhóm; chưa có thì mục "Chi quỹ nhóm" mờ đi kèm lời nhắc. */
+  /** Đã có ít nhất một quỹ nhóm; chưa có thì mục "Chi tiêu quỹ" mờ đi kèm lời nhắc. */
   hasFunds: boolean;
 }
 
@@ -27,7 +27,7 @@ const OPEN_MS = 260;
 const CLOSE_MS = 200;
 
 /**
- * Nút nổi "+" ở Tổng quan. Bấm thì mở bottom sheet bốn lựa chọn: Chi tiêu cá nhân, Chi quỹ nhóm, Chuyển tiền, Tạo bill — mỗi lựa
+ * Nút nổi "+" ở Tổng quan. Bấm thì mở bottom sheet bốn lựa chọn: Chi tiêu, Chi tiêu quỹ, Giao dịch, Tạo bill — mỗi lựa
  * chọn mở thẳng luồng nghiệp vụ hiện có (không tạo luồng mới). Đóng bằng chạm nền mờ, nút Back hoặc chọn một mục.
  */
 export function AddExpenseFab({ onAddPersonal, onAddFund, onTransfer, onCreateBill, hasFunds }: Props) {
@@ -64,9 +64,9 @@ export function AddExpenseFab({ onAddPersonal, onAddFund, onTransfer, onCreateBi
   }
 
   const options: { icon: IconName; label: string; hint: string; disabled?: boolean; onPress: () => void }[] = [
-    { icon: 'person', label: 'Chi tiêu cá nhân', hint: 'Ghi một khoản chi của bạn', onPress: onAddPersonal },
-    { icon: 'people', label: 'Chi quỹ nhóm', hint: hasFunds ? 'Ghi khoản chi từ một quỹ' : 'Chưa có quỹ — tạo quỹ ở tab Quỹ nhóm', disabled: !hasFunds, onPress: onAddFund },
-    { icon: 'tabTransactions', label: 'Chuyển tiền', hint: 'Ghi nhận chuyển tiền hoặc trả nợ giữa hai người', onPress: onTransfer },
+    { icon: 'person', label: 'Chi tiêu', hint: 'Ghi một khoản chi của bạn', onPress: onAddPersonal },
+    { icon: 'people', label: 'Chi tiêu quỹ', hint: hasFunds ? 'Ghi khoản chi từ một quỹ' : 'Chưa có quỹ — tạo quỹ ở tab Quỹ nhóm', disabled: !hasFunds, onPress: onAddFund },
+    { icon: 'tabTransactions', label: 'Giao dịch', hint: 'Ghi nhận chuyển tiền hoặc trả nợ giữa hai người', onPress: onTransfer },
     { icon: 'receipt', label: 'Tạo bill', hint: 'Tạo bill và chia tiền cho mọi người', onPress: onCreateBill },
   ];
 

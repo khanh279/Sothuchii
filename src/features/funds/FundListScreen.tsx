@@ -3,7 +3,7 @@ import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, TextInput,
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { SecondaryButton } from '@/components/design';
+import { ScreenTitle, SecondaryButton, TitleAction } from '@/components/design';
 import { SvgIcon } from '@/components/svg-icon';
 import { SwipeRow } from '@/components/swipe-row';
 import { useToast } from '@/components/toast';
@@ -24,9 +24,8 @@ type Editing = { mode: 'add' } | { mode: 'edit'; id: string };
 type EntryMode = 'thu' | 'chi';
 
 /**
- * Danh sách quỹ (phần "Đóng quỹ" của tab Giao dịch): tạo quỹ mới, đổi tên, xoá bằng cách vuốt dòng;
- * chạm một quỹ để mở form Thu (đóng quỹ) / Chi (chi quỹ) của quỹ đó. Nút "Thêm khoản chi" ở góc mở form chi
- * cho quỹ tuỳ chọn. Xem / sửa / xoá các lần đóng và khoản chi đã lưu thuộc bước 3E.
+ * Tab "Quỹ nhóm": tiêu đề và nút "+ Giao dịch quỹ" (menu Thu quỹ / Chi tiêu quỹ, mở đúng form đóng quỹ / chi quỹ có sẵn cho quỹ chọn
+ * trong tờ nổi), rồi danh sách quỹ: tạo quỹ mới, đổi tên, xoá bằng cách vuốt dòng; chạm một quỹ để mở form Thu / Chi của quỹ đó. Xem / sửa / xoá các lần đóng và khoản chi đã lưu thuộc bước 3E.
  */
 export default function FundListScreen() {
   const { ref: scrollRef, props: scrollProps } = useChromeScroll();
@@ -39,7 +38,8 @@ export default function FundListScreen() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [entryMode, setEntryMode] = useState<EntryMode>('thu');
   const [sheetFundId, setSheetFundId] = useState<string | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheetMode, setSheetMode] = useState<EntryMode | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
   async function run(task: () => Promise<string>) {
@@ -77,25 +77,44 @@ export default function FundListScreen() {
       return 'Đã xóa quỹ';
     });
 
+  const title = (
+    <ScreenTitle
+      title="Quỹ nhóm"
+      topInset={insets.top}
+      right={loaded && !error ? <TitleAction label="Giao dịch quỹ" onPress={() => setMenuOpen(true)} /> : undefined}
+    />
+  );
+
   if (error) {
     return (
-      <View style={[styles.notice, { backgroundColor: colors.dangerSoft }]}>
-        <AppText color={colors.danger} style={styles.noticeText}>
-          {error}
-        </AppText>
+      <View style={styles.flex}>
+        {title}
+        <View style={[styles.notice, { backgroundColor: colors.dangerSoft }]}>
+          <AppText color={colors.danger} style={styles.noticeText}>
+            {error}
+          </AppText>
+        </View>
       </View>
     );
   }
-  if (!loaded) return <ActivityIndicator style={styles.loading} color={colors.primary} />;
+  if (!loaded) {
+    return (
+      <View style={styles.flex}>
+        {title}
+        <ActivityIndicator style={styles.loading} color={colors.primary} />
+      </View>
+    );
+  }
 
   const sheetFund = data.funds.find((fund) => fund.id === sheetFundId) ?? data.funds[0] ?? null;
 
   return (
     <View style={styles.flex}>
+      {title}
       <ScrollView
         ref={scrollRef}
         {...scrollProps}
-        contentContainerStyle={[styles.list, data.funds.length ? styles.listWithFab : null]}
+        contentContainerStyle={styles.list}
         onScrollBeginDrag={() => setOpenId(null)}
         keyboardShouldPersistTaps="handled">
         {data.funds.map((fund) => {
@@ -180,28 +199,13 @@ export default function FundListScreen() {
         />
       </ScrollView>
 
-      {data.funds.length > 0 && (
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => {
-            setSheetFundId(expandedId ?? data.funds[0].id);
-            setSheetOpen(true);
-          }}
-          style={[styles.fab, { backgroundColor: colors.primary }]}>
-          <SvgIcon name="plus" size={20} color={colors.primaryInk} />
-          <AppText weight="semibold" color={colors.primaryInk} style={styles.fabText}>
-            Thêm khoản chi
-          </AppText>
-        </Pressable>
-      )}
-
-      {sheetOpen && sheetFund && (
-        <Modal transparent animationType="fade" visible onRequestClose={() => setSheetOpen(false)}>
+      {sheetMode && sheetFund && (
+        <Modal transparent animationType="fade" visible onRequestClose={() => setSheetMode(null)}>
           <View style={[styles.scrim, { backgroundColor: colors.scrim }]}>
-            <Pressable style={styles.flex} onPress={() => setSheetOpen(false)} accessibilityLabel="Đóng" />
+            <Pressable style={styles.flex} onPress={() => setSheetMode(null)} accessibilityLabel="Đóng" />
             <View style={[styles.sheet, { backgroundColor: colors.surface, paddingBottom: 16 + insets.bottom }]}>
               <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.sheetContent}>
-                <Pressable accessibilityRole="button" accessibilityLabel="Đóng" onPress={() => setSheetOpen(false)} style={styles.close}>
+                <Pressable accessibilityRole="button" accessibilityLabel="Đóng" onPress={() => setSheetMode(null)} style={styles.close}>
                   <AppText weight="bold" color={colors.muted} style={styles.closeText}>
                     ×
                   </AppText>
@@ -225,16 +229,75 @@ export default function FundListScreen() {
                     })}
                   </View>
                 )}
-                <FundExpenseForm
-                  key={sheetFund.id}
-                  fund={sheetFund}
-                  balance={fundBalance(data, sheetFund.id)}
-                  onChanged={() => {
-                    setSheetOpen(false);
-                    void reload();
-                  }}
-                />
+                {sheetMode === 'thu' ? (
+                  <ContributionForm
+                    key={sheetFund.id}
+                    fund={sheetFund}
+                    onChanged={() => {
+                      setSheetMode(null);
+                      void reload();
+                    }}
+                  />
+                ) : (
+                  <FundExpenseForm
+                    key={sheetFund.id}
+                    fund={sheetFund}
+                    balance={fundBalance(data, sheetFund.id)}
+                    onChanged={() => {
+                      setSheetMode(null);
+                      void reload();
+                    }}
+                  />
+                )}
               </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {menuOpen && (
+        <Modal transparent animationType="fade" visible onRequestClose={() => setMenuOpen(false)}>
+          <View style={[styles.scrim, { backgroundColor: colors.scrim }]}>
+            <Pressable style={styles.flex} onPress={() => setMenuOpen(false)} accessibilityLabel="Đóng" />
+            <View style={[styles.sheet, { backgroundColor: colors.surface, paddingBottom: 16 + insets.bottom }]}>
+              <View style={styles.sheetContent}>
+                <AppText weight="bold" style={styles.menuTitle}>
+                  Giao dịch quỹ
+                </AppText>
+                {data.funds.length === 0 && (
+                  <AppText color={colors.muted} style={styles.menuHint}>
+                    Chưa có quỹ — tạo quỹ mới trước khi ghi giao dịch.
+                  </AppText>
+                )}
+                {(
+                  [
+                    { mode: 'thu', label: 'Thu quỹ', hint: 'Ghi nhận tiền đóng góp vào quỹ' },
+                    { mode: 'chi', label: 'Chi tiêu quỹ', hint: 'Ghi nhận khoản chi từ quỹ' },
+                  ] as const
+                ).map((option) => (
+                  <Pressable
+                    key={option.mode}
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: data.funds.length === 0 }}
+                    disabled={data.funds.length === 0}
+                    onPress={() => {
+                      setMenuOpen(false);
+                      setSheetFundId(expandedId ?? data.funds[0].id);
+                      setSheetMode(option.mode);
+                    }}
+                    style={({ pressed }) => [styles.menuOption, { borderColor: colors.line, opacity: data.funds.length === 0 ? 0.45 : pressed ? 0.7 : 1 }]}>
+                    <View style={styles.flex}>
+                      <AppText weight="semibold" style={styles.menuLabel}>
+                        {option.label}
+                      </AppText>
+                      <AppText color={colors.muted} style={styles.menuHint}>
+                        {option.hint}
+                      </AppText>
+                    </View>
+                    <SvgIcon name="chevronRight" size={16} color={colors.muted} strokeWidth={2} />
+                  </Pressable>
+                ))}
+              </View>
             </View>
           </View>
         </Modal>
@@ -324,7 +387,6 @@ function NameForm({ label, initial, busy, onSave, onCancel, style }: NameFormPro
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   list: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 24, gap: 12 },
-  listWithFab: { paddingBottom: 90 },
   row: { borderWidth: 1, borderRadius: 16, overflow: 'hidden' },
   head: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16 },
   nameCol: { flex: 1, minWidth: 0 },
@@ -344,23 +406,10 @@ const styles = StyleSheet.create({
   smallText: { fontSize: 13.5 },
   addButton: { minHeight: 46, borderRadius: 10, borderWidth: 1, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
   addText: { fontSize: 16 },
-  fab: {
-    position: 'absolute',
-    right: 16,
-    bottom: 16,
-    height: 48,
-    paddingHorizontal: 18,
-    borderRadius: 24,
-    shadowColor: '#0B2A4A',
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 4,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  fabText: { fontSize: 15 },
+  menuTitle: { fontSize: 18, lineHeight: 26 },
+  menuOption: { minHeight: 64, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  menuLabel: { fontSize: 15.5, lineHeight: 21 },
+  menuHint: { fontSize: 12.5, lineHeight: 17 },
   scrim: { flex: 1, justifyContent: 'flex-end' },
   sheet: { borderTopLeftRadius: 22, borderTopRightRadius: 22, maxHeight: '88%' },
   sheetContent: { padding: 16, gap: 12 },

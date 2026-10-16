@@ -1,10 +1,10 @@
 import { router } from 'expo-router';
 import { useMemo } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { ChipRow, EmptyState, ScreenTitle } from '@/components/design';
+import { ChipRow, EmptyState, ScreenTitle, TitleAction } from '@/components/design';
 import { AppRadius } from '@/constants/palette';
 import { categoriesInUse, dayHeading, filterByCategory, groupByDay, periodTitle, periodToParams, suggestedDateFor, sumAmounts } from '@/domain/expenses';
 import { expenseLinkLabel } from '@/domain/expenseTab';
@@ -50,7 +50,7 @@ export default function ExpensesTab() {
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
-      <ScreenTitle title="Chi tiêu" topInset={insets.top} />
+      <ScreenTitle title="Chi tiêu" topInset={insets.top} right={<TitleAction label="Chi tiêu" onPress={addExpense} />} />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 110 + insets.bottom }]} onScrollBeginDrag={() => setOpenId(null)} keyboardShouldPersistTaps="handled">
         {/* Thẻ tổng quan: số tiền là thông tin nổi bật nhất; chỉ tính khoản chi cá nhân của kỳ. */}
         <View style={[styles.hero, { backgroundColor: colors.heroBg }]} accessible accessibilityLabel={`Tổng chi tiêu ${periodTitle(period)}: ${formatVnd(total)}`}>
@@ -104,16 +104,11 @@ export default function ExpensesTab() {
                     {formatVnd(visibleTotal)}
                   </AppText>
                 </View>
-                <Pressable accessibilityRole="button" onPress={addExpense} style={[styles.addButton, { backgroundColor: colors.primarySoft }]}>
-                  <AppText weight="semibold" color={colors.primary} style={styles.addText}>
-                    + Thêm khoản chi
-                  </AppText>
-                </Pressable>
               </View>
 
               {groups.length === 0 ? (
                 items.length === 0 ? (
-                  <EmptyState text="Chưa có khoản chi nào trong kỳ này. Mỗi khoản bạn ghi sẽ hiện ở đây, xếp theo ngày." icon="check" action={{ label: 'Thêm khoản chi', onPress: addExpense }} />
+                  <EmptyState text="Chưa có khoản chi nào trong kỳ này. Mỗi khoản bạn ghi sẽ hiện ở đây, xếp theo ngày." icon="check" />
                 ) : (
                   <EmptyState text="Không có khoản chi nào thuộc danh mục này trong kỳ" icon="check" />
                 )
@@ -181,8 +176,6 @@ const styles = StyleSheet.create({
   listHead: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 6 },
   listTitle: { fontSize: 15, lineHeight: 20 },
   listSub: { fontSize: 12, lineHeight: 16 },
-  addButton: { height: 34, paddingHorizontal: 12, borderRadius: AppRadius.pill, alignItems: 'center', justifyContent: 'center' },
-  addText: { fontSize: 13 },
   day: { gap: 10, paddingHorizontal: 12, paddingTop: 8 },
   dayHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, paddingHorizontal: 2 },
   dayName: { flexShrink: 1, fontSize: 13, lineHeight: 18.85 },

@@ -3,7 +3,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { PrimaryButton, ScreenTitle, SegmentedControl } from '@/components/design';
+import { ScreenTitle, SegmentedControl, TitleAction } from '@/components/design';
 import { DebtPeopleSection, DebtStatCard } from '@/features/debts/DebtOverviewCards';
 import { useDebtData } from '@/features/debts/hooks';
 import { PayTransactions } from '@/features/debts/PayTransactions';
@@ -22,7 +22,7 @@ const SEGMENTS: { value: DebtSegment; label: string }[] = [
 ];
 
 /**
- * Tab "Công nợ": nút "Ghi nhận chuyển tiền" ở phía trên (dùng lại biểu mẫu và service có sẵn), rồi hai mục chuyển bằng segmented control:
+ * Tab "Công nợ": nút "+ Giao dịch" ở hàng tiêu đề phía trên (mở biểu mẫu ghi nhận chuyển tiền có sẵn), rồi hai mục chuyển bằng segmented control:
  * "Công nợ" (tổng nợ hiện tại và từng người còn nợ, bấm để xem chi tiết theo logic hiện có) và "Giao dịch" (lịch sử khoản trả / chuyển tiền
  * của kỳ chung chọn ở Tổng quan). Không có logic tính nợ riêng ở đây.
  */
@@ -35,10 +35,7 @@ export default function DebtsTab() {
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
-      <ScreenTitle title="Công nợ" topInset={insets.top} />
-      <View style={styles.action}>
-        <PrimaryButton label="Ghi nhận chuyển tiền" onPress={() => router.push('/cong-no/ghi-nhan')} />
-      </View>
+      <ScreenTitle title="Công nợ" topInset={insets.top} right={<TitleAction label="Giao dịch" onPress={() => router.push('/cong-no/ghi-nhan')} />} />
       {error ? (
         <View style={[styles.notice, { backgroundColor: colors.dangerSoft }]}>
           <AppText color={colors.danger} style={styles.noticeText}>
@@ -66,7 +63,6 @@ export default function DebtsTab() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  action: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 8 },
   content: { paddingHorizontal: 16, paddingTop: 4, gap: 12 },
   loading: { marginTop: 48 },
   notice: { marginHorizontal: 16, padding: 16, borderRadius: 16 },
