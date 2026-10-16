@@ -20,6 +20,7 @@ import { DebtOverviewCards } from '@/features/debts/DebtOverviewCards';
 import { FundOverviewCard } from '@/features/funds/FundOverviewCard';
 import { PeriodBar } from '@/features/expenses/PeriodBar';
 import { SpentCard } from '@/features/expenses/SpentCard';
+import { useChromeScroll } from '@/hooks/use-chrome';
 import { useColors } from '@/hooks/use-colors';
 import { todayStr } from '@/utils/date';
 
@@ -31,6 +32,7 @@ export default function OverviewScreen() {
   const today = todayStr();
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { ref: scrollRef, props: scrollProps } = useChromeScroll();
   const [view, setView] = useState(() => initialPeriodView(today));
   const [expanded, setExpanded] = useState(false);
   const period = useMemo(() => periodOf(view), [view]);
@@ -48,7 +50,7 @@ export default function OverviewScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
       {/* Phần tử đầu tiên là ô chọn kỳ và được ghim lại khi cuộn (sticky). */}
-      <ScrollView stickyHeaderIndices={[0]} contentContainerStyle={{ paddingBottom: 92 + insets.bottom }}>
+      <ScrollView ref={scrollRef} {...scrollProps} stickyHeaderIndices={[0]} contentContainerStyle={{ paddingBottom: 92 + insets.bottom }}>
         <PeriodBar view={view} onChange={setView} today={today} />
         <View style={styles.body}>
           {message ? (

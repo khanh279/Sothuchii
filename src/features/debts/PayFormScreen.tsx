@@ -26,6 +26,7 @@ import {
 } from '@/domain/payForm';
 import { describeDebtError, useDebtData } from '@/features/debts/hooks';
 import { OptionPicker } from '@/features/debts/OptionPicker';
+import { useChromeScroll } from '@/hooks/use-chrome';
 import { useColors } from '@/hooks/use-colors';
 import type { Bill } from '@/types/bill';
 import type { Pay } from '@/types/pay';
@@ -97,6 +98,7 @@ function PayForm({ bills, pays, people, editIds, source, reload, onFinished }: F
   const toast = useToast();
   const today = todayStr();
   const editing = !!editIds?.length;
+  const { ref: scrollRef, props: scrollProps } = useChromeScroll(!editing);
 
   const [date, setDate] = useState(source?.form.date ?? today);
   const [note, setNote] = useState(source?.form.note ?? '');
@@ -171,7 +173,7 @@ function PayForm({ bills, pays, people, editIds, source, reload, onFinished }: F
   const inputStyle = [styles.input, { backgroundColor: colors.bg, borderColor: colors.line, color: colors.ink, fontFamily: AppFonts.semibold }];
 
   return (
-    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
+    <ScrollView ref={scrollRef} {...scrollProps} contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.line }]}>
         <View style={styles.row}>
           <View style={styles.dateBox}>

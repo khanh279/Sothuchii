@@ -1,10 +1,11 @@
-import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Animated, Easing, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { SvgIcon } from '@/components/svg-icon';
 import { AppRadius } from '@/constants/palette';
+import { useChrome } from '@/hooks/use-chrome';
 import { useColors } from '@/hooks/use-colors';
 
 interface Props {
@@ -20,6 +21,18 @@ export function AddExpenseFab({ onAddPersonal }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
+  const { hidden } = useChrome();
+  const [y] = useState(() => new Animated.Value(0));
+
+  // Cuộn xuống nhanh thì nút trượt xuống khỏi màn hình cùng thanh tab dưới.
+  useEffect(() => {
+    Animated.timing(y, {
+      toValue: hidden ? 140 + insets.bottom : 0,
+      duration: 220,
+      easing: Easing.bezier(0.2, 0.8, 0.2, 1),
+      useNativeDriver: Platform.OS !== 'web',
+    }).start();
+  }, [hidden, insets.bottom, y]);
 
   return (
     <>
@@ -47,25 +60,26 @@ export function AddExpenseFab({ onAddPersonal }: Props) {
         </>
       )}
       {!open && (
-        <Pressable
-          style={[styles.fab, { backgroundColor: colors.primary, bottom: 76 + insets.bottom }]}
-          accessibilityRole="button"
-          accessibilityLabel="Thêm khoản chi"
-          onPress={() => setOpen(true)}>
-          <SvgIcon name="plus" size={18} color={colors.primaryInk} strokeWidth={2.4} />
-          <AppText weight="bold" color={colors.primaryInk} style={styles.fabText}>
-            Chi tiêu
-          </AppText>
-        </Pressable>
+        <Animated.View style={[styles.fabWrap, { bottom: 76 + insets.bottom, transform: [{ translateY: y }] }]} pointerEvents={hidden ? 'none' : 'box-none'}>
+          <Pressable
+            style={[styles.fab, { backgroundColor: colors.primary }]}
+            accessibilityRole="button"
+            accessibilityLabel="Thêm khoản chi"
+            onPress={() => setOpen(true)}>
+            <SvgIcon name="plus" size={18} color={colors.primaryInk} strokeWidth={2.4} />
+            <AppText weight="bold" color={colors.primaryInk} style={styles.fabText}>
+              Chi tiêu
+            </AppText>
+          </Pressable>
+        </Animated.View>
       )}
     </>
   );
 }
 
 const styles = StyleSheet.create({
+  fabWrap: { position: 'absolute', right: 12 },
   fab: {
-    position: 'absolute',
-    right: 12,
     height: 44,
     paddingLeft: 12,
     paddingRight: 16,

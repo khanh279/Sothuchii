@@ -7,6 +7,7 @@ import { ToastProvider } from '@/components/toast';
 import { FONT_ASSETS } from '@/constants/font-assets';
 import { SoTienColors } from '@/constants/palette';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { ChromeProvider } from '@/hooks/use-chrome';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -43,17 +44,19 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={navigationTheme(scheme === 'dark' ? 'dark' : 'light')}>
       <ToastProvider>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="chi-tieu/nhap" />
-          <Stack.Screen name="lich-su" />
-          <Stack.Screen name="quy/lich-su" />
-          <Stack.Screen name="chia-bill/lich-su" />
-          <Stack.Screen name="chia-bill/sua" />
-          <Stack.Screen name="cong-no/lich-su" />
-          <Stack.Screen name="cong-no/sua" />
-          <Stack.Screen name="cong-no/chi-tiet" />
-        </Stack>
+        <ChromeProvider>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="chi-tieu/nhap" />
+            <Stack.Screen name="lich-su" />
+            <Stack.Screen name="quy/lich-su" />
+            <Stack.Screen name="chia-bill/lich-su" />
+            <Stack.Screen name="chia-bill/sua" />
+            <Stack.Screen name="cong-no/lich-su" />
+            <Stack.Screen name="cong-no/sua" />
+            <Stack.Screen name="cong-no/chi-tiet" />
+          </Stack>
+        </ChromeProvider>
       </ToastProvider>
     </ThemeProvider>
   );

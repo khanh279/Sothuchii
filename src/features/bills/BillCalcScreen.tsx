@@ -35,6 +35,7 @@ import { swipeToggle } from '@/domain/swipe';
 import { describeStorageError, useExpenseSettings } from '@/features/expenses/hooks';
 import { MemberPicker } from '@/features/people/MemberPicker';
 import { SplitReceipt } from '@/features/bills/SplitReceipt';
+import { useChromeScroll } from '@/hooks/use-chrome';
 import { useColors } from '@/hooks/use-colors';
 import type { Bill } from '@/types/bill';
 import type { DateStr } from '@/types/expense';
@@ -52,6 +53,7 @@ const BILL_CATEGORY_IDS = ['food', 'fun', 'trip', 'move', 'bill', 'other'];
 export default function BillCalcScreen({ existing = null, onFinished }: { existing?: Bill | null; onFinished?: () => void }) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { ref: scrollRef, props: scrollProps } = useChromeScroll(!existing);
   const today = todayStr();
   const { settings } = useExpenseSettings();
 
@@ -128,7 +130,7 @@ export default function BillCalcScreen({ existing = null, onFinished }: { existi
   };
 
   return (
-    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
+    <ScrollView ref={scrollRef} {...scrollProps} contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.line }]}>
         <TextInput
           value={title}

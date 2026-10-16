@@ -1,10 +1,12 @@
 import { TabList, TabSlot, TabTrigger, Tabs, type TabListProps, type TabTriggerSlotProps } from 'expo-router/ui';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Animated, Easing, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SvgIcon } from '@/components/svg-icon';
 import { AppRadius } from '@/constants/palette';
 import type { IconName } from '@/constants/icons';
+import { useChrome } from '@/hooks/use-chrome';
 import { useColors } from '@/hooks/use-colors';
 import { withAlpha } from '@/utils/color';
 
@@ -35,24 +37,45 @@ export default function FloatingTabs() {
 function FloatingTabList(props: TabListProps) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { hidden } = useChrome();
+  const [y] = useState(() => new Animated.Value(0));
+
+  // Cuộn xuống nhanh thì thanh trượt xuống khỏi màn hình (và không bấm được); cuộn lên thì trượt lại.
+  useEffect(() => {
+    Animated.timing(y, {
+      toValue: hidden ? 120 + insets.bottom : 0,
+      duration: 220,
+      easing: Easing.bezier(0.2, 0.8, 0.2, 1),
+      useNativeDriver: Platform.OS !== 'web',
+    }).start();
+  }, [hidden, insets.bottom, y]);
+
   return (
     <View {...props} pointerEvents="box-none" style={[styles.wrap, { bottom: 10 + insets.bottom }]}>
-      <View
+      <Animated.View
+        pointerEvents={hidden ? 'none' : 'auto'}
         style={[
           styles.bar,
-          { borderColor: colors.line, backgroundColor: withAlpha(colors.surface, 0.94) },
+          { borderColor: colors.line, backgroundColor: withAlpha(colors.surface, 0.94), transform: [{ translateY: y }] },
         ]}>
         {props.children}
-      </View>
+      </Animated.View>
     </View>
   );
 }
 
 function TabButton({ icon, label, isFocused, ...props }: TabTriggerSlotProps & { icon: IconName; label: string }) {
   const colors = useColors();
+  const { scrollToTop, setHidden } = useChrome();
   return (
     <Pressable
       {...props}
+      onPress={(event) => {
+        // Chạm lại tab đang đứng thì cuộn trang về đầu (như PWA); chuyển tab thì luôn hiện lại thanh.
+        if (isFocused) scrollToTop();
+        setHidden(false);
+        props.onPress?.(event);
+      }}
       accessibilityRole="tab"
       accessibilityLabel={label}
       accessibilityState={{ selected: !!isFocused }}

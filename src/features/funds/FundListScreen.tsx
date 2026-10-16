@@ -13,6 +13,7 @@ import { FUND_NAME_MAX, fundBalance } from '@/domain/funds';
 import { ContributionForm } from '@/features/funds/ContributionForm';
 import { FundExpenseForm } from '@/features/funds/FundExpenseForm';
 import { describeFundError, useFundData } from '@/features/funds/hooks';
+import { useChromeScroll } from '@/hooks/use-chrome';
 import { useColors } from '@/hooks/use-colors';
 import type { Fund } from '@/types/fund';
 import { withAlpha } from '@/utils/color';
@@ -27,6 +28,7 @@ type EntryMode = 'thu' | 'chi';
  * cho quỹ tuỳ chọn. Xem / sửa / xoá các lần đóng và khoản chi đã lưu thuộc bước 3E.
  */
 export default function FundListScreen() {
+  const { ref: scrollRef, props: scrollProps } = useChromeScroll();
   const colors = useColors();
   const toast = useToast();
   const insets = useSafeAreaInsets();
@@ -90,6 +92,8 @@ export default function FundListScreen() {
   return (
     <View style={styles.flex}>
       <ScrollView
+        ref={scrollRef}
+        {...scrollProps}
         contentContainerStyle={[styles.list, data.funds.length ? styles.listWithFab : null]}
         onScrollBeginDrag={() => setOpenId(null)}
         keyboardShouldPersistTaps="handled">
