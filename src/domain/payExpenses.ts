@@ -1,21 +1,21 @@
 /**
  * Chi tiêu cá nhân tự sinh từ khoản trả nợ bill (hàm `nxAlloc` và phần khoản trả của `N()` trong PWA), hàm thuần.
  *
- * Chỉ tính khi tôi THỰC SỰ trả bill hoặc gộp nợ làm giảm nợ bill của tôi: số tiền đó được trừ dần (theo thứ tự thời gian,
- * bill cũ trước) vào các bill mà tôi còn nợ người đó, mỗi phần thành một khoản chi cá nhân `src:'cb'` theo mục chi của bill.
+ * Chỉ tính khi tôi THỰC SỰ trả bill hoặc gộp nợ làm giảm nợ bill của tôi: số tiền đó được trừ dần (phân bổ chung
+ * `allocateBillPayments`: theo thứ tự thời gian, bill cũ trước) vào các bill mà tôi còn nợ người đó, mỗi phần thành một khoản chi cá nhân `src:'cb'` theo mục chi của bill.
  * Chỉ LẬP KẾ HOẠCH; việc ghi nằm ở tầng `data` (bước 5B). Tiền của sổ và của khoản chi đều là ĐỒNG.
  */
 
 import { DETAIL_MAX, MEMO_MAX } from '@/constants/categories';
-import { DEFAULT_BILL_CATEGORY, DEFAULT_BILL_TITLE, planBillExpenseSync, type BillSyncAction } from '@/domain/bills';
+import { allocateBillPayments } from '@/domain/billAllocation';
+import { BILL_OWNER_NAME, DEFAULT_BILL_CATEGORY, DEFAULT_BILL_TITLE, planBillExpenseSync, type BillSyncAction } from '@/domain/bills';
 import type { LinkedExpenseSnapshot } from '@/domain/funds';
-import { debtEvents } from '@/domain/ledger';
+import { payClass } from '@/domain/ledger';
 import { payExpenseRefs } from '@/domain/pays';
 import type { Bill } from '@/types/bill';
 import type { DateStr, ExpenseRef } from '@/types/expense';
 import type { Pay, PayAllocation } from '@/types/pay';
 
-const EPS = 1e-3;
 
 /** Ngày dd/mm từ 'YYYY-MM-DD' (`O(date).slice(0,5)`). */
 function dayMonth(date: string): string {
@@ -30,35 +30,15 @@ function dayMonth(date: string): string {
  */
 export function allocatePayments(bills: readonly Bill[], pays: readonly Pay[]): Record<string, PayAllocation[]> {
   const result: Record<string, PayAllocation[]> = {};
-  const queues = new Map<string, { left: number; cat: string; title: string; day: string }[]>();
-  for (const event of debtEvents(bills, pays)) {
-    if (event.led !== 'bill') continue;
-    let queue = queues.get(event.who);
-    if (!queue) {
-      queue = [];
-      queues.set(event.who, queue);
+  for (const [pay, takes] of allocateBillPayments(bills, pays).byPay) {
+    if (String(pay.from || '').trim() !== BILL_OWNER_NAME) continue; // chỉ khi tôi trả họ (nợ của tôi giảm)
+    const label = payClass(pay) === 'bt' ? 'Bù trừ nợ ' : 'Trả ';
+    const kept: PayAllocation[] = [];
+    for (const { slot, amount } of takes) {
+      const a = Math.round(amount);
+      if (a <= 0) continue;
+      kept.push({ a, c: slot.bill.cat || DEFAULT_BILL_CATEGORY, n: slot.bill.title || DEFAULT_BILL_TITLE, d: String(pay.date), i: `${label}${slot.to} · bill ${dayMonth(slot.bill.date)}` });
     }
-    if (event.k === 'bill') {
-      // Tôi nợ người này ở bill này: xếp hàng chờ được trả.
-      if (event.v < 0 && event.bill) {
-        queue.push({ left: -event.v, cat: event.bill.cat || DEFAULT_BILL_CATEGORY, title: event.bill.title || DEFAULT_BILL_TITLE, day: dayMonth(event.bill.date) });
-      }
-      continue;
-    }
-    if (event.v <= 0 || !event.pay) continue; // chỉ khi tôi trả họ (nợ của tôi giảm)
-    const pay = event.pay;
-    let amount = event.v;
-    const label = event.k === 'bt' ? 'Bù trừ nợ ' : 'Trả ';
-    const out: PayAllocation[] = [];
-    for (const item of queue) {
-      if (amount > EPS && item.left > EPS) {
-        const take = Math.min(item.left, amount);
-        item.left -= take;
-        amount -= take;
-        out.push({ a: Math.round(take), c: item.cat, n: item.title, d: String(pay.date), i: `${label}${event.who} · bill ${item.day}` });
-      }
-    }
-    const kept = out.filter((x) => x.a > 0);
     if (kept.length) result[pay.id] = (result[pay.id] ?? []).concat(kept);
   }
   return result;

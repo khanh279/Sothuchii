@@ -4,6 +4,7 @@
  */
 
 import { BILL_OWNER_NAME } from '@/domain/bills';
+import { isOwnerName } from '@/domain/funds';
 import { formatVndInput, maskVndInput, parseVndInput, roundVnd } from '@/domain/money';
 import { isInPeriod } from '@/domain/expenses';
 import { payClass } from '@/domain/ledger';
@@ -12,7 +13,6 @@ import type { DateStr, Period } from '@/types/expense';
 import type { Vnd } from '@/types/money';
 import type { Pay } from '@/types/pay';
 
-const isMe = (name: unknown): boolean => String(name || '') === BILL_OWNER_NAME;
 const clean = (name: unknown): string => String(name || '').trim();
 
 // ───────────────────────── Ô chọn người ─────────────────────────
@@ -25,7 +25,7 @@ export function payNameOptions(bills: readonly Bill[], pays: readonly Pay[], peo
   const names = new Set<string>();
   const add = (name: unknown) => {
     const value = clean(name);
-    if (value && !isMe(value)) names.add(value);
+    if (value && !isOwnerName(value)) names.add(value);
   };
   for (const bill of bills) for (const person of bill.people) add(person.name);
   for (const pay of pays) {
@@ -159,7 +159,7 @@ export function buildPayHistory(pays: readonly Pay[], bills: readonly Bill[], pe
     const rows: PayRow[] = [];
     const groups = new Map<string, { ids: string[]; first: Pay; amt: number; bills: string[]; index: number }>();
     for (const pay of list) {
-      if (!isMe(pay.from) && !isMe(pay.to) && isBillish(pay)) {
+      if (!isOwnerName(pay.from) && !isOwnerName(pay.to) && isBillish(pay)) {
         const key = `${clean(pay.from)}\u0000${clean(pay.to)}`;
         let group = groups.get(key);
         if (!group) {
@@ -188,8 +188,8 @@ export function buildPayHistory(pays: readonly Pay[], bills: readonly Bill[], pe
   return {
     days,
     count: real.length,
-    totalIn: real.filter((pay) => isMe(pay.to)).reduce((sum, pay) => sum + (+pay.amt || 0), 0),
-    totalOut: real.filter((pay) => isMe(pay.from)).reduce((sum, pay) => sum + (+pay.amt || 0), 0),
+    totalIn: real.filter((pay) => isOwnerName(pay.to)).reduce((sum, pay) => sum + (+pay.amt || 0), 0),
+    totalOut: real.filter((pay) => isOwnerName(pay.from)).reduce((sum, pay) => sum + (+pay.amt || 0), 0),
   };
 }
 
@@ -207,7 +207,7 @@ function rowOf(ids: string[], pay: Pay, amt: Vnd, group: boolean, bills: readonl
     title,
     detail,
     note: group ? '' : rawNote,
-    tone: isMe(pay.from) ? 'owe' : isMe(pay.to) ? 'get' : 'mid',
+    tone: isOwnerName(pay.from) ? 'owe' : isOwnerName(pay.to) ? 'get' : 'mid',
     pay,
   };
 }

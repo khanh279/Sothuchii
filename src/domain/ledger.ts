@@ -10,6 +10,7 @@
 
 import { BILL_OWNER_NAME, computeSplit } from '@/domain/bills';
 import { isInPeriod } from '@/domain/expenses';
+import { isOwnerName } from '@/domain/funds';
 import { roundVnd } from '@/domain/money';
 import type { Bill } from '@/types/bill';
 import type { DateStr, Period } from '@/types/expense';
@@ -25,7 +26,6 @@ export const MIN_PAY_AMOUNT = 0.5;
 export const isNearZero = (x: number): boolean => Math.abs(x) < DEBT_ZERO;
 
 /** `y()` của PWA: đúng chữ "Tôi". */
-const isMe = (name: unknown): boolean => String(name || '') === BILL_OWNER_NAME;
 /** `A()` của PWA: cắt khoảng trắng hai đầu. */
 const clean = (name: unknown): string => String(name || '').trim();
 
@@ -67,8 +67,8 @@ export function debtEvents(bills: readonly Bill[], pays: readonly Pay[]): DebtEv
       const from = clean(transfer.from);
       const to = clean(transfer.to);
       const base = { led: 'bill' as const, k: 'bill' as const, bill, d: String(bill.date), c: bill.createdAt || 0 };
-      if (isMe(to) && !isMe(from)) events.push({ ...base, who: from, v: transfer.amt });
-      else if (isMe(from) && !isMe(to)) events.push({ ...base, who: to, v: -transfer.amt });
+      if (isOwnerName(to) && !isOwnerName(from)) events.push({ ...base, who: from, v: transfer.amt });
+      else if (isOwnerName(from) && !isOwnerName(to)) events.push({ ...base, who: to, v: -transfer.amt });
     }
   }
   for (const pay of pays) {
@@ -78,8 +78,8 @@ export function debtEvents(bills: readonly Bill[], pays: readonly Pay[]): DebtEv
     const to = clean(pay.to);
     const cls = payClass(pay);
     const base = { led: cls === 'bt' ? mergeLedger(pay) : cls, k: cls === 'bt' ? ('bt' as const) : ('pay' as const), pay, d: String(pay.date), c: pay.createdAt || 0 };
-    if (isMe(from) && !isMe(to)) events.push({ ...base, who: to, v: amt });
-    else if (isMe(to) && !isMe(from)) events.push({ ...base, who: from, v: -amt });
+    if (isOwnerName(from) && !isOwnerName(to)) events.push({ ...base, who: to, v: amt });
+    else if (isOwnerName(to) && !isOwnerName(from)) events.push({ ...base, who: from, v: -amt });
   }
   return events.sort((a, b) => a.d.localeCompare(b.d) || a.c - b.c);
 }
@@ -239,7 +239,7 @@ export function mergeHistory(pays: readonly Pay[], name: string): MergeRecord[] 
     if (pay.kind !== 'bt' || !pay.grp) continue;
     const from = clean(pay.from);
     const to = clean(pay.to);
-    if (!((from === target && isMe(to)) || (isMe(from) && to === target))) continue;
+    if (!((from === target && isOwnerName(to)) || (isOwnerName(from) && to === target))) continue;
     let record = groups.get(pay.grp);
     if (!record) {
       record = { id: pay.grp, date: pay.date, createdAt: pay.createdAt || 0, loan: 0, bill: 0 };
@@ -265,7 +265,7 @@ export function checkUndoMerge(bills: readonly Bill[], pays: readonly Pay[], gro
   if (!members.length) return { ok: true };
   const mergedAt = Math.max(...members.map((pay) => pay.createdAt || 0));
   const first = members[0];
-  const person = isMe(clean(first.from)) ? clean(first.to) : clean(first.from);
+  const person = isOwnerName(clean(first.from)) ? clean(first.to) : clean(first.from);
   const later = debtEvents(bills, pays).some((event) => event.who === person && event.pay?.grp !== group && event.c > mergedAt);
   return later
     ? { ok: false, message: `Không thể hoàn tác: đã có giao dịch mới với ${person} sau lần gộp nợ này.` }
@@ -355,7 +355,7 @@ export function pairDebts(bills: readonly Bill[], pays: readonly Pay[], period: 
     if (!(amt > 0) || !isInPeriod(String(pay.date), period)) continue;
     if (payLedger(pay) === 'bill') add(clean(pay.from), clean(pay.to), -amt);
   }
-  const rank = (p: PairDebt) => (isMe(p.to) ? 0 : isMe(p.from) ? 1 : 2);
+  const rank = (p: PairDebt) => (isOwnerName(p.to) ? 0 : isOwnerName(p.from) ? 1 : 2);
   return [...map.values()]
     .map((entry) => {
       const value = roundVnd(entry.v);

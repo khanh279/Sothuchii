@@ -26,6 +26,12 @@ type Data = Pick<FundData, 'contribs' | 'expenses'> & Partial<Pick<FundData, 'ad
 export type ExpenseKind = 'direct' | 'personal' | 'advance';
 export const expenseKind = (expense: Pick<FundExpense, 'mode'>): ExpenseKind => expense.mode ?? 'direct';
 
+/** So sánh "ngày tăng dần, bằng ngày thì theo khoá" (cũ trước): dùng để chia tiền theo thứ tự thời gian. */
+const byDateThenKey =
+  <T extends { date: string }>(keyOf: (item: T) => string) =>
+  (a: T, b: T): number =>
+    a.date === b.date ? (keyOf(a) < keyOf(b) ? -1 : 1) : a.date < b.date ? -1 : 1;
+
 const advancesOf = (data: Data): readonly Advance[] => data.advances ?? [];
 const txnsOf = (data: Data): readonly FundTxn[] => data.txns ?? [];
 const sum = (values: readonly number[]): number => values.reduce((total, value) => total + value, 0);
@@ -327,7 +333,7 @@ export function planAdvanceSpend(data: Data, fundId: string | 'all', person: str
   const who = person.trim();
   const advances = advancesOf(data)
     .filter((advance) => (fundId === 'all' || advance.fundId === fundId) && advance.person.trim() === who)
-    .sort((a, b) => (a.date === b.date ? (a.id < b.id ? -1 : 1) : a.date < b.date ? -1 : 1));
+    .sort(byDateThenKey((item) => item.id));
   if (advances.length === 0 || !(amount > 0)) return [];
   const parts: { advanceId: string; fundId: string; amount: Vnd }[] = [];
   let left = amount;
@@ -363,9 +369,7 @@ export function overflowExpense(data: Data, fundId: string, person: string): Fun
       .filter((advance) => ids.has(advance.id))
       .map((advance) => advance.amount),
   );
-  const spends = data.expenses
-    .filter((expense) => expense.advanceId && ids.has(expense.advanceId))
-    .sort((a, b) => (a.date === b.date ? (a.id < b.id ? -1 : 1) : a.date < b.date ? -1 : 1));
+  const spends = data.expenses.filter((expense) => expense.advanceId && ids.has(expense.advanceId)).sort(byDateThenKey((item) => item.id));
   let total = 0;
   let last: FundExpense | null = null;
   for (const expense of spends) {
@@ -393,7 +397,7 @@ export function combinedPayoutLimit(data: Data, targets: readonly FundPayTarget[
  */
 export function planCombinedPayout(data: Data, targets: readonly FundPayTarget[], amount: Vnd): { target: FundPayTarget; amount: Vnd }[] {
   const cashLeft = new Map<string, Vnd>();
-  const ordered = targets.filter((target) => target.kind === 'payout').sort((a, b) => (a.date === b.date ? (a.key < b.key ? -1 : 1) : a.date < b.date ? -1 : 1));
+  const ordered = targets.filter((target) => target.kind === 'payout').sort(byDateThenKey((target) => target.key));
   const parts: { target: FundPayTarget; amount: Vnd }[] = [];
   let left = amount;
   for (const target of ordered) {
@@ -448,6 +452,9 @@ export function defaultExpenseKind(cash: Vnd): ExpenseKind {
   return cash <= 0 ? 'personal' : 'direct';
 }
 
+/** Số tiền tối đa chi trực tiếp được: tiền thực tế trong quỹ cộng số cũ của chính khoản đang sửa (hoàn lại trước khi trừ số mới), không âm. */
+export const directSpendAvailable = (cash: Vnd, previousAmount: Vnd = 0): Vnd => Math.max(0, cash + previousAmount);
+
 /**
  * Chi TRỰC TIẾP từ quỹ: số tiền không được vượt tiền thực tế trong quỹ. `excludeExpenseId` = đang sửa một khoản chi trực tiếp: số cũ của nó
  * được hoàn lại trước khi trừ số mới. Không đổi gì ở hình thức cá nhân ứng / chi từ tiền ứng (không lấy tiền khỏi quỹ lúc ghi).
@@ -456,7 +463,7 @@ export function checkDirectSpend(data: Data, fundId: string, amount: number, exc
   const value = positiveInt(amount);
   if (value <= 0) return { ok: false, message: 'Nhập số tiền lớn hơn 0.' };
   const previous = excludeExpenseId ? data.expenses.find((e) => e.id === excludeExpenseId && e.fundId === fundId && expenseKind(e) === 'direct') : undefined;
-  const available = Math.max(0, fundCash(data, fundId) + (previous?.amount ?? 0));
+  const available = directSpendAvailable(fundCash(data, fundId), previous?.amount ?? 0);
   if (value > available) return { ok: false, message: FUND_INSUFFICIENT_MESSAGE };
   return { ok: true, amount: value };
 }

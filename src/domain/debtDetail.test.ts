@@ -1,7 +1,7 @@
 import type { Bill } from '@/types/bill';
 import type { Pay } from '@/types/pay';
 
-import { buildDebtDetail, buildPairDetail, groupByDay, groupByMonth, isMonthMode, ledgerSubtitle, toneOf } from './debtDetail';
+import { buildDebtDetail, buildPairDetail, groupDebtRowsByDay, groupDebtRowsByMonth, isMonthMode, ledgerSubtitle, toneOf } from './debtDetail';
 
 // DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng. Tiền là ĐỒNG.
 const p = (name: string, paid: number) => ({ name, paid, w: 1 });
@@ -34,15 +34,15 @@ describe('tiện ích', () => {
       { d: '2025-10-01', v: 200, t: 'b', s: '', tone: 'get' as const },
       { d: '2025-11-05', v: -5000, t: 'c', s: '', tone: 'owe' as const },
     ];
-    expect(groupByDay(rows).map((g) => [g.date, g.net, g.tone, g.rows.length])).toEqual([['2025-10-01', 300, 'get', 2], ['2025-11-05', -5000, 'owe', 1]]);
-    expect(groupByMonth(rows).map((g) => [g.month, g.net, g.count])).toEqual([['2025-10', 300, 2], ['2025-11', -5000, 1]]);
+    expect(groupDebtRowsByDay(rows).map((g) => [g.date, g.net, g.tone, g.rows.length])).toEqual([['2025-10-01', 300, 'get', 2], ['2025-11-05', -5000, 'owe', 1]]);
+    expect(groupDebtRowsByMonth(rows).map((g) => [g.month, g.net, g.count])).toEqual([['2025-10', 300, 2], ['2025-11', -5000, 1]]);
   });
 
   it('chi tiết cặp: dòng đầu trung tính thì cả ngày trung tính', () => {
     const mid = [{ d: '2025-10-01', v: 5000, t: 'a', s: '', tone: 'mid' as const }];
-    expect(groupByDay(mid, true)[0].tone).toBe('mid');
-    expect(groupByMonth(mid, true)[0].tone).toBe('mid');
-    expect(groupByDay(mid, false)[0].tone).toBe('get');
+    expect(groupDebtRowsByDay(mid, true)[0].tone).toBe('mid');
+    expect(groupDebtRowsByMonth(mid, true)[0].tone).toBe('mid');
+    expect(groupDebtRowsByDay(mid, false)[0].tone).toBe('get');
   });
 });
 

@@ -15,6 +15,7 @@ import {
   personalDebtLabel,
   planAdvanceSpend,
   planCombinedPayout,
+  directSpendAvailable,
 } from './fundAdvance';
 
 // DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng. Tiền: ĐỒNG.
@@ -363,5 +364,14 @@ describe('overflowExpense — khoản chi làm A chi vượt tiền được gia
     const e = (id: string, date: string, amount: number): FundExpense => ({ id, fundId: F, title: id, date, amount, mode: 'advance', advanceId: 'a1' }) as FundExpense;
     expect(overflowExpense(data({ advances: [adv], expenses: [e('x', '2025-01-02', 300_000)] }), F, 'A')).toBeNull();
     expect(overflowExpense(data({ advances: [adv], expenses: [e('x', '2025-01-02', 300_000), e('y', '2025-01-03', 400_000)] }), F, 'A')?.id).toBe('y');
+  });
+});
+
+describe('directSpendAvailable', () => {
+  it('tiền thực tế cộng số cũ của khoản đang sửa, không âm', () => {
+    expect(directSpendAvailable(500_000)).toBe(500_000);
+    expect(directSpendAvailable(100_000, 40_000)).toBe(140_000);
+    expect(directSpendAvailable(-20_000)).toBe(0);
+    expect(directSpendAvailable(-20_000, 5000)).toBe(0);
   });
 });

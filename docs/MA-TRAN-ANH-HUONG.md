@@ -77,12 +77,12 @@ Viết tắt kho: **CT** = `sct:m:*`, **Q** = `quy_nhom_v1`, **B** = `chiabill:v
 | R-3 | **Không có giao dịch xuyên kho**: B/P/CT/Q có hàng đợi riêng; đồng bộ là bước sau và có thể lỗi (`syncFailed`). Trong khoảng đó Tổng quan có thể tạm thiếu/dư khoản chi tự sinh. Thiết kế "tạo trước – xóa sau – ghi liên kết – dọn mồ côi" giảm thiểu mất tiền | ✅ `billSync.ts`, `fundSync.ts` | ⚠️ |
 | R-4 | **Xóa khoản chi `mode:'advance'` có thể làm lệch số dư hồ sơ ứng** nếu hồ sơ đã có `payout` gắn `advanceId` (quỹ đã trả phần vượt): `deleteFundExpense` chỉ chặn theo `expenseId`; `updateAdvance` chỉ kiểm khi **tăng** số giao | ✅ đọc `fundRepository.deleteFundExpense/updateAdvance`; ⚠️ chưa chạy ca cụ thể | ⚠️ cần test hồi quy |
 | R-5 | Bảo vệ khoản tự sinh (`src quy/cb`) chỉ ở UI/route; `expenseRepository.updateExpense/deleteExpense` không kiểm `src` | ✅ không thấy kiểm `src` trong repository | ⚠️ sync hoàn lại khi sửa trực tiếp (theo chú thích `linkedExpense.ts`) |
-| R-6 | So sánh tên "Tôi" không đồng nhất: `ledger.isMe` so nguyên chuỗi (`=== 'Tôi'`); `ownContributionTotal` so sau `trim()`; `desiredBillExpense` so `row.name === 'Tôi'`; `storedPerson` lưu `String(name)` không trim | ✅ đọc các hàm | ⚠️ tên có khoảng trắng có thể bị coi là người khác ở một chỗ nhưng là "Tôi" ở chỗ khác |
+| R-6 | ✅ Đã thống nhất: mọi nơi so tên "Tôi" dùng `isOwnerName` (`funds.ts`, có `trim`). Còn lại vài chỗ so `=== BILL_OWNER_NAME` trên tên đã được làm sạch từ trước (ví dụ `pair.from`) | ✅ | thấp |
 | R-7 | ~~Hai đơn vị `Vnd`/`Nghin`~~ — **đã bỏ**: mọi tiền là đồng. Rủi ro còn lại: dữ liệu cũ phải qua `ensureVndUnits`; thao tác đọc `bills`/`pays` KHÔNG đi qua `readBillsRaw`/`readPaysRaw` sẽ thấy dữ liệu nghìn đồng chưa chuyển (hiện chỉ `backupRepository`, đã gọi `ensureVndUnits`) | ✅ `data/moneyMigration.ts` | ⚠️ cần giữ kỷ luật khi thêm chỗ đọc mới |
 | R-8 | Sửa/xóa **bill đã có khoản trả**: vì phân bổ không lưu, trạng thái đã trả và các khoản chi `cb` "Trả …" được tính lại; khoản trả không bị xóa theo bill | ✅ `deleteBill`, `billTransferStatuses` | ⚠️ chưa xác minh UI có cảnh báo |
 | R-9 | Khôi phục không chạy Sync ngay; CT `src` có thể lệch tới lần mở màn tiếp theo | ✅ `restoreFromText` không gọi sync | ⚠️ |
 | R-10 | Số "Chia bill" (tổng hóa đơn) khác "Chi tiêu" (phần của Tôi) trên cùng màn Tổng quan: dễ hiểu nhầm | ✅ `buildBillOverviewCard` vs `sumAmounts` | Thiết kế |
-| R-11 | Ba bản cài FIFO, hai quy tắc kiểm tiền quỹ (D-1…D-4 ở `SO-DO-TAI-SU-DUNG.md`) | ✅ | ⚠️ |
+| R-11 | ~~Ba bản cài FIFO, hai quy tắc kiểm tiền quỹ~~ — đã gộp (D-1, D-2 ở `SO-DO-TAI-SU-DUNG.md`); còn D-3, D-4, D-7 là trùng nhẹ | ✅ | thấp |
 | R-12 | `src/app/chia-bill/sua.tsx` tự gọi `loadBills()` (tầng route chứa truy cập dữ liệu), trái quy tắc phụ thuộc ở `KIEN-TRUC-DU-AN.md` | ✅ | nhẹ |
 
 ## 4. Tài liệu ≠ code

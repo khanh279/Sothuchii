@@ -130,7 +130,8 @@ flowchart TD
   ledger["ledger.ts<br/>debtEvents, personLedger, allDebts,<br/>pairDebts, paymentDraft, mergeDrafts"]
   billPayment["billPayment.ts<br/>billTransferStatuses"]
   billPairs["billPairs.ts<br/>buildBillPairs"]
-  billPerson["billPerson.ts<br/>personBillRows (allocateForPerson)"]
+  billAlloc["billAllocation.ts<br/>allocateBillPayments (DUY NHẤT)"]
+  billPerson["billPerson.ts<br/>personBillRows"]
   payExpenses["payExpenses.ts<br/>allocatePayments, planDebtExpenseSync"]
   debtPay["debtPay.ts<br/>planDebtPayment"]
   debtDetail["debtDetail.ts<br/>buildDebtDetail"]
@@ -144,7 +145,11 @@ flowchart TD
   bills --> money
   bills --> funds
   ledger --> bills
-  billPayment --> bills
+  billPayment --> billAlloc
+  billAlloc --> bills
+  billAlloc --> ledger
+  billPerson --> billAlloc
+  payExpenses --> billAlloc
   billPayment --> ledger
   billPairs --> billPayment
   billPerson --> ledger
@@ -235,10 +240,10 @@ flowchart TD
 
 | # | Mô tả | Vị trí | Mức |
 |---|---|---|---|
-| D-1 | **Ba bản cài đặt cùng quy tắc FIFO phân bổ khoản trả vào bill cũ → mới** | `payExpenses.allocatePayments` (cho chi tiêu cá nhân, chỉ chiều "tôi trả họ", ngưỡng `EPS=1e-6`); `billPerson.allocateForPerson` (private, hai chiều với "Tôi", làm tròn `r3`); `billPayment.billTransferStatuses` (mọi cặp, `r3` + `DEBT_ZERO`) | ⚠️ Chú thích trong `billPayment.ts` nói kết quả của cặp có "Tôi" trùng `personBillRows` — **dựa vào test, chưa xác minh lại trong lượt này** |
-| D-2 | Quy tắc "chi trực tiếp không vượt tiền thực tế" viết **hai lần**: `checkDirectSpend` (kho) và so sánh `amount > Math.max(0, cash + previous)` ngay trong `FundExpenseForm.save` | `fundAdvance.ts` / `FundExpenseForm.tsx` | ⚠️ cùng ý, hai chỗ sửa |
+| D-1 | ✅ **ĐÃ GỘP**: ba bản FIFO (`allocatePayments`, `allocateForPerson`, `billTransferStatuses`) nay là ba cách nhìn của `allocateBillPayments` (`billAllocation.ts`). Đã so kết quả trước/sau trên 4.000 tổ hợp ngẫu nhiên: giống hệt; có `billAllocation.test.ts` giữ ba cách nhìn không lệch | `billAllocation`, `billPayment`, `billPerson`, `payExpenses` | xong |
+| D-2 | ✅ **ĐÃ GỘP**: giới hạn chi trực tiếp lấy từ `directSpendAvailable(cash, previous)` (`fundAdvance.ts`), dùng cho cả `checkDirectSpend` (kho) và `FundExpenseForm` | `fundAdvance.ts`, `FundExpenseForm.tsx` | xong |
 | D-3 | Cảnh báo "chi vượt số dư" dùng **`overspends(balance, …)`** (số dư = thu − chi) trong khi chặn thật dùng **tiền thực tế** (`cash`) | `fundForms.overspends` vs `checkDirectSpend` | ⚠️ hai thước đo khác nhau, cùng một form |
 | D-4 | `PaymentPanel` tự kiểm số tiền (`checkAmount`) trong khi `checkRefund/checkPayout/checkPairPayment` đã có ở domain | `components/payment-panel.tsx` | ⚠️ UI chứa quy tắc kiểm; kho vẫn kiểm lại |
-| D-5 | Hai hàm `groupByDay` cùng tên (`expenses.ts`, `debtDetail.ts`) và hai kiểu `DayGroup`, hai kiểu `Tone`/`PayRow`… | domain | nhẹ, dễ nhầm khi import |
-| D-6 | So tên "Tôi": `ledger.isMe` so **không trim** (`=== 'Tôi'`); `funds.ownContributionTotal` so sau `trim()`; `bills.desiredBillExpense` so `row.name === BILL_OWNER_NAME` (không trim) | | ⚠️ xem R-6 |
+| D-5 | ✅ Đã đổi tên hàm của công nợ thành `groupDebtRowsByDay` / `groupDebtRowsByMonth` (tránh trùng `groupByDay` của chi tiêu) | `debtDetail.ts` | xong |
+| D-6 | ✅ **ĐÃ GỘP**: một hàm `isOwnerName` (`funds.ts`, so sau `trim`) thay cho bốn bản `isMe` cục bộ và phép so trong `ownContributionTotal` | `funds.ts`, `ledger`, `debtDetail`, `payForm`, `recentTransactions` | xong |
 | D-7 | `ExpenseDetailScreen` tự định nghĩa `Field`/khối Số tiền riêng thay vì `detail-parts` (`BillDetailScreen` cũng không dùng `detail-parts`) | | nhẹ |

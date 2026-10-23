@@ -17,7 +17,7 @@ import { createAdvanceSynced, saveFundExpenseSynced, updateAdvanceSynced } from 
 import { AppRadius } from '@/constants/palette';
 import { FUND_TITLE_MAX, fundExpenseSavedMessage, overspends, validateFundExpense } from '@/domain/fundForms';
 import { newExpenseId } from '@/domain/expenses';
-import { FUND_INSUFFICIENT_MESSAGE, defaultExpenseKind, splitByCash, type ExpenseKind, type SpendSplit } from '@/domain/fundAdvance';
+import { FUND_INSUFFICIENT_MESSAGE, defaultExpenseKind, directSpendAvailable, splitByCash, type ExpenseKind, type SpendSplit } from '@/domain/fundAdvance';
 import { formatVnd } from '@/utils/format';
 import { describeFundError } from '@/features/funds/hooks';
 import { PersonPicker } from '@/features/people/PersonPicker';
@@ -321,7 +321,7 @@ export function FundExpenseForm({
     }
     if (mode === 'direct' && !existing?.mode) {
       const previous = existing ? existing.amount : 0;
-      if (amount > Math.max(0, cash + previous) && amount > previous) {
+      if (amount > directSpendAvailable(cash, previous) && amount > previous) {
         // Thêm mới: thẻ thông báo nổi kèm lối chọn Cá nhân ứng chi; đang sửa thì chỉ báo lỗi.
         if (adding) setShortfall(true);
         else setError(FUND_INSUFFICIENT_MESSAGE);

@@ -17,6 +17,7 @@ import {
   sortFundsByAbsBalance,
   type FundSyncAction,
   type LinkedExpenseSnapshot,
+  isOwnerName,
 } from './funds';
 
 // DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng.
@@ -484,5 +485,16 @@ describe('fundMembers — người thuộc một quỹ', () => {
 
   it('quỹ không có ai thì rỗng', () => {
     expect(fundMembers(data, 'f3')).toEqual([]);
+  });
+});
+
+describe('isOwnerName', () => {
+  it('so khớp "Tôi" sau khi cắt khoảng trắng, phân biệt hoa thường; giá trị lạ là false', () => {
+    expect(isOwnerName('Tôi')).toBe(true);
+    expect(isOwnerName('  Tôi ')).toBe(true);
+    expect(isOwnerName('tôi')).toBe(false);
+    expect(isOwnerName('An')).toBe(false);
+    expect(isOwnerName(undefined)).toBe(false);
+    expect(isOwnerName(null)).toBe(false);
   });
 });

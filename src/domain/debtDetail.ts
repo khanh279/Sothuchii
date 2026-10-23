@@ -4,8 +4,8 @@
  * Tiền là ĐỒNG.
  */
 
-import { BILL_OWNER_NAME } from '@/domain/bills';
 import { isInPeriod } from '@/domain/expenses';
+import { isOwnerName } from '@/domain/funds';
 import { DEBT_ZERO, canMerge, debtEvents, isNearZero, ledgerItems, mergeAmount, mergeHistory, pairNet, personLedger, type LedgerItem, type MergeRecord } from '@/domain/ledger';
 import type { Bill } from '@/types/bill';
 import type { DateStr, Period } from '@/types/expense';
@@ -17,8 +17,6 @@ export type Tone = 'get' | 'owe' | 'mid';
 
 /** Màu theo dấu (`nxCl`): dương = nhận (xanh), âm = trả (đỏ), gần 0 = trung tính. */
 export const toneOf = (value: number): Tone => (value > 0.5 ? 'get' : value < -0.5 ? 'owe' : 'mid');
-
-const isMe = (name: unknown): boolean => String(name || '') === BILL_OWNER_NAME;
 
 export interface DebtRow extends LedgerItem {
   tone: Tone;
@@ -48,7 +46,7 @@ export function isMonthMode(period: Period): boolean {
 }
 
 /** Gom các dòng theo ngày (`nxDays`). Dòng có `tone` cố định (chi tiết cặp) giữ nguyên; ngày có dòng trung tính thì cả ngày trung tính. */
-export function groupByDay(rows: readonly DebtRow[], fixedTone = false): DayGroup[] {
+export function groupDebtRowsByDay(rows: readonly DebtRow[], fixedTone = false): DayGroup[] {
   const order: DateStr[] = [];
   const map = new Map<DateStr, DebtRow[]>();
   for (const row of rows) {
@@ -66,7 +64,7 @@ export function groupByDay(rows: readonly DebtRow[], fixedTone = false): DayGrou
 }
 
 /** Gom các dòng theo tháng (`nxGroupBill` khi không ở chế độ tháng). */
-export function groupByMonth(rows: readonly DebtRow[], fixedTone = false): MonthGroup[] {
+export function groupDebtRowsByMonth(rows: readonly DebtRow[], fixedTone = false): MonthGroup[] {
   const order: string[] = [];
   const map = new Map<string, DebtRow[]>();
   for (const row of rows) {
@@ -80,7 +78,7 @@ export function groupByMonth(rows: readonly DebtRow[], fixedTone = false): Month
   return order.map((month) => {
     const list = map.get(month) ?? [];
     const net = roundVnd(list.reduce((sum, row) => sum + row.v, 0));
-    return { month, net, tone: fixedTone && list.some((row) => row.tone === 'mid') ? 'mid' : toneOf(net), count: list.length, days: groupByDay(list, fixedTone) };
+    return { month, net, tone: fixedTone && list.some((row) => row.tone === 'mid') ? 'mid' : toneOf(net), count: list.length, days: groupDebtRowsByDay(list, fixedTone) };
   });
 }
 
@@ -161,8 +159,8 @@ export function buildDebtDetail(
     billSubtitle: ledgerSubtitle(ledger.bill, who),
     billPeriodTotal: period.mode === 'all' ? null : roundVnd(inPeriod.reduce((sum, item) => sum + item.v, 0)),
     monthMode,
-    billDays: monthMode ? groupByDay(rows) : [],
-    billMonths: monthMode ? [] : groupByMonth(rows),
+    billDays: monthMode ? groupDebtRowsByDay(rows) : [],
+    billMonths: monthMode ? [] : groupDebtRowsByMonth(rows),
     billEmpty: inPeriod.length === 0,
     settled: isNearZero(ledger.loan) && isNearZero(ledger.bill),
     canMerge: mergeable,
@@ -203,16 +201,16 @@ export function buildPairDetail(
 ): PairDetail {
   const net = pairNet(bills, pays, x, z, period, categoryName);
   const monthMode = isMonthMode(period);
-  const me = isMe(x) || isMe(z);
+  const me = isOwnerName(x) || isOwnerName(z);
   const debtor = net.from;
   const creditor = net.to;
-  const label = isMe(debtor) ? `Tôi nợ ${creditor}` : isMe(creditor) ? `${debtor} nợ tôi` : `${debtor} nợ ${creditor}`;
-  const tone: Tone = isMe(debtor) ? 'owe' : isMe(creditor) ? 'get' : 'mid';
+  const label = isOwnerName(debtor) ? `Tôi nợ ${creditor}` : isOwnerName(creditor) ? `${debtor} nợ tôi` : `${debtor} nợ ${creditor}`;
+  const tone: Tone = isOwnerName(debtor) ? 'owe' : isOwnerName(creditor) ? 'get' : 'mid';
   const rows: DebtRow[] = net.items.map((item) => {
-    const v = me ? (isMe(z) ? item.s : -item.s) : debtor === x ? item.s : -item.s;
+    const v = me ? (isOwnerName(z) ? item.s : -item.s) : debtor === x ? item.s : -item.s;
     return { d: item.d, v, t: item.t, s: item.x, tone: me ? toneOf(v) : 'mid' };
   });
-  const other = isMe(x) ? z : isMe(z) ? x : null;
+  const other = isOwnerName(x) ? z : isOwnerName(z) ? x : null;
   const ledger = other ? personLedger(debtEvents(bills, pays), other) : null;
   return {
     empty: net.items.length === 0,
@@ -220,8 +218,8 @@ export function buildPairDetail(
     tone,
     amount: net.amt,
     monthMode,
-    days: monthMode ? groupByDay(rows, true) : [],
-    months: monthMode ? [] : groupByMonth(rows, true),
+    days: monthMode ? groupDebtRowsByDay(rows, true) : [],
+    months: monthMode ? [] : groupDebtRowsByMonth(rows, true),
     canPay: net.amt >= DEBT_ZERO,
     other,
     canMerge: ledger ? canMerge(ledger) : false,

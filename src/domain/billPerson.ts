@@ -5,11 +5,12 @@
  * - Thanh toán: kiểm tra số tiền nhập (`checkPairPayment`).
  *
  * Khác "số dư công nợ" (`personLedger`: toàn thời gian, tách sổ vay / bill, có cả khoản vay): ở đây chỉ nói về BILL.
- * Đã thanh toán của từng bill dùng đúng quy tắc phân bổ sẵn có của app (`allocatePayments`): mỗi khoản trả sổ bill (kể cả gộp nợ)
+ * Đã thanh toán của từng bill dùng phân bổ chung `allocateBillPayments` (`billAllocation.ts`): mỗi khoản trả sổ bill (kể cả gộp nợ)
  * trừ dần vào các bill còn nợ của người đó theo thứ tự thời gian, bill cũ trước; trả dư thì phần dư không thuộc bill nào.
  * Số của kỳ đang xem là tổng còn lại của CÁC BILL TRONG KỲ, nên không phụ thuộc ngày ghi khoản trả.
  */
 
+import { allocateBillPayments } from '@/domain/billAllocation';
 import { BILL_OWNER_NAME } from '@/domain/bills';
 import { toneOf, type Tone } from '@/domain/debtDetail';
 import { isInPeriod } from '@/domain/expenses';
@@ -25,39 +26,6 @@ const clean = (name: unknown): string => String(name || '').trim();
 
 /** Chiều nợ của một bill với một người: -1 tôi nợ họ, 1 họ nợ tôi. */
 type Direction = -1 | 1;
-
-interface Slot {
-  bill: Bill;
-  dir: Direction;
-  size: Vnd;
-  left: Vnd;
-}
-
-/** Phân bổ các khoản trả sổ bill vào từng bill của MỘT người (mọi thời gian), theo `allocatePayments`. Khoá: mã bill. */
-function allocateForPerson(bills: readonly Bill[], pays: readonly Pay[], who: string): Map<string, Slot> {
-  const slots = new Map<string, Slot>();
-  const queues: Record<Direction, Slot[]> = { [-1]: [], [1]: [] };
-  for (const event of debtEvents(bills, pays)) {
-    if (event.led !== 'bill' || event.who !== who) continue;
-    if (event.k === 'bill') {
-      if (!event.bill) continue;
-      const dir: Direction = event.v < 0 ? -1 : 1;
-      const slot: Slot = { bill: event.bill, dir, size: roundVnd(Math.abs(event.v)), left: roundVnd(Math.abs(event.v)) };
-      slots.set(event.bill.id, slot);
-      queues[dir].push(slot);
-      continue;
-    }
-    // Khoản trả / gộp nợ: tôi trả họ (v > 0) giảm nợ của tôi; họ trả tôi (v < 0) giảm nợ của họ.
-    let amount = Math.abs(event.v);
-    for (const slot of queues[event.v > 0 ? -1 : 1]) {
-      if (amount <= 0) break;
-      const take = Math.min(slot.left, amount);
-      slot.left = roundVnd(slot.left - take);
-      amount = roundVnd(amount - take);
-    }
-  }
-  return slots;
-}
 
 export interface PersonBillRow {
   /** Mã bill (dùng để mở chi tiết bill; không dùng tên, ngày hay số tiền). */
@@ -87,19 +55,22 @@ export interface PersonBills {
 /** Cấp 2: các bill của `person` trong kỳ, từ bill cũ đến mới (cũng là thứ tự phân bổ thanh toán). */
 export function personBillRows(bills: readonly Bill[], pays: readonly Pay[], person: string, period: Period): PersonBills {
   const who = clean(person);
-  const slots = allocateForPerson(bills, pays, who);
   const rows: PersonBillRow[] = [];
-  for (const slot of slots.values()) {
-    if (!isInPeriod(slot.bill.date, period)) continue;
-    rows.push({
-      id: slot.bill.id,
-      title: slot.bill.title || 'Không tên',
-      date: String(slot.bill.date),
-      amount: slot.dir * slot.size,
-      paid: roundVnd(slot.size - slot.left),
-      remaining: slot.left,
-      dir: slot.dir,
-    });
+  for (const slots of allocateBillPayments(bills, pays).byBill.values()) {
+    for (const slot of slots) {
+      // Chỉ khoản chuyển giữa "Tôi" và người này: họ phải chuyển cho tôi (dir 1) hoặc tôi phải chuyển cho họ (dir -1).
+      const dir: Direction | 0 = slot.from === who && slot.to === BILL_OWNER_NAME ? 1 : slot.from === BILL_OWNER_NAME && slot.to === who ? -1 : 0;
+      if (dir === 0 || !isInPeriod(slot.bill.date, period)) continue;
+      rows.push({
+        id: slot.bill.id,
+        title: slot.bill.title || 'Không tên',
+        date: String(slot.bill.date),
+        amount: dir * slot.amount,
+        paid: roundVnd(slot.amount - slot.left),
+        remaining: slot.left,
+        dir,
+      });
+    }
   }
   const dateOf = new Map(bills.map((bill) => [bill.id, bill.createdAt || 0]));
   rows.sort((a, b) => a.date.localeCompare(b.date) || (dateOf.get(a.id) ?? 0) - (dateOf.get(b.id) ?? 0));

@@ -15,6 +15,9 @@ import { todayStr } from '@/utils/date';
 
 /** Tên người dùng tự nhập khi đóng quỹ để chỉ phần của chính mình; so khớp sau khi cắt khoảng trắng, phân biệt hoa thường. */
 export const FUND_OWNER_NAME = 'Tôi';
+
+/** Có phải chính người dùng ("Tôi") không: so khớp sau khi cắt khoảng trắng. DUY NHẤT một cách so tên cho Quỹ, Chia bill và Công nợ. */
+export const isOwnerName = (name: unknown): boolean => String(name ?? '').trim() === FUND_OWNER_NAME;
 export const FUND_NAME_MAX = 40;
 export const DEFAULT_FUND_NAME = 'Quỹ';
 export const DEFAULT_CONTRIBUTION_TITLE = 'Đóng quỹ';
@@ -201,7 +204,7 @@ export function sortFundsByAbsBalance(data: Pick<FundData, 'funds' | 'contribs' 
 /** Phần tiền của chính người dùng trong một lần đóng quỹ (tên "Tôi" sau khi cắt khoảng trắng, cộng nhiều dòng). */
 export function ownContributionTotal(contribution: Pick<Contribution, 'people'>): Vnd {
   return contribution.people
-    .filter((person) => String(person.name).trim() === FUND_OWNER_NAME)
+    .filter((person) => isOwnerName(person.name))
     .reduce((sum, person) => sum + (Number(person.amount) || 0), 0);
 }
 

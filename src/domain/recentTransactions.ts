@@ -12,7 +12,7 @@
  * Tiền: khoản chi và khoản trả đều lưu ĐỒNG.
  */
 
-import { BILL_OWNER_NAME } from '@/domain/bills';
+import { isOwnerName } from '@/domain/funds';
 import { payClass } from '@/domain/ledger';
 import type { DateStr, ExpenseWithId } from '@/types/expense';
 import type { Vnd } from '@/types/money';
@@ -43,7 +43,6 @@ export interface RecentTransaction {
 }
 
 const clean = (name: unknown): string => String(name || '').trim();
-const isMe = (name: unknown): boolean => clean(name) === BILL_OWNER_NAME;
 
 export interface RecentInput {
   expenses: readonly ExpenseWithId[];
@@ -89,8 +88,8 @@ export function buildRecentTransactions({ expenses, pays, categoryName, limit }:
     if (cls === 'bt') continue;
     const from = clean(pay.from);
     const to = clean(pay.to);
-    const out = isMe(from) && !isMe(to);
-    const incoming = isMe(to) && !isMe(from);
+    const out = isOwnerName(from) && !isOwnerName(to);
+    const incoming = isOwnerName(to) && !isOwnerName(from);
     if (!out && !incoming) continue;
     const bill = cls === 'bill';
     const typeLabel = bill ? 'Trả bill' : 'Chuyển tiền';
