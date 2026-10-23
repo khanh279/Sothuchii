@@ -3,42 +3,42 @@ import type { Pay } from '@/types/pay';
 
 import { buildDebtOverview } from './debtOverview';
 
-// DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng. Tiền là NGHÌN đồng.
+// DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng. Tiền là ĐỒNG.
 const p = (name: string, paid: number) => ({ name, paid, w: 1 });
 const bill = (id: string, date: string, createdAt: number, people: ReturnType<typeof p>[]): Bill => ({ id, title: id, date, createdAt, cat: 'food', people });
 const pay = (id: string, from: string, to: string, amt: number, over: Partial<Pay> = {}): Pay => ({ id, createdAt: 10, date: '2025-10-05', note: '', from, to, amt, ...over });
 
-const B1 = bill('B1', '2025-10-01', 1, [p('Tôi', 0), p('An', 90), p('Bình', 0)]); // Tôi nợ An 30, Bình nợ An 30
-const B2 = bill('B2', '2025-10-03', 2, [p('Tôi', 40), p('Chi', 0)]); // Chi nợ tôi 20
-const LOAN = pay('L', 'Tôi', 'An', 50, { kind: 'vay', date: '2025-10-02' }); // An nợ tôi 50 (vay)
+const B1 = bill('B1', '2025-10-01', 1, [p('Tôi', 0), p('An', 90_000), p('Bình', 0)]); // Tôi nợ An 30, Bình nợ An 30
+const B2 = bill('B2', '2025-10-03', 2, [p('Tôi', 40_000), p('Chi', 0)]); // Chi nợ tôi 20
+const LOAN = pay('L', 'Tôi', 'An', 50_000, { kind: 'vay', date: '2025-10-02' }); // An nợ tôi 50 (vay)
 
 describe('buildDebtOverview', () => {
   it('mỗi người một tổng đại số vay + bill; tổng đầu khung tính từ tổng ròng', () => {
     const o = buildDebtOverview([B1, B2], [LOAN], { mode: 'all' });
     // An: vay +50, bill −30 → +20; Chi: bill +20
-    expect(o).toMatchObject({ owe: 0, get: 40, oweSigned: false, getSigned: true });
+    expect(o).toMatchObject({ owe: 0, get: 40_000, oweSigned: false, getSigned: true });
     expect(o.people).toEqual([
-      { name: 'An', total: 20, tone: 'get' },
-      { name: 'Chi', total: 20, tone: 'get' },
+      { name: 'An', total: 20_000, tone: 'get' },
+      { name: 'Chi', total: 20_000, tone: 'get' },
     ]);
   });
 
   it('ví dụ yêu cầu: vay +700 và bill −200 hiển thị +500 màu xanh', () => {
-    const o = buildDebtOverview([bill('B', '2025-10-01', 1, [p('Tôi', 0), p('An', 400)])], [pay('L', 'Tôi', 'An', 700, { kind: 'vay' })], { mode: 'all' });
-    expect(o.people).toEqual([{ name: 'An', total: 500, tone: 'get' }]);
-    expect(o.get).toBe(500);
+    const o = buildDebtOverview([bill('B', '2025-10-01', 1, [p('Tôi', 0), p('An', 400_000)])], [pay('L', 'Tôi', 'An', 700_000, { kind: 'vay' })], { mode: 'all' });
+    expect(o.people).toEqual([{ name: 'An', total: 500_000, tone: 'get' }]);
+    expect(o.get).toBe(500_000);
     expect(o.owe).toBe(0);
   });
 
   it('hai sổ cùng chiều cộng dồn; tổng âm là "tôi nợ" (đỏ)', () => {
-    const o = buildDebtOverview([B1], [pay('L', 'An', 'Tôi', 100, { kind: 'vay' })], { mode: 'all' });
-    expect(o.people).toEqual([{ name: 'An', total: -130, tone: 'owe' }]);
-    expect(o.owe).toBe(130);
+    const o = buildDebtOverview([B1], [pay('L', 'An', 'Tôi', 100_000, { kind: 'vay' })], { mode: 'all' });
+    expect(o.people).toEqual([{ name: 'An', total: -130_000, tone: 'owe' }]);
+    expect(o.owe).toBe(130_000);
     expect(o.oweSigned).toBe(true);
   });
 
   it('hai sổ trái dấu bù nhau về 0 vẫn được liệt kê (trung tính) và không vào tổng đầu khung', () => {
-    const o = buildDebtOverview([B1], [pay('L', 'Tôi', 'An', 30, { kind: 'vay' })], { mode: 'all' });
+    const o = buildDebtOverview([B1], [pay('L', 'Tôi', 'An', 30_000, { kind: 'vay' })], { mode: 'all' });
     expect(o.people).toEqual([{ name: 'An', total: 0, tone: 'mid' }]);
     expect(o.get).toBe(0);
     expect(o.owe).toBe(0);
@@ -46,28 +46,28 @@ describe('buildDebtOverview', () => {
 
   it('một sổ về 0, sổ còn lại khác 0 → tổng bằng sổ còn lại', () => {
     const o = buildDebtOverview([B1], [], { mode: 'all' });
-    expect(o.people).toEqual([{ name: 'An', total: -30, tone: 'owe' }]);
+    expect(o.people).toEqual([{ name: 'An', total: -30_000, tone: 'owe' }]);
   });
 
   it('người đã thanh toán xong ở cả hai sổ bị ẩn', () => {
-    const settled = buildDebtOverview([B1], [pay('x', 'Tôi', 'An', 30, { kind: 'billpay' })], { mode: 'all' });
+    const settled = buildDebtOverview([B1], [pay('x', 'Tôi', 'An', 30_000, { kind: 'billpay' })], { mode: 'all' });
     expect(settled.people).toEqual([]);
     expect(settled.owe).toBe(0);
     expect(settled.oweSigned).toBe(false);
   });
 
   it('sắp theo độ lớn của tổng ròng, lớn nhất trước', () => {
-    const o = buildDebtOverview([B2], [pay('L', 'Tôi', 'An', 50, { kind: 'vay' })], { mode: 'all' });
-    expect(o.people.map((x) => [x.name, x.total])).toEqual([['An', 50], ['Chi', 20]]);
+    const o = buildDebtOverview([B2], [pay('L', 'Tôi', 'An', 50_000, { kind: 'vay' })], { mode: 'all' });
+    expect(o.people.map((x) => [x.name, x.total])).toEqual([['An', 50_000], ['Chi', 20_000]]);
   });
 
   it('số dư là toàn thời gian; chỉ danh sách cặp theo kỳ', () => {
     const o = buildDebtOverview([B1, B2], [LOAN], { mode: 'month', month: '2025-09' });
     expect(o.people).toHaveLength(2);
-    expect(o.get).toBe(40);
+    expect(o.get).toBe(40_000);
     expect(o.pairs).toEqual([]);
     const oct = buildDebtOverview([B1, B2], [LOAN], { mode: 'month', month: '2025-10' });
-    expect(oct.pairs.map((x) => [x.from, x.to, x.amt, x.tone])).toEqual([['Chi', 'Tôi', 20, 'get'], ['Tôi', 'An', 30, 'owe'], ['Bình', 'An', 30, 'mid']]);
+    expect(oct.pairs.map((x) => [x.from, x.to, x.amt, x.tone])).toEqual([['Chi', 'Tôi', 20_000, 'get'], ['Tôi', 'An', 30_000, 'owe'], ['Bình', 'An', 30_000, 'mid']]);
   });
 
   it('cặp có tôi là người nhận lên trước, rồi tôi là người trả, rồi cặp khác', () => {

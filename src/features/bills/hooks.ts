@@ -3,7 +3,8 @@ import { useCallback, useState } from 'react';
 
 import { loadBills } from '@/data/billRepository';
 import { syncBillExpenses } from '@/data/billSync';
-import { StorageCorruptError } from '@/data/storage';
+import { StorageCorruptError, StorageKeys } from '@/data/storage';
+import { useReloadOnWrite } from '@/hooks/use-reload-on-write';
 import type { Bill } from '@/types/bill';
 
 /** Thông báo dễ hiểu cho lỗi đọc/ghi dữ liệu Chia bill. */
@@ -28,6 +29,9 @@ export function useBills() {
       setState((prev) => ({ ...prev, loaded: true, error: describeBillError(error) }));
     }
   }, []);
+
+  // Có ai ghi bill (kể cả từ màn hình khác) thì tải lại ngay, không đợi quay lại màn hình này.
+  useReloadOnWrite([StorageKeys.bills], reload);
 
   useFocusEffect(
     useCallback(() => {

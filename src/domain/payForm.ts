@@ -1,15 +1,15 @@
 /**
  * Form chuyển tiền / trả bill và lịch sử khoản trả (hàm thuần). Chuyển từ `At`, `J`, `Te`, `q`, `me` của `mod-c` trong PWA.
- * Tiền là NGHÌN đồng.
+ * Tiền là ĐỒNG.
  */
 
 import { BILL_OWNER_NAME } from '@/domain/bills';
-import { maskNghinInput } from '@/domain/money';
+import { formatVndInput, maskVndInput, parseVndInput, roundVnd } from '@/domain/money';
 import { isInPeriod } from '@/domain/expenses';
-import { payClass, r3 } from '@/domain/ledger';
+import { payClass } from '@/domain/ledger';
 import type { Bill } from '@/types/bill';
 import type { DateStr, Period } from '@/types/expense';
-import type { Nghin } from '@/types/money';
+import type { Vnd } from '@/types/money';
 import type { Pay } from '@/types/pay';
 
 const isMe = (name: unknown): boolean => String(name || '') === BILL_OWNER_NAME;
@@ -51,21 +51,21 @@ export function payTypeOf(pay: Pick<Pay, 'kind' | 'item'>): PayType {
 /** Loại lưu của lựa chọn trên form: Trả bill → 'billpay', Chuyển tiền → 'vay'. */
 export const payKindFor = (type: PayType): 'billpay' | 'vay' => (type === 'bill' ? 'billpay' : 'vay');
 
-/** Ô số tiền: kiểu nghìn đồng, phần nguyên tối đa 9 chữ số, phần thập phân tối đa 3 (`kfmt(…, 9, 3)`). */
-export const maskPayAmount = (text: string): string => maskNghinInput(text, 9);
+/** Ô số tiền: chỉ chữ số (ĐỒNG), tối đa 9 chữ số. */
+export const maskPayAmount = (text: string): string => maskVndInput(text, 9);
 
-/** Số tiền (nghìn đồng) từ chữ đã mask; trống hoặc không hợp lệ là 0 (`Et`). */
-export function parsePayAmount(text: string): Nghin {
-  return parseFloat(String(text || '').replace(/\./g, '').replace(',', '.')) || 0;
+/** Số tiền (ĐỒNG) từ chữ trong ô; trống hoặc không hợp lệ là 0. */
+export function parsePayAmount(text: string): Vnd {
+  return parseVndInput(text);
 }
 
-/** Số tiền (nghìn đồng) -> chữ trong ô nhập (dấu phẩy thập phân, có chấm hàng nghìn). */
-export function formatPayAmount(amount: Nghin): string {
-  return maskPayAmount(String(amount).replace('.', ','));
+/** Số tiền (ĐỒNG) -> chữ trong ô nhập (chỉ chữ số). */
+export function formatPayAmount(amount: Vnd): string {
+  return formatVndInput(amount);
 }
 
 /** Được phép ghi nhận: đã chọn người nhận và số tiền > 0 (`J`). */
-export const canRecordPay = (who: string, amount: Nghin): boolean => !!who && amount > 0;
+export const canRecordPay = (who: string, amount: Vnd): boolean => !!who && amount > 0;
 
 export interface PayFormState {
   date: DateStr;
@@ -110,7 +110,7 @@ export interface PayRow {
   id: string;
   from: string;
   to: string;
-  amt: Nghin;
+  amt: Vnd;
   date: DateStr;
   group: boolean;
   /** Tiêu đề và dòng phụ (`me`). */
@@ -132,8 +132,8 @@ export interface PayHistory {
   days: PayDay[];
   count: number;
   /** Tổng tiền vào (tôi nhận) và ra (tôi trả) trong kỳ, không kể gộp nợ. */
-  totalIn: Nghin;
-  totalOut: Nghin;
+  totalIn: Vnd;
+  totalOut: Vnd;
 }
 
 const isBillish = (pay: Pay): boolean => pay.kind === 'bill' || pay.kind === 'billpay' || !!pay.bills || !!pay.bill || !!pay.lbl;
@@ -168,7 +168,7 @@ export function buildPayHistory(pays: readonly Pay[], bills: readonly Bill[], pe
           rows.push(null as never); // giữ chỗ để đúng thứ tự xuất hiện
         }
         group.ids.push(pay.id);
-        group.amt = r3(group.amt + (+pay.amt || 0));
+        group.amt = roundVnd(group.amt + (+pay.amt || 0));
         for (const id of pay.bills ?? (pay.bill ? [pay.bill] : [])) {
           const bill = bills.find((b) => b.id === id);
           const title = bill ? bill.title || 'Không tên' : 'bill đã xoá';
@@ -193,7 +193,7 @@ export function buildPayHistory(pays: readonly Pay[], bills: readonly Bill[], pe
   };
 }
 
-function rowOf(ids: string[], pay: Pay, amt: Nghin, group: boolean, bills: readonly Bill[], groupBills: string[]): PayRow {
+function rowOf(ids: string[], pay: Pay, amt: Vnd, group: boolean, bills: readonly Bill[], groupBills: string[]): PayRow {
   const [title, detail] = payLabel(group ? { ...pay, kind: 'grp', groupBills } : pay, bills);
   const rawNote = pay.note && pay.note !== 'Đối soát' && pay.note !== 'Trả nợ' ? pay.note : '';
   return {

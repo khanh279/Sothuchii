@@ -13,7 +13,7 @@ import {
   validateContribution,
   validateFundExpense,
 } from './fundForms';
-import { parseNghinInput } from './money';
+import { parseVndInput } from './money';
 
 // DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng.
 const row = (name: string, amount: number) => ({ name, amount });
@@ -78,8 +78,8 @@ describe('tổng và người sẽ lưu', () => {
     expect(buildContributionPeople(rows)).toEqual([row('Tôi', 50_000), row('Người 3', 20_000), row('Người 4', 5_000)]);
   });
 
-  it('đơn vị: ô nhập "50" nghìn thành 50.000 đồng khi lưu; giữ nguyên phần lẻ', () => {
-    const amounts = ['50', '7,5', '0,001'].map(parseNghinInput);
+  it('đơn vị: chữ trong ô nhập là ĐỒNG, lưu đúng số đó (không nhân thêm)', () => {
+    const amounts = ['50000', '7.500', '1'].map(parseVndInput);
     expect(amounts).toEqual([50_000, 7_500, 1]);
     expect(buildContributionPeople(amounts.map((a) => row('x', a))).map((p) => p.amount)).toEqual(amounts);
   });
@@ -96,8 +96,8 @@ describe('kiểm tra form', () => {
     expect(validateContribution(ok)).toBeNull();
     expect(validateContribution({ ...ok, date: '' })).toBe('Chọn ngày.');
     expect(validateContribution({ ...ok, fundId: '' })).toBe('Chọn quỹ trước khi lưu.');
-    expect(validateContribution({ ...ok, people: [], all: true })).toBe('Nhập số tiền mỗi người (đơn vị nghìn đồng).');
-    expect(validateContribution({ ...ok, people: [], all: false })).toBe('Nhập số tiền (đơn vị nghìn đồng) cho ít nhất một người.');
+    expect(validateContribution({ ...ok, people: [], all: true })).toBe('Nhập số tiền mỗi người.');
+    expect(validateContribution({ ...ok, people: [], all: false })).toBe('Nhập số tiền cho ít nhất một người.');
     expect(validateContribution({ ...ok, date: '', fundId: '' })).toBe('Chọn ngày.');
   });
 

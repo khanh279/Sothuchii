@@ -2,7 +2,8 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 
 import { listMonthKeys, loadMonths, loadSettings, saveSettings } from '@/data/expenseRepository';
-import { StorageCorruptError } from '@/data/storage';
+import { StorageCorruptError, StorageKeys } from '@/data/storage';
+import { useReloadOnWrite } from '@/hooks/use-reload-on-write';
 import { EMPTY_SETTINGS, filterByPeriod, monthsInPeriod } from '@/domain/expenses';
 import type { ExpenseSettings, ExpenseWithId, MonthKey, Period } from '@/types/expense';
 import { todayStr } from '@/utils/date';
@@ -33,6 +34,9 @@ export function useExpenseSettings() {
       setState((prev) => ({ ...prev, loaded: true, error: describeStorageError(error) }));
     }
   }, []);
+
+  // Có ai ghi cài đặt (kể cả từ màn hình khác) thì tải lại ngay.
+  useReloadOnWrite([StorageKeys.settings], reload);
 
   useFocusEffect(
     useCallback(() => {
@@ -76,6 +80,9 @@ export function useExpenses(period: Period) {
       if (request === latest.current) setState((prev) => ({ ...prev, loaded: true, error: describeStorageError(error) }));
     }
   }, [period]);
+
+  // Có ai ghi một tháng chi tiêu (kể cả đồng bộ từ bill / quỹ) thì tải lại ngay.
+  useReloadOnWrite([`${StorageKeys.expenseMonthPrefix}*`], reload);
 
   useFocusEffect(
     useCallback(() => {

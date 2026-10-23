@@ -1,25 +1,22 @@
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { ConfirmDialog, EmptyState, Panel, PrimaryButton, ScreenTitle, TransactionRow } from '@/components/design';
+import { EmptyState, Panel, PrimaryButton, ScreenTitle, TransactionRow } from '@/components/design';
+import { PaymentPanel } from '@/components/payment-panel';
 import { SvgIcon } from '@/components/svg-icon';
 import { useToast } from '@/components/toast';
-import { AppFonts } from '@/constants/fonts';
-import { PayInputError } from '@/data/payRepository';
 import { recordPersonBillPaymentSynced } from '@/data/payService';
-import { formatMoney } from '@/domain/billForm';
-import { checkPairPayment, personBillRows } from '@/domain/billPerson';
+import { personBillRows } from '@/domain/billPerson';
 import { DEBT_ZERO } from '@/domain/ledger';
 import { periodFromParams, periodTitle } from '@/domain/expenses';
-import { maskPayAmount, parsePayAmount } from '@/domain/payForm';
 import { describeDebtError, useDebtData } from '@/features/debts/hooks';
 import { useColors } from '@/hooks/use-colors';
 import { formatVnDate, todayStr } from '@/utils/date';
+import { formatVnd } from '@/utils/format';
 
-type PayMode = 'all' | 'partial' | 'number';
 
 /**
  * Cấp 2 của "Chi tiết" khung Chia bill ở Tổng quan: các bill của MỘT người trong kỳ đang xem (tham số route `name`, kỳ `mode`/`month`/
@@ -40,56 +37,15 @@ export default function PersonBillsScreen() {
   const data = useMemo(() => personBillRows(bills, pays, name, period), [bills, pays, name, period]);
 
   const [panelOpen, setPanelOpen] = useState(false);
-  const [payMode, setPayMode] = useState<PayMode | null>(null);
-  const [text, setText] = useState('');
-  const [problem, setProblem] = useState('');
-  const [confirmAmount, setConfirmAmount] = useState<number | null>(null);
-  const [busy, setBusy] = useState(false);
 
   const canPay = data.remaining >= DEBT_ZERO;
   const signed = data.net;
   const sign = signed > 0 ? '+' : signed < 0 ? '−' : '';
 
-  function resetPanel() {
-    setPanelOpen(false);
-    setPayMode(null);
-    setText('');
-    setProblem('');
-  }
-
-  function choose(next: PayMode) {
-    setProblem('');
-    setText('');
-    setPayMode(next);
-    if (next === 'all') setConfirmAmount(data.remaining);
-  }
-
-  function submitNumber() {
-    const check = checkPairPayment(data.remaining, parsePayAmount(text));
-    if (!check.ok) {
-      setProblem(check.message);
-      return;
-    }
-    setProblem('');
-    setConfirmAmount(check.amount);
-  }
-
-  async function confirm() {
-    if (busy || confirmAmount === null) return;
-    setBusy(true);
-    try {
-      const result = await recordPersonBillPaymentSynced(name, period, confirmAmount);
-      if (result.value.message) toast.show(result.value.message);
-      setConfirmAmount(null);
-      resetPanel();
-      await reload();
-    } catch (e) {
-      setConfirmAmount(null);
-      if (e instanceof PayInputError) setProblem(e.message);
-      else toast.show(describeDebtError(e));
-    } finally {
-      setBusy(false);
-    }
+  async function pay(amount: number) {
+    const result = await recordPersonBillPaymentSynced(name, period, amount);
+    if (result.value.message) toast.show(result.value.message);
+    await reload();
   }
 
   const payer = data.from === 'Tôi' ? 'Tôi' : data.from;
@@ -115,7 +71,7 @@ export default function PersonBillsScreen() {
           </AppText>
           <AppText weight="display" color={colors.heroInk} style={styles.heroAmount} numberOfLines={1} adjustsFontSizeToFit>
             {sign}
-            {formatMoney(Math.abs(signed))}
+            {formatVnd(Math.abs(signed))}
           </AppText>
           <AppText color={colors.heroSoft} style={styles.heroCaption}>
             {signed < 0 ? `Tôi nợ ${name}` : signed > 0 ? `${name} nợ tôi` : `Không còn khoản nào với ${name}`}
@@ -136,11 +92,11 @@ export default function PersonBillsScreen() {
                   </View>
                 }
                 title={row.title}
-                subtitle={`${formatVnDate(row.date)} · ${row.dir < 0 ? 'Tôi nợ' : `${name} nợ tôi`} ${formatMoney(Math.abs(row.amount))} · Đã trả ${formatMoney(row.paid)}`}
-                amount={formatMoney(row.remaining)}
+                subtitle={`${formatVnDate(row.date)} · ${row.dir < 0 ? 'Tôi nợ' : `${name} nợ tôi`} ${formatVnd(Math.abs(row.amount))} · Đã trả ${formatVnd(row.paid)}`}
+                amount={`${row.remaining < DEBT_ZERO ? '' : row.dir < 0 ? '−' : '+'}${formatVnd(row.remaining)}`}
                 tone={row.remaining < DEBT_ZERO ? 'mid' : row.dir < 0 ? 'owe' : 'get'}
                 meta="Còn lại"
-                accessibilityLabel={`Chi tiết bill ${row.title}, ${formatMoney(Math.abs(row.amount))}`}
+                accessibilityLabel={`Chi tiết bill ${row.title}, ${formatVnd(Math.abs(row.amount))}`}
                 onPress={() => router.push({ pathname: '/chia-bill/chi-tiet', params: { id: row.id } })}
               />
             ))
@@ -148,7 +104,7 @@ export default function PersonBillsScreen() {
         </Panel>
 
         <View style={styles.payArea}>
-          <PrimaryButton label="Thanh toán" disabled={!canPay || busy} onPress={() => (panelOpen ? resetPanel() : setPanelOpen(true))} />
+          <PrimaryButton label="Thanh toán" disabled={!canPay} onPress={() => setPanelOpen((open) => !open)} />
           {!canPay && (
             <AppText color={colors.muted} style={styles.centerNote}>
               Không còn khoản nào phải thanh toán
@@ -156,77 +112,15 @@ export default function PersonBillsScreen() {
           )}
 
           {panelOpen && canPay && (
-            <View style={styles.choices}>
-              {(
-                [
-                  ['all', 'Thanh toán toàn bộ', `Trả hết ${formatMoney(data.remaining)} còn lại`],
-                  ['partial', 'Thanh toán một phần', 'Nhập số tiền muốn thanh toán'],
-                  ['number', 'Nhập số', 'Nhập trực tiếp số tiền cụ thể'],
-                ] as const
-              ).map(([id, label, sub]) => {
-                const selected = payMode === id;
-                return (
-                  <Pressable
-                    key={id}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
-                    disabled={busy}
-                    onPress={() => choose(id)}
-                    style={[styles.choice, { borderColor: selected ? colors.primary : colors.line, backgroundColor: selected ? colors.primarySoft : colors.surface }]}>
-                    <AppText weight="semibold" style={styles.choiceTitle}>
-                      {label}
-                    </AppText>
-                    <AppText color={colors.muted} style={styles.small}>
-                      {sub}
-                    </AppText>
-                  </Pressable>
-                );
-              })}
-
-              {(payMode === 'partial' || payMode === 'number') && (
-                <View style={styles.amountBox}>
-                  <AppText color={colors.muted} style={styles.small}>
-                    Còn phải thanh toán: {formatMoney(data.remaining)}
-                  </AppText>
-                  <View style={styles.inputWrap}>
-                    <TextInput
-                      autoFocus
-                      value={text}
-                      onChangeText={(value) => {
-                        setText(maskPayAmount(value));
-                        setProblem('');
-                      }}
-                      keyboardType="decimal-pad"
-                      maxLength={11}
-                      placeholder={payMode === 'partial' ? 'Số tiền thanh toán một phần' : 'Nhập số tiền'}
-                      placeholderTextColor={colors.muted}
-                      accessibilityLabel="Số tiền thanh toán, nghìn đồng"
-                      style={[styles.input, { backgroundColor: colors.bg, borderColor: problem ? colors.danger : colors.line, color: colors.ink, fontFamily: AppFonts.semibold }]}
-                    />
-                    {!!text && (
-                      <AppText color={colors.muted} style={styles.suffix} pointerEvents="none">
-                        .000 ₫
-                      </AppText>
-                    )}
-                  </View>
-                  {!!problem && (
-                    <AppText color={colors.danger} style={styles.small} accessibilityRole="alert">
-                      {problem}
-                    </AppText>
-                  )}
-                  <Pressable accessibilityRole="button" disabled={busy} onPress={submitNumber} style={[styles.continue, { backgroundColor: colors.primary }]}>
-                    <AppText weight="semibold" color={colors.primaryInk} style={styles.choiceTitle}>
-                      Tiếp tục
-                    </AppText>
-                  </Pressable>
-                </View>
-              )}
-              {payMode === 'all' && !!problem && (
-                <AppText color={colors.danger} style={styles.small} accessibilityRole="alert">
-                  {problem}
-                </AppText>
-              )}
-            </View>
+            <PaymentPanel
+              remaining={data.remaining}
+              payer={payer}
+              receiver={receiver}
+              note="Trừ vào các bill còn nợ từ cũ đến mới."
+              onPay={pay}
+              onDone={() => setPanelOpen(false)}
+              onFailure={(e) => toast.show(describeDebtError(e))}
+            />
           )}
         </View>
       </ScrollView>
@@ -239,17 +133,6 @@ export default function PersonBillsScreen() {
       <ScreenTitle title={name ? `Bill của ${name}` : 'Bill của người'} topInset={insets.top} />
       {body}
 
-      {confirmAmount !== null && (
-        <ConfirmDialog
-          title="Xác nhận thanh toán"
-          message={`${payer} trả ${receiver}`}
-          amountText={formatMoney(confirmAmount)}
-          note="Trừ vào các bill còn nợ từ cũ đến mới."
-          busy={busy}
-          onCancel={() => setConfirmAmount(null)}
-          onConfirm={() => void confirm()}
-        />
-      )}
     </View>
   );
 }

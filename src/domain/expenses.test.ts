@@ -17,6 +17,7 @@ import {
   categoriesInUse,
   categoryIconName,
   dayHeading,
+  categoryPercent,
   donutSegments,
   filterByCategory,
   filterByPeriod,
@@ -541,5 +542,21 @@ describe('periodViewFromPeriod', () => {
 
   it('kiểu không chọn giữ giá trị mặc định (tháng hiện tại, 30 ngày gần nhất)', () => {
     expect(periodViewFromPeriod({ mode: 'year', year: 2024 }, today)).toMatchObject({ month: '2025-10', from: '2025-09-16', to: today });
+  });
+});
+
+describe('categoryPercent (tỷ lệ % của mục)', () => {
+  it('làm tròn 1 chữ số thập phân; các mục cộng lại xấp xỉ 100', () => {
+    expect(categoryPercent(375, 1000)).toBe(37.5);
+    expect(categoryPercent(1, 3)).toBe(33.3);
+    expect(categoryPercent(1000, 1000)).toBe(100);
+    const parts = [1, 1, 1].map((n) => categoryPercent(n, 3));
+    expect(Math.abs(parts.reduce((a, b) => a + b, 0) - 100)).toBeLessThan(0.5);
+  });
+
+  it('tổng hoặc số tiền không dương thì 0', () => {
+    expect(categoryPercent(0, 100)).toBe(0);
+    expect(categoryPercent(50, 0)).toBe(0);
+    expect(categoryPercent(-5, 100)).toBe(0);
   });
 });

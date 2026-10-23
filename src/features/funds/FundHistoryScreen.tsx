@@ -1,49 +1,61 @@
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { LockableScrollView } from '@/components/lockable-scroll-view';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { EmptyState, ModalHeader, type StatusTone } from '@/components/design';
-import { HistoryCard, IconTile } from '@/components/history-card';
+import { CardHead, EmptyState, ScreenTitle, SectionCard, type StatusTone } from '@/components/design';
+import { HistoryCard } from '@/components/history-card';
+import { PeriodFilter } from '@/components/period-filter';
+import { SelectableCard } from '@/components/selectable-card';
+import { SvgIcon } from '@/components/svg-icon';
 import { TOAST_BOTTOM_HISTORY, useToast } from '@/components/toast';
 import { AppRadius } from '@/constants/palette';
 import { deleteAdvanceSynced, deleteContributionSynced, deleteFundExpenseSynced, deleteFundTxnSynced } from '@/data/fundService';
-import { dayHeading, periodFromParams, periodTitle } from '@/domain/expenses';
-import { ADVANCE_STATE_LABEL, PAY_STATE_LABEL, advanceById, advanceSummary, fundPersonBalances, fundPosition, personalDebt, type PayState } from '@/domain/fundAdvance';
-import { buildFundHistory, filterDaysByPerson, type FundHistoryEntry } from '@/domain/fundHistory';
-import { FundActionSheet, type FundActionTarget } from '@/features/funds/FundActionSheet';
-import { ADVANCE_TONE } from '@/features/funds/FundAdvanceScreen';
-import { ContributionForm } from '@/features/funds/ContributionForm';
-import { FundExpenseForm } from '@/features/funds/FundExpenseForm';
+import { dayHeading, periodTitle } from '@/domain/expenses';
+import {
+  ADVANCE_STATE_LABEL,
+  advanceById,
+  advanceSummary,
+  type AdvanceState,
+  fundPersonBalances,
+  fundPosition,
+  personalDebt,
+  personalDebtLabel,
+  type PayState,
+} from '@/domain/fundAdvance';
+import { buildFundHistory, filterCashMovementDays, filterDaysByPerson, historyMembers, mergePayoutEntries, type FundHistoryEntry } from '@/domain/fundHistory';
+import { FundEntryIcon } from '@/features/funds/FundEntryIcon';
+import { ALL_MEMBERS, MemberFilterChips } from '@/features/funds/MemberFilterChips';
 import { describeFundError, useFundData } from '@/features/funds/hooks';
-import { fundBalance } from '@/domain/funds';
 import { useColors } from '@/hooks/use-colors';
+import { useSharedPeriod } from '@/hooks/use-shared-period';
 import { formatVnDate, todayStr } from '@/utils/date';
 import { formatVnd } from '@/utils/format';
 
 /** Màu thu / chi của Quỹ (`--in`, `--out` của PWA). */
 
 /**
- * Lịch sử Quỹ nhóm trong một kỳ: số dư, rồi các lần đóng, khoản chi thực tế và dòng tiền ứng trước (giao tiền ứng, hoàn tiền, quỹ trả cá nhân) gom theo ngày.
- * Vuốt dòng để Sửa / Xoá. Khoản cá nhân ứng hiện trạng thái thanh toán (chạm để ghi nhận quỹ trả); dòng thuộc hồ sơ ứng trước chạm để mở chi tiết hồ sơ.
- * Tham số route: kỳ (`mode`, `month`, `year`, `from`, `to`) và `fund` (`all` hoặc id quỹ, như bấm một quỹ ở Tổng quan).
+ * Trang một quỹ nhóm (hoặc tất cả quỹ) gồm BA thẻ: (1) Tổng quan: thu, chi trong kỳ chọn, số dư và tiền thực tế; (2) Công nợ quỹ: từng người quỹ đang nợ / đang giữ ứng,
+ * chạm một người để mở trang chi tiết công nợ của người đó (các khoản ứng, chi và Thanh toán); (3) Lịch sử quỹ: CHỈ các khoản làm đổi số dư thực tế của quỹ (`filterCashMovementDays`), gom theo ngày,
+ * vuốt dòng để Sửa / Xoá, chạm để xem chi tiết. Kỳ là kỳ dùng chung (ô chọn thời gian ở đầu trang). Tham số route: `fund` (`all` hoặc id quỹ).
  */
+/** Màu nhãn trạng thái quyết toán của hồ sơ ứng trước (đã quyết toán xanh, một phần cam, chưa quyết toán đỏ). */
+const ADVANCE_TONE: Record<AdvanceState, StatusTone> = { settled: 'get', partial: 'warn', unsettled: 'owe' };
+
 export default function FundHistoryScreen() {
-  const params = useLocalSearchParams<{ mode?: string; month?: string; year?: string; from?: string; to?: string; fund?: string }>();
-  const { mode, month, year, from, to } = params;
+  const params = useLocalSearchParams<{ fund?: string }>();
   const today = todayStr();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const toast = useToast();
-  const period = useMemo(() => periodFromParams({ mode, month, year, from, to }, today), [mode, month, year, from, to, today]);
+  const { view, setView, period } = useSharedPeriod();
 
   const { data, loaded, error, reload } = useFundData();
   const [openId, setOpenId] = useState<string | null>(null);
-  const [editing, setEditing] = useState<FundHistoryEntry | null>(null);
-  const [action, setAction] = useState<FundActionTarget | null>(null);
-  /** Lọc lịch sử theo một người (bấm một dòng ở mục Công nợ quỹ); rỗng = xem tất cả. */
-  const [personFilter, setPersonFilter] = useState('');
+  /** Thành viên đang lọc; ALL_MEMBERS = Tất cả (mặc định). */
+  const [member, setMember] = useState(ALL_MEMBERS);
 
   const history = useMemo(() => buildFundHistory(data, params.fund || 'all', period), [data, params.fund, period]);
   const single = history.filter !== 'all' ? history.funds[0] : null;
@@ -52,9 +64,9 @@ export default function FundHistoryScreen() {
   async function remove(entry: FundHistoryEntry) {
     try {
       if (entry.kind === 'contribution') await deleteContributionSynced(entry.id);
-      else if (entry.kind === 'expense') await deleteFundExpenseSynced(entry.id);
+      else if (entry.kind === 'expense') for (const id of entry.mergedIds ?? [entry.id]) await deleteFundExpenseSynced(id);
       else if (entry.kind === 'advance') await deleteAdvanceSynced(entry.id);
-      else await deleteFundTxnSynced(entry.id);
+      else for (const id of entry.mergedIds ?? [entry.id]) await deleteFundTxnSynced(id);
       setOpenId(null);
       toast.show(entry.kind === 'contribution' ? 'Đã xóa lần đóng quỹ' : entry.kind === 'expense' ? 'Đã xóa khoản chi' : 'Đã xóa', { bottom: TOAST_BOTTOM_HISTORY });
       await reload();
@@ -63,15 +75,20 @@ export default function FundHistoryScreen() {
     }
   }
 
-  const editingContribution = editing?.kind === 'contribution' ? data.contribs.find((c) => c.id === editing.id) : undefined;
-  const editingExpense = editing?.kind === 'expense' ? data.expenses.find((e) => e.id === editing.id) : undefined;
-  const editingFund = editing ? data.funds.find((fund) => fund.id === editing.fundId) : undefined;
   const position = fundPosition(data, history.filter === 'all' ? 'all' : history.filter);
   const balances = fundPersonBalances(data, history.filter === 'all' ? 'all' : history.filter);
-  // Người đang lọc mà không còn công nợ nào (vừa thanh toán xong) vẫn lọc được cho tới khi bỏ lọc; chỉ đổi cách hiển thị, không đổi dữ liệu.
-  const shownDays = filterDaysByPerson(history.days, personFilter);
-
-  const openAdvance = (advanceId?: string) => advanceId && router.push({ pathname: '/quy/ung-truoc', params: { id: advanceId } });
+  /** Mỗi khoản một hàng: "Quỹ nợ" (quỹ nợ người đó, đỏ) hoặc "Nợ quỹ" (người đó đang giữ tiền ứng của quỹ, cam); một người có cả hai thì có hai hàng. */
+  const debtRows = balances.flatMap((item) => [
+    ...(item.owed > 0 ? [{ person: item.person, kind: 'owed' as const, amount: item.owed }] : []),
+    ...(item.held > 0 ? [{ person: item.person, kind: 'held' as const, amount: item.held }] : []),
+  ]);
+  // Lịch sử chỉ gồm khoản làm đổi số dư thực tế của quỹ; lọc theo thành viên có thật trong danh sách đang xem (không còn thì về "Tất cả").
+  const cashDays = useMemo(() => filterCashMovementDays(history.days, data), [history.days, data]);
+  const cashCount = cashDays.reduce((total, day) => total + day.entries.length, 0);
+  const members = historyMembers(cashDays);
+  const activeMember = member !== ALL_MEMBERS && members.includes(member) ? member : ALL_MEMBERS;
+  // Trong cùng một ngày, các lần quỹ trả cho cùng một khoản A ứng chi (cùng người, cùng nội dung) gộp thành một dòng.
+  const shownDays = useMemo(() => mergePayoutEntries(filterDaysByPerson(cashDays, activeMember)), [cashDays, activeMember]);
 
   /** Nhãn trạng thái của một dòng: khoản cá nhân ứng → trạng thái thanh toán; dòng thuộc hồ sơ ứng trước → trạng thái quyết toán. */
   function statusOf(entry: FundHistoryEntry): { label: string; tone: StatusTone } | null {
@@ -80,11 +97,31 @@ export default function FundHistoryScreen() {
       if (expense?.mode === 'personal') {
         const debt = personalDebt(data, expense);
         const tone: Record<PayState, StatusTone> = { paid: 'get', partial: 'warn', unpaid: 'owe' };
-        const label = debt.state === 'paid' ? PAY_STATE_LABEL.paid : `${PAY_STATE_LABEL[debt.state]} · còn nợ ${formatVnd(debt.remaining)}`;
-        return { label, tone: tone[debt.state] };
+        return { label: personalDebtLabel(debt.state, debt.remaining, formatVnd, debt.paid), tone: tone[debt.state] };
       }
     }
-    if (entry.advanceId && (entry.kind === 'advance' || entry.kind === 'expense')) {
+    // Dòng quỹ trả cá nhân: khoản A ứng chi gốc đã được quỹ trả xong thì hiện "Đã quyết toán" màu xanh, chưa xong thì ghi chú "Một phần".
+    if (entry.kind === 'payout') {
+      const ids = entry.expenseIds ?? (entry.expenseId ? [entry.expenseId] : []);
+      const paid =
+        ids.length > 0 &&
+        ids.every((id) => {
+          const expense = data.expenses.find((e) => e.id === id);
+          return expense?.mode === 'personal' && personalDebt(data, expense).state === 'paid';
+        });
+      if (paid) return { label: 'Đã quyết toán', tone: 'get' };
+      if (ids.length > 0) return { label: 'Một phần', tone: 'warn' };
+    }
+    // Dòng giao tiền ứng: trạng thái CHI của lần giao (chi hết xanh / chi một phần cam / chưa chi đỏ).
+    if (entry.kind === 'advance' && entry.advanceId) {
+      const advance = advanceById(data, entry.advanceId);
+      if (advance) {
+        const spent = advanceSummary(data, advance).spent;
+        if (advance.amount > 0 && spent >= advance.amount) return { label: 'Đã chi hết', tone: 'get' };
+        return spent > 0 ? { label: 'Chi một phần', tone: 'warn' } : { label: 'Chưa chi', tone: 'owe' };
+      }
+    }
+    if (entry.advanceId && entry.kind === 'expense') {
       const advance = advanceById(data, entry.advanceId);
       if (advance) {
         const state = advanceSummary(data, advance).state;
@@ -94,22 +131,10 @@ export default function FundHistoryScreen() {
     return null;
   }
 
-  function pressEntry(entry: FundHistoryEntry) {
-    setOpenId(null);
-    if (entry.kind === 'expense') {
-      const expense = data.expenses.find((e) => e.id === entry.id);
-      if (expense?.mode === 'personal') {
-        const debt = personalDebt(data, expense);
-        if (debt.remaining > 0) setAction({ mode: 'payout', expenseId: expense.id, person: expense.payer ?? '', max: debt.remaining });
-        return;
-      }
-    }
-    openAdvance(entry.advanceId);
-  }
-
   return (
-    <View style={[styles.screen, { backgroundColor: colors.bg, paddingTop: 12 + insets.top }]}>
-      <Stack.Screen options={{ title: 'Lịch sử quỹ', headerShown: false }} />
+    <View style={[styles.screen, { backgroundColor: colors.bg }]}>
+      <Stack.Screen options={{ title: 'Quỹ nhóm', headerShown: false }} />
+      <ScreenTitle title={single ? single.name : 'Chi tiêu quỹ'} topInset={insets.top} right={<PeriodFilter compact view={view} onChange={setView} today={today} />} />
       {error ? (
         <View style={[styles.notice, { backgroundColor: colors.dangerSoft }]}>
           <AppText color={colors.danger} style={styles.noticeText}>
@@ -119,104 +144,84 @@ export default function FundHistoryScreen() {
       ) : !loaded ? (
         <ActivityIndicator style={styles.loading} color={colors.primary} />
       ) : (
-        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} onScrollBeginDrag={() => setOpenId(null)}>
-          <View style={[styles.card, { backgroundColor: colors.surface }]}>
-            <View style={styles.summary}>
-              <View style={styles.summaryLeft}>
-                <AppText weight="semibold" style={styles.summaryTitle} numberOfLines={1}>
-                  {single ? single.name : 'Chi tiêu quỹ'}
-                </AppText>
-                <AppText weight="medium" color={colors.muted} style={styles.summaryPeriod}>
-                  {periodTitle(period)}
-                </AppText>
-              </View>
-              <View style={styles.summaryRight}>
-                <AppText weight="semibold" color={colors.muted} style={styles.summaryCount}>
-                  {single ? `${history.count} khoản` : `${history.funds.length} quỹ`}
-                </AppText>
-                <AppText weight="medium" style={styles.summaryAmount}>
-                  <AppText color={colors.success} style={styles.summaryAmount}>
-                    +{formatVnd(history.totalIn)}
-                  </AppText>
-                  <AppText color={colors.danger} style={styles.summaryAmount}>
-                    {'  '}−{formatVnd(history.totalOut)}
-                  </AppText>
-                </AppText>
-              </View>
+        <LockableScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} onScrollBeginDrag={() => setOpenId(null)}>
+          <SectionCard title="Tổng quan" subtitle={periodTitle(period)} rightTop={single ? undefined : `${history.funds.length} quỹ`}>
+            <View>
+              <InfoRow label="Thu trong kỳ" value={`+${formatVnd(history.totalIn)}`} color={colors.success} first />
+              <InfoRow label="Chi trong kỳ" value={`−${formatVnd(history.totalOut)}`} color={colors.danger} />
+              <InfoRow label={single ? `Số dư ${single.name}` : 'Số dư các quỹ'} value={formatVnd(history.balance)} color={history.balance < 0 ? colors.danger : undefined} bold />
+              {position.advanced && <InfoRow label="Tiền thực tế trong quỹ" value={formatVnd(position.cash)} />}
             </View>
+          </SectionCard>
 
+          <SectionCard title="Công nợ quỹ" subtitle="Toàn thời gian" rightTop={debtRows.length > 0 ? `${debtRows.length} khoản` : undefined}>
+            {balances.length === 0 ? (
+              <EmptyState text="Không có khoản nợ hay tiền ứng nào chưa xử lý" icon="check" />
+            ) : (
+              <View style={styles.debtSections}>
+                {(['owed', 'held'] as const).map((kind) => {
+                  const rows = debtRows.filter((row) => row.kind === kind);
+                  if (rows.length === 0) return null;
+                  const tint = kind === 'owed' ? colors.danger : colors.warning;
+                  const label = kind === 'owed' ? 'Quỹ nợ' : 'Nợ quỹ';
+                  return (
+                    <View key={kind} style={styles.debtSection}>
+                      <View style={styles.debtSectionHead}>
+                        <AppText weight="semibold" color={colors.muted} style={styles.debtSectionTitle}>
+                          {label}
+                        </AppText>
+                        <AppText color={colors.muted} style={styles.debtSectionTitle}>
+                          {rows.length} người
+                        </AppText>
+                      </View>
+                      <View style={styles.debtList}>
+                        {rows.map((row) => (
+                          <SelectableCard
+                            key={`${row.person}:${row.kind}`}
+                            selected={false}
+                            onPress={() => router.push({ pathname: '/quy/cong-no', params: { person: row.person, fund: history.filter, side: row.kind } })}
+                            accessibilityLabel={`${row.person}: ${label} ${formatVnd(row.amount)}`}
+                          >
+                            <View style={styles.debtRow}>
+                              <AppText weight="semibold" style={[styles.rowText, styles.rowName]} numberOfLines={1}>
+                                {row.person}
+                              </AppText>
+                              <AppText weight="bold" color={tint} style={styles.debtAmount}>
+                                {formatVnd(row.amount)}
+                              </AppText>
+                              <SvgIcon name="chevronRight" size={14} color={colors.muted} strokeWidth={1.5} />
+                            </View>
+                          </SelectableCard>
+                        ))}
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </SectionCard>
+
+          <View style={[styles.card, { backgroundColor: colors.surface }]}>
+            <View style={styles.cardHead}>
+              <CardHead title="Lịch sử quỹ" subtitle={periodTitle(period)} rightTop={`${cashCount} khoản`} />
+            </View>
             <View style={styles.body}>
-              {data.funds.length > 0 && (
-                <View style={[styles.balance, { backgroundColor: colors.bg }]}>
-                  <AppText color={colors.muted} style={styles.balanceLabel}>
-                    {single ? `Số dư ${single.name}` : 'Số dư các quỹ'}
-                  </AppText>
-                  <AppText weight="bold" color={history.balance < 0 ? colors.danger : colors.success} style={styles.balanceValue}>
-                    {formatVnd(history.balance)}
-                  </AppText>
-                </View>
-              )}
-              {data.funds.length > 0 && position.advanced && (
-                <View style={[styles.balance, styles.position, { backgroundColor: colors.bg }]}>
-                  <PositionRow label="Tiền thực tế trong quỹ" value={formatVnd(position.cash)} />
-                  <PositionRow label="Cá nhân đang giữ tiền ứng" value={formatVnd(position.held)} color={position.held > 0 ? colors.warning : undefined} />
-                  <PositionRow label="Quỹ nợ cá nhân" value={formatVnd(position.owed)} color={position.owed > 0 ? colors.danger : undefined} />
-                </View>
-              )}
-              {data.funds.length > 0 && position.advanced && (
-                <View style={[styles.balance, styles.position, { backgroundColor: colors.bg }]}>
-                  <AppText weight="semibold" style={styles.debtTitle} accessibilityRole="header">
-                    Công nợ quỹ
-                  </AppText>
-                  {balances.length === 0 ? (
-                    <AppText color={colors.muted} style={styles.balanceLabel}>
-                      Không có khoản nợ hay tiền ứng nào chưa xử lý.
-                    </AppText>
-                  ) : (
-                    balances.map((item) => {
-                      const selected = personFilter === item.person;
-                      return (
-                        <Pressable
-                          key={item.person}
-                          accessibilityRole="button"
-                          accessibilityState={{ selected }}
-                          accessibilityLabel={`${item.person}: ${item.owed > 0 ? `quỹ nợ ${formatVnd(item.owed)}` : ''} ${item.held > 0 ? `đang giữ tiền ứng ${formatVnd(item.held)}` : ''}`}
-                          onPress={() => {
-                            setOpenId(null);
-                            setPersonFilter(selected ? '' : item.person);
-                          }}
-                          style={[styles.debtRow, { backgroundColor: selected ? colors.primarySoft : colors.surface, borderColor: selected ? colors.primary : colors.line }]}>
-                          <AppText weight="semibold" style={styles.debtName} numberOfLines={1}>
-                            {item.person}
-                          </AppText>
-                          <View style={styles.debtAmounts}>
-                            {item.owed > 0 && (
-                              <AppText weight="bold" color={colors.danger} style={styles.positionValue}>
-                                Quỹ nợ {formatVnd(item.owed)}
-                              </AppText>
-                            )}
-                            {item.held > 0 && (
-                              <AppText weight="semibold" color={colors.warning} style={styles.debtHeld}>
-                                Đang giữ ứng {formatVnd(item.held)}
-                              </AppText>
-                            )}
-                          </View>
-                        </Pressable>
-                      );
-                    })
-                  )}
-                  {!!personFilter && (
-                    <Pressable accessibilityRole="button" onPress={() => setPersonFilter('')} hitSlop={8}>
-                      <AppText weight="semibold" color={colors.accent} style={styles.balanceLabel}>
-                        Đang xem các dòng của {personFilter} · Bỏ lọc
-                      </AppText>
-                    </Pressable>
-                  )}
-                </View>
+              {members.length > 0 && (
+                <MemberFilterChips
+                  members={members}
+                  value={activeMember}
+                  onChange={(next) => {
+                    setOpenId(null);
+                    setMember(next);
+                  }}
+                />
               )}
 
               {shownDays.length === 0 ? (
-                <EmptyState text={personFilter ? `Không có dòng nào của ${personFilter} trong khoảng này` : 'Không có khoản nào trong khoảng này'} icon="check" />
+                <EmptyState
+                  text={activeMember !== ALL_MEMBERS ? `Không có dòng nào của ${activeMember} trong khoảng này` : 'Không có khoản nào làm đổi số dư quỹ trong khoảng này'}
+                  icon="check"
+                />
               ) : (
                 shownDays.map((day) => (
                   <View key={day.date} style={styles.day}>
@@ -237,27 +242,31 @@ export default function FundHistoryScreen() {
                         const cashOnly = entry.kind === 'advance' || entry.kind === 'payout' || entry.kind === 'refund'; // dòng tiền, không phải chi phí
                         const status = statusOf(entry);
                         const name = history.showFundName ? fundName(entry.fundId) : '';
-                        // Màu dấu +/−: thu / hoàn xanh lá, chi đỏ, dòng tiền xuất (giao ứng, quỹ trả) xám.
-                        const tint = cashOnly && !incoming ? colors.muted : incoming ? colors.success : colors.danger;
                         return (
                           <HistoryCard
                             key={`${entry.kind}:${entry.id}`}
                             open={openId === entry.id}
                             onOpen={() => setOpenId(entry.id)}
                             onClose={() => setOpenId((current) => (current === entry.id ? null : current))}
-                            onPressRow={() => pressEntry(entry)}
-                            onEdit={() => (entry.kind === 'contribution' || entry.kind === 'expense' ? setEditing(entry) : entry.advanceId ? openAdvance(entry.advanceId) : toast.show('Muốn sửa, hãy xoá giao dịch này rồi ghi lại', { bottom: TOAST_BOTTOM_HISTORY }))}
+                            onPressRow={() => {
+                              setOpenId(null);
+                              router.push({ pathname: '/quy/chi-tiet', params: { kind: entry.kind, id: entry.id } });
+                            }}
+                            onEdit={() => {
+                              setOpenId(null);
+                              router.push({ pathname: '/quy/sua', params: { kind: entry.kind, id: entry.id } });
+                            }}
                             onDelete={() => void remove(entry)}
                             accessibilityLabel={`${entry.title}, ${incoming ? '+' : '-'}${formatVnd(entry.amount)}`}
-                            icon={
-                              <IconTile color={tint}>
-                                <AppText weight="bold" color={tint} style={styles.iconText}>
-                                  {incoming ? '+' : '−'}
-                                </AppText>
-                              </IconTile>
-                            }
+                            icon={<FundEntryIcon kind={entry.kind} mode={data.expenses.find((e) => e.id === entry.id)?.mode} />}
                             title={entry.title}
-                            subtitle={name ? `${name} · ${entry.meta}` : entry.meta}
+                            subtitle={
+                              entry.split
+                                ? `${name ? `${name} · ` : ''}Quỹ chi: ${formatVnd(entry.split.fund)}\nCá nhân ứng${entry.person ? ` (${entry.person})` : ''}: ${formatVnd(entry.split.personal)}`
+                                : name
+                                  ? `${name} · ${entry.meta}`
+                                  : entry.meta
+                            }
                             amount={`${incoming ? '+' : '−'}${formatVnd(entry.amount)}`}
                             tone={cashOnly && !incoming ? 'mid' : incoming ? 'get' : 'owe'}
                             badge={status?.label}
@@ -271,66 +280,21 @@ export default function FundHistoryScreen() {
               )}
             </View>
           </View>
-        </ScrollView>
-      )}
-
-      {action && (
-        <FundActionSheet
-          target={action}
-          data={data}
-          onClose={() => setAction(null)}
-          onDone={() => {
-            setAction(null);
-            void reload();
-          }}
-        />
-      )}
-
-      {editing && editingFund && (editingContribution || editingExpense) && (
-        <Modal transparent animationType="fade" visible onRequestClose={() => setEditing(null)}>
-          <View style={[styles.scrim, { backgroundColor: colors.scrim }]}>
-            <Pressable style={styles.flex} onPress={() => setEditing(null)} accessibilityLabel="Đóng" />
-            <View style={[styles.sheet, { backgroundColor: colors.surface, paddingBottom: 16 + insets.bottom }]}>
-              <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.sheetContent}>
-                <ModalHeader title={editingContribution ? 'Sửa thu quỹ' : 'Sửa chi tiêu quỹ'} onClose={() => setEditing(null)} />
-                {editingContribution ? (
-                  <ContributionForm
-                    fund={editingFund}
-                    existing={editingContribution}
-                    onChanged={() => {
-                      setEditing(null);
-                      void reload();
-                    }}
-                  />
-                ) : (
-                  <FundExpenseForm
-                    fund={editingFund}
-                    existing={editingExpense}
-                    showTitle={false}
-                    balance={fundBalance(data, editingFund.id)}
-                    onChanged={() => {
-                      setEditing(null);
-                      void reload();
-                    }}
-                  />
-                )}
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>
+        </LockableScrollView>
       )}
     </View>
   );
 }
 
-function PositionRow({ label, value, color }: { label: string; value: string; color?: string }) {
+/** Dòng nhãn – giá trị của thẻ Tổng quan và chi tiết công nợ: nhãn xám bên trái, giá trị đậm (có thể tô màu) bên phải, ngăn bằng đường mảnh. */
+function InfoRow({ label, value, color, bold, first }: { label: string; value: string; color?: string; bold?: boolean; first?: boolean }) {
   const colors = useColors();
   return (
-    <View style={styles.positionRow}>
-      <AppText color={colors.muted} style={styles.balanceLabel} numberOfLines={1}>
+    <View style={[styles.infoRow, !first && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line }]}>
+      <AppText color={colors.muted} style={styles.infoLabel}>
         {label}
       </AppText>
-      <AppText weight="semibold" color={color} style={styles.positionValue}>
+      <AppText weight={bold ? 'bold' : 'semibold'} color={color} style={styles.infoValue}>
         {value}
       </AppText>
     </View>
@@ -341,30 +305,31 @@ function PositionRow({ label, value, color }: { label: string; value: string; co
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   screen: { flex: 1 },
-  content: { paddingHorizontal: 12 },
+  content: { paddingHorizontal: 16, paddingTop: 4, gap: 12 },
   loading: { marginTop: 48 },
-  notice: { marginHorizontal: 12, padding: 16, borderRadius: 16 },
+  notice: { marginHorizontal: 16, padding: 16, borderRadius: 16 },
   noticeText: { fontSize: 15 },
   card: { borderRadius: AppRadius.card, overflow: 'hidden' },
-  position: { flexDirection: 'column', alignItems: 'stretch', gap: 6 },
-  positionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  positionValue: { fontSize: 14, lineHeight: 20 },
-  debtTitle: { fontSize: 14.5, lineHeight: 20 },
-  debtRow: { minHeight: 48, borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  debtName: { flex: 1, fontSize: 15 },
-  debtAmounts: { alignItems: 'flex-end' },
-  debtHeld: { fontSize: 12.5, lineHeight: 17 },
-  summary: { minHeight: 64, paddingVertical: 10, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  summaryLeft: { flex: 1, minWidth: 0 },
-  summaryTitle: { fontSize: 16, lineHeight: 22 },
-  summaryPeriod: { fontSize: 12, lineHeight: 15 },
-  summaryRight: { alignItems: 'flex-end' },
-  summaryCount: { fontSize: 14, lineHeight: 19.5 },
-  summaryAmount: { fontSize: 12, lineHeight: 15 },
+  cardHead: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 6 },
   body: { paddingHorizontal: 12, paddingBottom: 8 },
-  balance: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 14, marginBottom: 12 },
-  balanceLabel: { fontSize: 14, flexShrink: 1 },
-  balanceValue: { fontSize: 16 },
+  infoRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingVertical: 8 },
+  infoLabel: { flexShrink: 1, fontSize: 14 },
+  infoValue: { fontSize: 15, textAlign: 'right' },
+  debtSections: { gap: 14 },
+  debtSection: { gap: 6 },
+  debtSectionHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 },
+  debtSectionTitle: { fontSize: 13, lineHeight: 18 },
+  debtList: { gap: 8 },
+  debtRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  /** Cùng khuôn với danh sách Thanh toán bill (Chia bill) và Chi tiết nợ (Công nợ): tên cùng chiều cao dòng với số tiền. */
+  rowName: { fontSize: 15.5, lineHeight: 23 },
+  debtAmount: { fontSize: 17, lineHeight: 23 },
+  debtDetail: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 12, paddingBottom: 12, gap: 4 },
+  debtItemsTitle: { fontSize: 13.5, marginTop: 8 },
+  debtItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
+  debtItemTitle: { fontSize: 14, lineHeight: 19 },
+  debtItemSub: { fontSize: 12, lineHeight: 16 },
+  debtItemAmount: { fontSize: 14.5 },
   empty: { textAlign: 'center', fontSize: 15, paddingVertical: 28 },
   day: {},
   dayHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, paddingHorizontal: 2, marginTop: 8, marginBottom: 4 },

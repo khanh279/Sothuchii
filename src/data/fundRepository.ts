@@ -13,7 +13,7 @@
 
 import { StorageCorruptError, StorageKeys, loadJsonStrict, saveJsonStrict } from '@/data/storage';
 import { newExpenseId } from '@/domain/expenses';
-import { checkPayout, checkRefund } from '@/domain/fundAdvance';
+import { checkAdvanceGive, checkDirectSpend, checkPayout, checkRefund } from '@/domain/fundAdvance';
 import { FUND_NAME_MAX, normalizeFundData } from '@/domain/funds';
 import type { DateStr, ExpenseRef } from '@/types/expense';
 import type { ContributionPerson, Fund, FundData, FundExpenseMode, FundTxnKind } from '@/types/fund';
@@ -147,7 +147,7 @@ export interface ContributionInput {
   fundId: string;
   title: string;
   date: DateStr;
-  /** Số tiền đã là ĐỒNG (ô nhập nghìn đồng phải đổi bằng `parseNghinInput` trước). */
+  /** Số tiền ĐỒNG. */
   people: readonly ContributionPerson[];
 }
 
@@ -193,12 +193,17 @@ export interface FundExpenseInput {
   fundId: string;
   title: string;
   date: DateStr;
-  /** ĐỒNG, nhập trực tiếp (khác ô đóng quỹ nhập nghìn đồng). */
+  /** ĐỒNG, nhập trực tiếp. */
   amount: Vnd;
   /** Hình thức chi khi THÊM MỚI: bỏ trống = quỹ chi trực tiếp. 'personal' cần `payer`; 'advance' cần `advanceId` (người chi lấy từ hồ sơ). */
   mode?: FundExpenseMode;
   payer?: string;
   advanceId?: string;
+  /**
+   * Chỉ khi THÊM MỚI với mode 'personal': phần do QUỸ chi trực tiếp (khoản vượt số dư được chia nguồn tiền). 0 < phần < amount và không vượt tiền thực tế
+   * trong quỹ — kiểm tra lại ngay lúc ghi. Phần còn lại là cá nhân ứng (quỹ nợ). Ghi MỘT bản ghi duy nhất nên không có khoản chi nào bị tính hai lần.
+   */
+  fundPart?: Vnd;
 }
 
 export function saveFundExpense(input: FundExpenseInput, now: number = Date.now()): Promise<string | null> {
@@ -214,10 +219,22 @@ export function saveFundExpense(input: FundExpenseInput, now: number = Date.now(
       if (input.clientId && expenses.some((item) => isRecord(item) && String(item.id) === input.clientId)) return { next: raw, result: input.clientId };
       const extra: Record<string, unknown> = {};
       let targetFund = input.fundId;
+      // Chi TRỰC TIẾP lấy tiền khỏi quỹ: kiểm tra lại số dư ngay lúc ghi (không tin số đang hiển thị trên màn hình).
+      if (!input.mode) {
+        const spend = checkDirectSpend(normalizeFundData(raw), input.fundId, input.amount);
+        if (!spend.ok) throw new FundInputError(spend.message);
+      }
       if (input.mode === 'personal') {
         const payer = String(input.payer ?? '').trim();
         if (!payer) throw new FundInputError('Chọn người chi.');
         Object.assign(extra, { mode: 'personal', payer });
+        if (input.fundPart !== undefined && input.fundPart !== null) {
+          const part = Math.round(input.fundPart);
+          if (!(part > 0) || part >= fields.amount) throw new FundInputError('Phần quỹ chi phải lớn hơn 0 và nhỏ hơn tổng khoản chi.');
+          const take = checkDirectSpend(normalizeFundData(raw), input.fundId, part);
+          if (!take.ok) throw new FundInputError(take.message);
+          Object.assign(extra, { fundPart: part });
+        }
       } else if (input.mode === 'advance') {
         const advance = arrayOf(raw.advances).find((item) => isRecord(item) && String(item.id) === input.advanceId);
         if (!isRecord(advance)) throw new FundInputError('Không tìm thấy hồ sơ ứng trước.');
@@ -232,9 +249,16 @@ export function saveFundExpense(input: FundExpenseInput, now: number = Date.now(
       if (!isRecord(item) || String(item.id) !== input.id) return item;
       found = true;
       // Khoản cá nhân đã ứng được sửa số tiền: không được thấp hơn số quỹ đã trả (tránh công nợ âm). Hình thức chi / người chi giữ nguyên.
+      // Khoản chi trực tiếp: chỉ khi TĂNG số tiền mới phải kiểm tra số dư (số cũ được hoàn lại trước khi trừ số mới); sửa nội dung / giảm số tiền luôn được.
+      if (!item.mode && fields.amount > (Number(item.amount) || 0)) {
+        const spend = checkDirectSpend(normalizeFundData(raw), String(item.fundId), fields.amount, input.id);
+        if (!spend.ok) throw new FundInputError(spend.message);
+      }
       if (item.mode === 'personal') {
         const paid = arrayOf(raw.fundTxns).reduce<number>((sum, txn) => (isRecord(txn) && txn.kind === 'payout' && String(txn.expenseId) === input.id ? sum + (Number(txn.amount) || 0) : sum), 0);
-        if (fields.amount < paid) throw new FundInputError('Số tiền không được nhỏ hơn số quỹ đã thanh toán cho khoản này.');
+        // Khoản đã chia nguồn tiền: tổng không được thấp hơn phần quỹ đã chi cộng số quỹ đã trả cho phần cá nhân ứng.
+        const fundPart = Math.round(Number(item.fundPart) || 0);
+        if (fields.amount < paid + fundPart || (fundPart > 0 && fields.amount <= fundPart)) throw new FundInputError('Số tiền không được nhỏ hơn phần quỹ đã chi và số quỹ đã thanh toán cho khoản này.');
       }
       return { ...item, ...fields, ...(item.mode === 'advance' ? { fundId: item.fundId } : {}) };
     });
@@ -276,9 +300,40 @@ export function createAdvance(input: AdvanceInput, now: number = Date.now()): Pr
     requireFund(raw, input.fundId);
     const advances = arrayOf(raw.advances);
     if (input.clientId && advances.some((item) => isRecord(item) && String(item.id) === input.clientId)) return { next: raw, result: input.clientId };
+    // Giao tiền ứng lấy tiền khỏi quỹ: kiểm tra lại số dư ngay lúc ghi.
+    const give = checkAdvanceGive(normalizeFundData(raw), input.fundId, input.amount);
+    if (!give.ok) throw new FundInputError(give.message);
     const id = input.clientId || `a_${newExpenseId(now)}`;
     const record = { id, fundId: input.fundId, person, title: input.title, date: input.date, amount: Math.round(input.amount) };
     return { next: { ...raw, advances: [...advances, record] }, result: id };
+  });
+}
+
+export interface AdvanceUpdate {
+  title: string;
+  date: DateStr;
+  /** ĐỒNG, ≥ 0; không vượt số dư quỹ (tính lại cả số đã giao của chính hồ sơ này). */
+  amount: Vnd;
+}
+
+/**
+ * Sửa hồ sơ giao tiền ứng: nội dung, ngày và số tiền giao. Người nhận và quỹ giữ nguyên (các khoản chi / hoàn tiền / thanh toán gắn với hồ sơ vẫn đúng).
+ * Số tiền mới phải ≥ 0, không vượt số dư quỹ lúc ghi. Trả về false nếu không thấy hồ sơ.
+ */
+export function updateAdvance(id: string, input: AdvanceUpdate): Promise<boolean> {
+  if (!Number.isFinite(input.amount) || Math.round(input.amount) < 0) return Promise.reject(new FundInputError('Số tiền giao không hợp lệ.'));
+  return mutate((raw) => {
+    const advances = arrayOf(raw.advances);
+    const current = advances.find((item) => isRecord(item) && String(item.id) === id);
+    if (!isRecord(current)) return { next: raw, result: false };
+    const amount = Math.round(input.amount);
+    // Chỉ khi TĂNG số tiền giao mới kiểm tra số dư; giảm hoặc sửa nội dung / ngày luôn được.
+    if (amount > (Number(current.amount) || 0)) {
+      const give = checkAdvanceGive(normalizeFundData(raw), String(current.fundId), amount, id);
+      if (!give.ok) throw new FundInputError(give.message);
+    }
+    const updated = advances.map((item) => (item === current ? { ...item, title: input.title, date: input.date, amount } : item));
+    return { next: { ...raw, advances: updated }, result: true };
   });
 }
 
@@ -340,6 +395,38 @@ export function saveFundTxn(input: FundTxnInput, now: number = Date.now()): Prom
     if (input.advanceId) record.advanceId = input.advanceId;
     if (input.expenseId) record.expenseId = input.expenseId;
     return { next: { ...raw, fundTxns: [...txns, record] }, result: id };
+  });
+}
+
+export interface FundTxnUpdate {
+  /** ĐỒNG, > 0, kiểm tra lại với đúng quy tắc của loại giao dịch (không tính chính giao dịch đang sửa). */
+  amount: Vnd;
+  date: DateStr;
+}
+
+/**
+ * Sửa số tiền / ngày của giao dịch hoàn tiền hoặc thanh toán đã ghi. Loại, người và khoản gốc (hồ sơ ứng trước / khoản chi cá nhân) giữ nguyên.
+ * Số tiền mới được kiểm tra bằng `checkRefund` / `checkPayout` trên dữ liệu đã BỎ chính giao dịch này, nên không vượt số còn giữ / còn nợ.
+ * Trả về false nếu không thấy giao dịch.
+ */
+export function updateFundTxn(id: string, input: FundTxnUpdate): Promise<boolean> {
+  return mutate((raw) => {
+    const txns = arrayOf(raw.fundTxns);
+    const current = txns.find((item) => isRecord(item) && String(item.id) === id);
+    if (!isRecord(current)) return { next: raw, result: false };
+    const data = normalizeFundData({ ...raw, fundTxns: txns.filter((item) => item !== current) });
+    const advanceId = current.advanceId ? String(current.advanceId) : undefined;
+    const expenseId = current.expenseId ? String(current.expenseId) : undefined;
+    let check;
+    if (current.kind === 'refund') {
+      if (!advanceId) throw new FundInputError('Chọn hồ sơ ứng trước.');
+      check = checkRefund(data, advanceId, input.amount);
+    } else if (expenseId) check = checkPayout(data, { expenseId }, input.amount);
+    else if (advanceId) check = checkPayout(data, { advanceId }, input.amount);
+    else throw new FundInputError('Chọn khoản cần thanh toán.');
+    if (!check.ok) throw new FundInputError(check.message);
+    const updated = txns.map((item) => (item === current ? { ...item, amount: check.amount, date: input.date } : item));
+    return { next: { ...raw, fundTxns: updated }, result: true };
   });
 }
 

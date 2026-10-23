@@ -1,6 +1,7 @@
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { LockableScrollView } from '@/components/lockable-scroll-view';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
@@ -72,7 +73,7 @@ export default function HistoryScreen() {
       ) : !loaded ? (
         <ActivityIndicator style={styles.loading} color={colors.primary} />
       ) : (
-        <ScrollView
+        <LockableScrollView
           contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]}
           onScrollBeginDrag={() => setOpenId(null)}
           keyboardShouldPersistTaps="handled">
@@ -106,7 +107,7 @@ export default function HistoryScreen() {
               ) : (
                 <>
                   {!fixedCategory && inUse.length > 0 && (
-                    <ScrollView
+                    <LockableScrollView
                       horizontal
                       showsHorizontalScrollIndicator={false}
                       style={styles.chipsScroll}
@@ -123,7 +124,7 @@ export default function HistoryScreen() {
                           }}
                         />
                       ))}
-                    </ScrollView>
+                    </LockableScrollView>
                   )}
 
                   {groups.map((group) => (
@@ -165,7 +166,7 @@ export default function HistoryScreen() {
               )}
             </View>
           </View>
-        </ScrollView>
+        </LockableScrollView>
       )}
     </View>
   );
@@ -221,7 +222,8 @@ export function ExpenseRow({ item, settings, open, onOpen, onClose, onPressRow, 
       title={item.n || category.name}
       subtitle={item.i || category.name}
       badge={badge}
-      amount={formatVnd(item.a)}
+      amount={`−${formatVnd(item.a)}`}
+      tone="owe"
     />
   );
 }

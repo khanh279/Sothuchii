@@ -1,5 +1,5 @@
 /**
- * Trạng thái thanh toán của từng khoản "Cần chuyển" của một bill và của cả bill (hàm thuần, chỉ ĐỌC dữ liệu). Tiền là NGHÌN đồng.
+ * Trạng thái thanh toán của từng khoản "Cần chuyển" của một bill và của cả bill (hàm thuần, chỉ ĐỌC dữ liệu). Tiền là ĐỒNG.
  *
  * Dùng đúng quy tắc phân bổ sẵn có của app (`allocatePayments` / `allocateForPerson` của `billPerson`): mỗi khoản trả thuộc sổ bill
  * (kể cả gộp nợ sổ bill) từ A cho B trừ dần vào các khoản "A phải chuyển cho B" của các bill, theo thứ tự thời gian, bill cũ trước.
@@ -8,10 +8,11 @@
  */
 
 import { computeSplit } from '@/domain/bills';
-import { DEBT_ZERO, mergeLedger, payClass, r3 } from '@/domain/ledger';
+import { DEBT_ZERO, mergeLedger, payClass } from '@/domain/ledger';
 import type { Bill } from '@/types/bill';
-import type { Nghin } from '@/types/money';
+import type { Vnd } from '@/types/money';
 import type { Pay } from '@/types/pay';
+import { roundVnd } from '@/domain/money';
 
 export type TransferPayState = 'paid' | 'unpaid' | 'partial';
 
@@ -19,10 +20,10 @@ export interface BillTransferStatus {
   from: string;
   to: string;
   /** Tổng số tiền cần chuyển theo bill. */
-  amount: Nghin;
+  amount: Vnd;
   /** Đã trả (đã phân bổ vào khoản chuyển này) và còn thiếu. */
-  paid: Nghin;
-  remaining: Nghin;
+  paid: Vnd;
+  remaining: Vnd;
   state: TransferPayState;
 }
 
@@ -31,7 +32,7 @@ const pairKey = (from: string, to: string): string => `${from}\u0001${to}`;
 
 interface Slot {
   status: BillTransferStatus;
-  left: Nghin;
+  left: Vnd;
 }
 
 /** Trạng thái các khoản cần chuyển của MỌI bill (khoá: mã bill), mỗi khoản đúng thứ tự của `computeSplit(...).transfers`. */
@@ -55,11 +56,11 @@ export function billTransferStatuses(bills: readonly Bill[], pays: readonly Pay[
       for (const transfer of computeSplit(item.bill.people).transfers) {
         const from = clean(transfer.from);
         const to = clean(transfer.to);
-        const status: BillTransferStatus = { from, to, amount: transfer.amt, paid: 0, remaining: r3(transfer.amt), state: 'unpaid' };
+        const status: BillTransferStatus = { from, to, amount: transfer.amt, paid: 0, remaining: roundVnd(transfer.amt), state: 'unpaid' };
         list.push(status);
         const key = pairKey(from, to);
         const queue = queues.get(key) ?? [];
-        queue.push({ status, left: r3(transfer.amt) });
+        queue.push({ status, left: roundVnd(transfer.amt) });
         queues.set(key, queue);
       }
       result.set(item.bill.id, list);
@@ -70,8 +71,8 @@ export function billTransferStatuses(bills: readonly Bill[], pays: readonly Pay[
     for (const slot of queues.get(pairKey(clean(pay.from), clean(pay.to))) ?? []) {
       if (amount <= 0) break;
       const take = Math.min(slot.left, amount);
-      slot.left = r3(slot.left - take);
-      amount = r3(amount - take);
+      slot.left = roundVnd(slot.left - take);
+      amount = roundVnd(amount - take);
     }
   }
 
@@ -80,7 +81,7 @@ export function billTransferStatuses(bills: readonly Bill[], pays: readonly Pay[
       const slot = [...(queues.get(pairKey(status.from, status.to)) ?? [])].find((s) => s.status === status);
       const left = slot ? slot.left : status.remaining;
       status.remaining = left < DEBT_ZERO ? 0 : left;
-      status.paid = r3(status.amount - status.remaining);
+      status.paid = roundVnd(status.amount - status.remaining);
       status.state = status.remaining <= 0 ? 'paid' : status.paid < DEBT_ZERO ? 'unpaid' : 'partial';
     }
   }

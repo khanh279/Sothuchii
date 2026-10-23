@@ -3,10 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   BackHandler,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   TextInput,
   View,
@@ -18,6 +15,7 @@ import { CalendarPanel } from '@/components/calendar-panel';
 import { CategoryIcon } from '@/components/category-icon';
 import { DateField } from '@/components/date-field';
 import { ScreenTitle } from '@/components/design';
+import { KeyboardAnchor, KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll';
 import { AmountField, FormLabel, PickButton, PickPanel, formStyles } from '@/components/expense-form-parts';
 import { useToast } from '@/components/toast';
 import { DEFAULT_CATEGORY_ID, MEMO_MAX } from '@/constants/categories';
@@ -188,8 +186,7 @@ function ExpenseForm({ settings, existing, suggestedDate, period }: FormProps) {
   }
 
   return (
-    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView style={styles.flex} contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView style={styles.flex} contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
         <View style={[formStyles.card, { backgroundColor: colors.surface }]}>
           <AmountField
             value={amount}
@@ -226,7 +223,7 @@ function ExpenseForm({ settings, existing, suggestedDate, period }: FormProps) {
             </AppText>
           )}
 
-          <View style={formStyles.actions}>
+          <KeyboardAnchor style={formStyles.actions}>
             <Pressable
               style={[formStyles.btn, formStyles.btnSave, { backgroundColor: colors.primary }, busy && formStyles.disabled]}
               onPress={save}
@@ -236,7 +233,7 @@ function ExpenseForm({ settings, existing, suggestedDate, period }: FormProps) {
                 Lưu khoản chi
               </AppText>
             </Pressable>
-          </View>
+          </KeyboardAnchor>
 
           {calendarOpen && (
             <CalendarPanel
@@ -263,8 +260,7 @@ function ExpenseForm({ settings, existing, suggestedDate, period }: FormProps) {
             />
           )}
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
   );
 }
 

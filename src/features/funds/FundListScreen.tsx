@@ -1,10 +1,13 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { LockableScrollView } from '@/components/lockable-scroll-view';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { EmptyState, ModalHeader, ScreenTitle, SecondaryButton, TitleAction } from '@/components/design';
+import { OptionSheet } from '@/components/option-sheet';
+import { EmptyState, ScreenTitle, SecondaryButton, TitleAction } from '@/components/design';
+import { PageLayout } from '@/constants/layout';
 import { SvgIcon } from '@/components/svg-icon';
 import { SwipeRow } from '@/components/swipe-row';
 import { useToast } from '@/components/toast';
@@ -12,8 +15,7 @@ import { AppFonts } from '@/constants/fonts';
 import { FundInputError } from '@/data/fundRepository';
 import { createFundSynced, deleteFundSynced, renameFundSynced } from '@/data/fundService';
 import { FUND_NAME_MAX, fundBalance, fundLastActivity } from '@/domain/funds';
-import { ContributionForm } from '@/features/funds/ContributionForm';
-import { FundExpenseForm } from '@/features/funds/FundExpenseForm';
+import { FundTxnSheet } from '@/features/funds/FundTxnSheet';
 import { describeFundError, useFundData } from '@/features/funds/hooks';
 import { useChromeScroll } from '@/hooks/use-chrome';
 import { useColors } from '@/hooks/use-colors';
@@ -23,7 +25,6 @@ import { formatVnd } from '@/utils/format';
 
 /** Đang soạn tên quỹ: thêm mới, hoặc đổi tên một quỹ có sẵn. */
 type Editing = { mode: 'add' } | { mode: 'edit'; id: string };
-type EntryMode = 'thu' | 'chi';
 
 /**
  * Tab "Quỹ nhóm": tiêu đề và nút "+ Giao dịch quỹ" (menu Thu quỹ / Chi tiêu quỹ, mở đúng form đóng quỹ / chi quỹ có sẵn cho quỹ chọn
@@ -38,9 +39,9 @@ export default function FundListScreen() {
   const { data, loaded, error, reload } = useFundData();
   const [editing, setEditing] = useState<Editing | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
-  const [sheetFundId, setSheetFundId] = useState<string | null>(null);
-  const [sheetMode, setSheetMode] = useState<EntryMode | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  /** Thẻ nổi chọn quỹ cho Thu quỹ / Chi tiêu quỹ (chọn từ menu Giao dịch quỹ). */
+  const [txnSheet, setTxnSheet] = useState<'thu' | 'chi' | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function run(task: () => Promise<string>) {
@@ -77,11 +78,7 @@ export default function FundListScreen() {
     });
 
   const title = (
-    <ScreenTitle
-      title="Quỹ nhóm"
-      topInset={insets.top}
-      right={loaded && !error ? <TitleAction label="Giao dịch quỹ" onPress={() => setMenuOpen(true)} /> : undefined}
-    />
+    <ScreenTitle title="Quỹ nhóm" topInset={insets.top} right={loaded && !error ? <TitleAction label="Giao dịch quỹ" onPress={() => setMenuOpen(true)} /> : undefined} />
   );
 
   if (error) {
@@ -105,17 +102,10 @@ export default function FundListScreen() {
     );
   }
 
-  const sheetFund = data.funds.find((fund) => fund.id === sheetFundId) ?? data.funds[0] ?? null;
-
   return (
     <View style={styles.flex}>
       {title}
-      <ScrollView
-        ref={scrollRef}
-        {...scrollProps}
-        contentContainerStyle={styles.list}
-        onScrollBeginDrag={() => setOpenId(null)}
-        keyboardShouldPersistTaps="handled">
+      <LockableScrollView ref={scrollRef} {...scrollProps} contentContainerStyle={styles.list} onScrollBeginDrag={() => setOpenId(null)} keyboardShouldPersistTaps="handled">
         {data.funds.length === 0 && editing?.mode !== 'add' && <EmptyState text="Chưa có quỹ nào. Tạo quỹ mới để bắt đầu ghi nhận thu và chi của nhóm." icon="check" />}
 
         {data.funds.map((fund) => {
@@ -129,13 +119,14 @@ export default function FundListScreen() {
                 onClose={() => setOpenId((current) => (current === fund.id ? null : current))}
                 onPressRow={() => {
                   setOpenId(null);
-                  router.push({ pathname: '/quy/lich-su', params: { mode: 'all', fund: fund.id } });
+                  router.push({ pathname: '/quy/lich-su', params: { fund: fund.id } });
                 }}
                 onEdit={() => setEditing({ mode: 'edit', id: fund.id })}
                 onDelete={() => void remove(fund)}
                 background={colors.surface}
                 radius={15}
-                accessibilityLabel={`${fund.name}, số dư ${formatVnd(balance)}`}>
+                accessibilityLabel={`${fund.name}, số dư ${formatVnd(balance)}`}
+              >
                 <View style={styles.head}>
                   <View style={styles.nameCol}>
                     <AppText weight="bold" style={styles.name} numberOfLines={1}>
@@ -172,14 +163,7 @@ export default function FundListScreen() {
         })}
 
         {editing?.mode === 'add' && (
-          <NameForm
-            label="Tên quỹ mới"
-            initial=""
-            busy={busy}
-            onSave={save}
-            onCancel={() => setEditing(null)}
-            style={{ backgroundColor: colors.surface, borderRadius: 16 }}
-          />
+          <NameForm label="Tên quỹ mới" initial="" busy={busy} onSave={save} onCancel={() => setEditing(null)} style={{ backgroundColor: colors.surface, borderRadius: 16 }} />
         )}
 
         <SecondaryButton
@@ -189,105 +173,35 @@ export default function FundListScreen() {
             setEditing({ mode: 'add' });
           }}
         />
-      </ScrollView>
+      </LockableScrollView>
 
-      {sheetMode && sheetFund && (
-        <Modal transparent animationType="fade" visible onRequestClose={() => setSheetMode(null)}>
-          <View style={[styles.scrim, { backgroundColor: colors.scrim }]}>
-            <Pressable style={styles.flex} onPress={() => setSheetMode(null)} accessibilityLabel="Đóng" />
-            <View style={[styles.sheet, { backgroundColor: colors.surface, paddingBottom: 16 + insets.bottom }]}>
-              <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.sheetContent}>
-                <ModalHeader title={sheetMode === 'thu' ? 'Thu quỹ' : 'Chi tiêu quỹ'} onClose={() => setSheetMode(null)} />
-                {data.funds.length > 1 && (
-                  <View style={styles.fundChips}>
-                    {data.funds.map((fund) => {
-                      const selected = fund.id === sheetFund.id;
-                      return (
-                        <Pressable
-                          key={fund.id}
-                          accessibilityRole="button"
-                          accessibilityState={{ selected }}
-                          onPress={() => setSheetFundId(fund.id)}
-                          style={[styles.fundChip, { borderColor: selected ? colors.primary : colors.line, backgroundColor: selected ? colors.primarySoft : colors.bg }]}>
-                          <AppText weight="semibold" color={selected ? colors.primary : colors.ink} style={styles.chipLabel} numberOfLines={1}>
-                            {fund.name}
-                          </AppText>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                )}
-                {sheetMode === 'thu' ? (
-                  <ContributionForm
-                    key={sheetFund.id}
-                    fund={sheetFund}
-                    onChanged={() => {
-                      setSheetMode(null);
-                      void reload();
-                    }}
-                  />
-                ) : (
-                  <FundExpenseForm
-                    key={sheetFund.id}
-                    fund={sheetFund}
-                    showTitle={false}
-                    balance={fundBalance(data, sheetFund.id)}
-                    onChanged={() => {
-                      setSheetMode(null);
-                      void reload();
-                    }}
-                  />
-                )}
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>
-      )}
+      {txnSheet && <FundTxnSheet mode={txnSheet} onClose={() => setTxnSheet(null)} />}
 
       {menuOpen && (
-        <Modal transparent animationType="fade" visible onRequestClose={() => setMenuOpen(false)}>
-          <View style={[styles.scrim, { backgroundColor: colors.scrim }]}>
-            <Pressable style={styles.flex} onPress={() => setMenuOpen(false)} accessibilityLabel="Đóng" />
-            <View style={[styles.sheet, { backgroundColor: colors.surface, paddingBottom: 16 + insets.bottom }]}>
-              <View style={styles.sheetContent}>
-                <ModalHeader title="Giao dịch quỹ" onClose={() => setMenuOpen(false)} />
-                {data.funds.length === 0 && (
-                  <AppText color={colors.muted} style={styles.menuHint}>
-                    Chưa có quỹ — tạo quỹ mới trước khi ghi giao dịch.
-                  </AppText>
-                )}
-                {(
-                  [
-                    { mode: 'thu', label: 'Thu quỹ', hint: 'Ghi nhận tiền đóng góp vào quỹ' },
-                    { mode: 'chi', label: 'Chi tiêu quỹ', hint: 'Ghi nhận khoản chi từ quỹ' },
-                  ] as const
-                ).map((option) => (
-                  <Pressable
-                    key={option.mode}
-                    accessibilityRole="button"
-                    accessibilityState={{ disabled: data.funds.length === 0 }}
-                    disabled={data.funds.length === 0}
-                    onPress={() => {
-                      setMenuOpen(false);
-                      setSheetFundId(data.funds[0].id);
-                      setSheetMode(option.mode);
-                    }}
-                    style={({ pressed }) => [styles.menuOption, { borderColor: colors.line, opacity: data.funds.length === 0 ? 0.45 : pressed ? 0.7 : 1 }]}>
-                    <View style={styles.flex}>
-                      <AppText weight="semibold" style={styles.menuLabel}>
-                        {option.label}
-                      </AppText>
-                      <AppText color={colors.muted} style={styles.menuHint}>
-                        {option.hint}
-                      </AppText>
-                    </View>
-                    <SvgIcon name="chevronRight" size={16} color={colors.muted} strokeWidth={2} />
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-          </View>
-        </Modal>
+        <OptionSheet
+          title="Giao dịch quỹ"
+          note={data.funds.length === 0 ? 'Chưa có quỹ — tạo quỹ mới trước khi ghi giao dịch.' : undefined}
+          onClose={() => setMenuOpen(false)}
+          options={[
+            {
+              icon: 'wallet',
+              label: 'Thu quỹ',
+              hint: 'Ghi nhận tiền đóng góp vào quỹ',
+              disabled: data.funds.length === 0,
+              // Mở thẻ nổi liệt kê các quỹ; chọn quỹ thì mở trang riêng của form Thu quỹ.
+              opensSheet: true,
+              onPress: () => setTxnSheet('thu'),
+            },
+            {
+              icon: 'people',
+              label: 'Chi tiêu quỹ',
+              hint: 'Ghi nhận khoản chi từ quỹ',
+              disabled: data.funds.length === 0,
+              // Mở thẻ nổi liệt kê các quỹ (cùng thẻ với nút "+" ở Tổng quan); chọn quỹ thì mở trang riêng của form Chi tiêu quỹ.
+              onPress: () => setTxnSheet('chi'),
+            },
+          ]}
+        />
       )}
     </View>
   );
@@ -327,15 +241,13 @@ function NameForm({ label, initial, busy, onSave, onCancel, style }: NameFormPro
           accessibilityRole="button"
           disabled={busy}
           onPress={() => onSave(name)}
-          style={[styles.smallButton, styles.saveButton, { backgroundColor: colors.primary, borderColor: colors.primary }]}>
+          style={[styles.smallButton, styles.saveButton, { backgroundColor: colors.primary, borderColor: colors.primary }]}
+        >
           <AppText weight="semibold" color={colors.primaryInk} style={styles.smallText}>
             Lưu
           </AppText>
         </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          onPress={onCancel}
-          style={[styles.smallButton, { backgroundColor: colors.surface, borderColor: colors.line }]}>
+        <Pressable accessibilityRole="button" onPress={onCancel} style={[styles.smallButton, { backgroundColor: colors.surface, borderColor: colors.line }]}>
           <AppText weight="semibold" style={styles.smallText}>
             Hủy
           </AppText>
@@ -349,7 +261,7 @@ function NameForm({ label, initial, busy, onSave, onCancel, style }: NameFormPro
 // nút nhỏ cao 36, chữ 13.5; nút "+ Quỹ mới" viền nét đứt cao 46, bo 10; các dòng cách nhau 10.
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  list: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 24, gap: 12 },
+  list: { paddingHorizontal: PageLayout.paddingX, paddingTop: PageLayout.contentTop, paddingBottom: 24, gap: PageLayout.gap },
   row: { borderWidth: 1, borderRadius: 16, overflow: 'hidden' },
   head: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 10 },
   nameCol: { flex: 1, minWidth: 0 },

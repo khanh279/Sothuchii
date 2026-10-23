@@ -11,6 +11,7 @@
  */
 
 import { delExp, listSrc } from '@/data/expenseApi';
+import { VND_UNIT_MARK, ensureVndUnits } from '@/data/moneyMigration';
 import { refreshPeopleFromData } from '@/data/peopleRepository';
 import { StorageCorruptError, StorageKeys, getRawMany, listKeys, loadJsonStrict, removeKeys, setRawMany } from '@/data/storage';
 import {
@@ -44,6 +45,7 @@ async function loadArray(key: string): Promise<unknown[]> {
 
 /** Dựng nội dung file sao lưu từ dữ liệu hiện có. Ném StorageCorruptError nếu có phần dữ liệu hỏng. */
 export async function createBackupDocument(now: number = Date.now()): Promise<BackupDocument> {
+  await ensureVndUnits({ markEmpty: false }); // bill / khoản trả luôn được xuất ở đơn vị đồng
   const settings = await loadJsonStrict<unknown>(StorageKeys.settings);
   const months: Record<string, unknown> = {};
   for (const key of await monthKeys()) {
@@ -97,6 +99,8 @@ async function describeWrites(plan: RestorePlan): Promise<{ writes: [string, str
     writes.push([StorageKeys.bills, json(plan.chiaBill.bills)]);
     writes.push([StorageKeys.pays, json(plan.chiaBill.pays)]);
     writes.push([StorageKeys.billNames, json(plan.chiaBill.names)]);
+    // Dữ liệu vừa ghi đã là ĐỒNG: đặt dấu hiệu cùng lúc để lần đọc sau không chuyển đổi lần nữa.
+    writes.push([StorageKeys.billMoneyUnit, VND_UNIT_MARK]);
     // Cờ tương thích PWA: dữ liệu v2, không cần di chuyển dữ liệu cũ.
     writes.push([StorageKeys.me, json('')]);
     writes.push([StorageKeys.meV4, '1']);
@@ -155,7 +159,8 @@ export async function wipeSection(section: BackupSection): Promise<void> {
     await removeKeys([StorageKeys.fund]);
   } else {
     await removeLinkedExpenses('cb');
-    await removeKeys([StorageKeys.bills, StorageKeys.pays, StorageKeys.billNames]);
+    // Cả bản dự phòng nghìn đồng (nếu có): xoá dữ liệu Chia bill là xoá sạch, không để sót bản gốc.
+    await removeKeys([StorageKeys.bills, StorageKeys.pays, StorageKeys.billNames, StorageKeys.billsKBackup, StorageKeys.paysKBackup]);
   }
 }
 

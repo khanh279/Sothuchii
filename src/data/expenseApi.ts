@@ -3,7 +3,7 @@
  * Tương ứng `window.SoTien.reg("a", { addExp, getExp, delExp, listSrc })` của PWA.
  *
  * Quy ước:
- * - Tiền là ĐỒNG (số nguyên). Module Chia bill lưu NGHÌN đồng nên phải đổi bằng `nghinToVnd` trước khi gọi.
+ * - Tiền là ĐỒNG (số nguyên). Chia bill cũng lưu ĐỒNG nên truyền thẳng.
  * - Module gọi phải tự lưu `ExpenseRef` ({ m, id }) trả về (quỹ lưu dạng `exp: { m, id }`).
  * - Muốn đổi một khoản tự ghi: `delExp(ref)` rồi `addExp(...)` lại, giống cách module Quỹ của PWA làm.
  * - Khoản tự ghi mang `src` ('cb' hoặc 'quy'); mọi sửa từ màn hình chi tiêu vẫn giữ nguyên `src`, `i`, `t`.

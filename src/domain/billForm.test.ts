@@ -3,7 +3,6 @@ import {
   applyMemberSelection,
   clampBillPeople,
   emptyPerson,
-  formatMoney,
   formatPaidText,
   initialPeople,
   maskFixedInput,
@@ -21,7 +20,7 @@ import {
   withWeightText,
 } from './billForm';
 
-// DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng. Tiền là NGHÌN đồng.
+// DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng. Tiền là ĐỒNG.
 describe('ô nhập', () => {
   it('"Đã chi": chỉ chữ số, tối đa 9; hiển thị có dấu chấm hàng nghìn', () => {
     expect(maskPaidInput('1a2.3,4')).toBe('1234');
@@ -41,43 +40,44 @@ describe('ô nhập', () => {
     expect(parseWeightText('0')).toBe(0);
   });
 
-  it('mức cố định: kiểu nghìn đồng, phần nguyên tối đa 7 chữ số; đọc ra NGHÌN đồng (không nhân 1000)', () => {
-    expect(maskFixedInput('123456789')).toBe('1.234.567');
+  it('mức cố định: chỉ chữ số (ĐỒNG), tối đa 9 chữ số; đọc ra đúng số đồng (không nhân thêm)', () => {
+    expect(maskFixedInput('1234567890')).toBe('123456789');
+    expect(maskFixedInput('30.000')).toBe('30000');
     expect(parseFixedText('')).toBeUndefined();
-    expect(parseFixedText('30')).toBe(30);
-    expect(parseFixedText('1.234,5')).toBe(1234.5);
+    expect(parseFixedText('30000')).toBe(30_000);
+    expect(parseFixedText('1.234')).toBe(1234);
     expect(parseFixedText('0')).toBe(0);
   });
 
   it('gõ hệ số thì bỏ mức cố định; gõ mức cố định thì bỏ hệ số; xoá mức cố định thì giữ hệ số đang có', () => {
     const base = { ...emptyPerson('An'), weightText: '2', fixedText: '' };
-    expect(withFixedText(base, '30')).toMatchObject({ fixedText: '30', weightText: '' });
-    expect(withWeightText({ ...base, fixedText: '30', weightText: '' }, '3')).toMatchObject({ weightText: '3', fixedText: '' });
+    expect(withFixedText(base, '30000')).toMatchObject({ fixedText: '30000', weightText: '' });
+    expect(withWeightText({ ...base, fixedText: '30000', weightText: '' }, '3')).toMatchObject({ weightText: '3', fixedText: '' });
     expect(withFixedText(base, '')).toMatchObject({ fixedText: '', weightText: '2' });
   });
 });
 
 describe('toSplitPeople', () => {
-  it('người đầu luôn là "Tôi"; tên trống dùng chữ cái theo dòng; tiền là nghìn đồng', () => {
+  it('người đầu luôn là "Tôi"; tên trống dùng chữ cái theo dòng; tiền là đồng', () => {
     const people = toSplitPeople([
-      { ...emptyPerson('gì đó'), paidText: '100' },
+      { ...emptyPerson('gì đó'), paidText: '100000' },
       { ...emptyPerson(''), paidText: '' },
-      { ...emptyPerson(' Chi '), paidText: '5' },
+      { ...emptyPerson(' Chi '), paidText: '5000' },
       emptyPerson(''),
     ]);
     expect(people.map((p) => p.name)).toEqual(['Tôi', 'B', 'Chi', 'D']);
-    expect(people.map((p) => p.paid)).toEqual([100, 0, 5, 0]);
+    expect(people.map((p) => p.paid)).toEqual([100_000, 0, 5000, 0]);
   });
 
   it('hệ số và mức cố định đi vào phép chia đúng như PWA', () => {
     const rows = [
-      { ...emptyPerson(), paidText: '120', weightText: '2' },
-      { ...emptyPerson('B'), fixedText: '30' },
+      { ...emptyPerson(), paidText: '120000', weightText: '2' },
+      { ...emptyPerson('B'), fixedText: '30000' },
       { ...emptyPerson('C'), weightText: '1' },
     ];
     const split = computeSplit(toSplitPeople(rows));
-    expect(split.sumFix).toBe(30);
-    expect(split.rows.map((r) => r.share)).toEqual([60, 30, 30]); // (120-30) chia theo hệ số 2:1
+    expect(split.sumFix).toBe(30_000);
+    expect(split.rows.map((r) => r.share)).toEqual([60_000, 30_000, 30_000]); // (120-30) chia theo hệ số 2:1
   });
 
   it('mức cố định 0 là hợp lệ; ô trống thì không cố định', () => {
@@ -112,21 +112,20 @@ describe('hiển thị kết quả', () => {
   it('chú thích dưới ô tiền', () => {
     expect(weightCaption({ w: 1 })).toBe('');
     expect(weightCaption({ w: 1.5 })).toBe('Hệ số 1,5');
-    expect(weightCaption({ w: 1, fix: 30 })).toBe('Cố định 30.000 ₫');
+    expect(weightCaption({ w: 1, fix: 30_000 })).toBe('Cố định 30.000 ₫');
     expect(weightCaption({ w: 3, fix: 0 })).toBe('Cố định 0 ₫');
   });
 
   it('trạng thái: nhận lại / còn thiếu / đã đủ, làm tròn đến đồng', () => {
-    expect(rowStatus({ net: 66.667 })).toEqual({ kind: 'get', amount: 66_667 });
-    expect(rowStatus({ net: -33.3333 })).toEqual({ kind: 'owe', amount: 33_333 });
-    expect(rowStatus({ net: 0.0004 })).toEqual({ kind: 'even', amount: 0 });
+    expect(rowStatus({ net: 66_667.4 })).toEqual({ kind: 'get', amount: 66_667 });
+    expect(rowStatus({ net: -33_333.3 })).toEqual({ kind: 'owe', amount: 33_333 });
+    expect(rowStatus({ net: 0.4 })).toEqual({ kind: 'even', amount: 0 });
   });
 
   it('dòng mô tả', () => {
-    expect(rowMeta({ paid: 100, share: 33.333, fixed: false, w: 1 })).toBe('Chi 100.000 ₫ · Phần 33.333 ₫');
-    expect(rowMeta({ paid: 0, share: 30, fixed: true, w: 1 })).toBe('Chi 0 ₫ · Phần 30.000 ₫ · Cố định');
-    expect(rowMeta({ paid: 0, share: 60, fixed: false, w: 2 })).toBe('Chi 0 ₫ · Phần 60.000 ₫ · Hệ số 2');
-    expect(formatMoney(1.5)).toBe('1.500 ₫');
+    expect(rowMeta({ paid: 100_000, share: 33_333.3, fixed: false, w: 1 })).toBe('Chi 100.000 ₫ · Phần 33.333 ₫');
+    expect(rowMeta({ paid: 0, share: 30_000, fixed: true, w: 1 })).toBe('Chi 0 ₫ · Phần 30.000 ₫ · Cố định');
+    expect(rowMeta({ paid: 0, share: 60_000, fixed: false, w: 2 })).toBe('Chi 0 ₫ · Phần 60.000 ₫ · Hệ số 2');
   });
 });
 
@@ -159,5 +158,12 @@ describe('chọn thành viên và đặt lại sau khi lưu', () => {
 
   it('sau khi lưu: xoá tiền, hệ số, mức cố định; giữ tên', () => {
     expect(resetAfterSave(rows)).toEqual([emptyPerson('Tôi'), emptyPerson('An'), emptyPerson('')]);
+  });
+});
+
+describe('ô "Đã chi" nhập bằng đồng, lưu bằng đồng', () => {
+  it('chữ có hoặc không có chấm hàng nghìn đều đọc đúng ra đồng', () => {
+    const rows = [{ ...emptyPerson('Tôi'), paidText: '1.200.000' }, { ...emptyPerson('An'), paidText: '1500' }, { ...emptyPerson('Bình'), paidText: '' }];
+    expect(toSplitPeople(rows).map((p) => p.paid)).toEqual([1_200_000, 1500, 0]);
   });
 });

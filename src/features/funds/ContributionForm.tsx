@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
+import { MoneyTextInput } from '@/components/money-input';
+import { KeyboardAnchor } from '@/components/keyboard-aware-scroll';
 import { CalendarPanel } from '@/components/calendar-panel';
 import { DateField } from '@/components/date-field';
 import { SvgIcon } from '@/components/svg-icon';
@@ -16,14 +18,13 @@ import {
   contributionSavedMessage,
   contributionSummary,
   contributionTitle,
-  enableAllMode,
-  resizeRows,
   rowsFromContribution,
+  resizeRows,
   setAllAmounts,
   validateContribution,
   type PersonRow,
 } from '@/domain/fundForms';
-import { formatNghinInput, maskNghinInput, parseNghinInput } from '@/domain/money';
+import { formatVndInput, maskVndInput, parseVndInput } from '@/domain/money';
 import { describeFundError } from '@/features/funds/hooks';
 import { PersonPicker } from '@/features/people/PersonPicker';
 import { useColors } from '@/hooks/use-colors';
@@ -31,14 +32,14 @@ import type { Contribution, Fund } from '@/types/fund';
 import { todayStr } from '@/utils/date';
 import { formatVnd } from '@/utils/format';
 
-/** Dòng trong form giữ CHỮ người dùng gõ ở ô tiền (đơn vị nghìn đồng); số đồng suy ra bằng `parseNghinInput`. */
+/** Dòng trong form giữ chữ số của ô tiền (ĐỒNG); ô nhập hiển thị dấu chấm hàng nghìn, đổi qua lại bằng `parseVndInput` / `formatVndInput`. */
 interface FormRow {
   name: string;
   text: string;
 }
 
-const toPerson = (row: FormRow): PersonRow => ({ name: row.name, amount: parseNghinInput(row.text) });
-const toForm = (row: PersonRow): FormRow => ({ name: row.name, text: formatNghinInput(row.amount) });
+const toPerson = (row: FormRow): PersonRow => ({ name: row.name, amount: parseVndInput(row.text) });
+const toForm = (row: PersonRow): FormRow => ({ name: row.name, text: formatVndInput(row.amount) });
 
 interface Props {
   fund: Fund;
@@ -50,7 +51,7 @@ interface Props {
 
 /**
  * Form đóng quỹ (khoản thu): nội dung, ngày, số người (1–200), "Áp dụng cho tất cả" + số tiền mỗi người,
- * từng dòng tên + số tiền. Ô tiền nhập theo NGHÌN đồng, lưu theo đồng. Tên cho nhập tự do; đúng chữ "Tôi"
+ * từng dòng tên + số tiền. Ô tiền nhập và lưu theo đồng. Tên cho nhập tự do; đúng chữ "Tôi"
  * là phần của chính mình và được đồng bộ sang chi tiêu cá nhân.
  */
 export function ContributionForm({ fund, existing, onChanged }: Props) {
@@ -63,7 +64,7 @@ export function ContributionForm({ fund, existing, onChanged }: Props) {
   const [date, setDate] = useState(existing?.date ?? today);
   const [rows, setRows] = useState<FormRow[]>(initial ? initial.rows.map(toForm) : [{ name: '', text: '' }]);
   const [all, setAll] = useState(initial ? initial.all : true);
-  const [eachText, setEachText] = useState(initial?.all ? formatNghinInput(initial.each) : '');
+  const [eachText, setEachText] = useState(initial?.all ? formatVndInput(initial.each) : '');
   const [error, setError] = useState('');
   const [calendarOpen, setCalendarOpen] = useState(false);
   /** Dòng đang mở bảng chọn người từ danh sách (null = đóng). */
@@ -73,29 +74,22 @@ export function ContributionForm({ fund, existing, onChanged }: Props) {
   const summary = contributionSummary(rows.map(toPerson));
   const inputStyle = [styles.input, { backgroundColor: colors.bg, borderColor: colors.line, color: colors.ink, fontFamily: AppFonts.semibold }];
 
+  /** Đổi số người (1–200): bớt thì cắt cuối, thêm thì dòng trống; đang áp dụng "mỗi người" thì dòng mới có sẵn số tiền đó. */
   function setCount(next: number) {
-    setRows(resizeRows(rows.map(toPerson), next, parseNghinInput(eachText)).map(toForm));
+    setRows(resizeRows(rows.map(toPerson), next, all ? parseVndInput(eachText) : 0).map(toForm));
   }
 
-  function toggleAll() {
-    if (all) {
-      setAll(false);
-      return;
-    }
-    const enabled = enableAllMode(rows.map(toPerson), parseNghinInput(eachText));
-    setAll(true);
-    setEachText(formatNghinInput(enabled.each));
-    setRows(enabled.rows.map(toForm));
-  }
-
+  /** Nhập ô "Mỗi người": mặc định áp dụng cho TẤT CẢ các dòng (nhập số riêng ở một dòng thì thôi áp dụng chung). */
   function changeEach(text: string) {
-    const masked = maskNghinInput(text);
+    const masked = maskVndInput(text);
     setEachText(masked);
-    setRows(setAllAmounts(rows.map(toPerson), parseNghinInput(masked)).map(toForm));
+    setAll(true);
+    setRows(setAllAmounts(rows.map(toPerson), parseVndInput(masked)).map(toForm));
   }
 
   function changeRow(index: number, patch: Partial<FormRow>) {
     setRows(rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+    if (patch.text !== undefined) setAll(false); // sửa số riêng một người: không còn áp dụng chung
     setError('');
   }
 
@@ -154,6 +148,20 @@ export function ContributionForm({ fund, existing, onChanged }: Props) {
         <View style={styles.flex}>
           <DateField value={date} onPress={() => setCalendarOpen(true)} />
         </View>
+        <MoneyTextInput
+          value={parseVndInput(eachText)}
+          onChangeValue={(vnd) => changeEach(formatVndInput(vnd))}
+          placeholder="Mỗi người (₫)"
+          placeholderTextColor={colors.muted}
+          accessibilityLabel="Số tiền mỗi người"
+          style={[inputStyle, styles.each]}
+        />
+      </View>
+
+      <View style={styles.listHead}>
+        <AppText weight="semibold" color={colors.muted} style={styles.listTitle}>
+          Người đóng
+        </AppText>
         <View style={[styles.stepper, { borderColor: colors.line, backgroundColor: colors.bg }]}>
           <Pressable accessibilityRole="button" accessibilityLabel="Giảm số người" onPress={() => setCount(rows.length - 1)} style={styles.stepButton}>
             <AppText weight="bold" style={styles.stepText}>
@@ -180,44 +188,16 @@ export function ContributionForm({ fund, existing, onChanged }: Props) {
           </Pressable>
         </View>
       </View>
-
-      <View style={styles.line}>
-        <Pressable
-          accessibilityRole="checkbox"
-          accessibilityState={{ checked: all }}
-          onPress={toggleAll}
-          style={[styles.check, { borderColor: all ? colors.primary : colors.line, backgroundColor: all ? colors.primarySoft : colors.bg }]}>
-          <AppText weight="semibold" color={all ? colors.primary : colors.muted} style={styles.checkText}>
-            Áp dụng cho tất cả
-          </AppText>
-        </Pressable>
-        <TextInput
-          value={eachText}
-          onChangeText={changeEach}
-          keyboardType="decimal-pad"
-          placeholder="Mỗi người"
-          placeholderTextColor={colors.muted}
-          accessibilityLabel="Số tiền mỗi người, nghìn đồng"
-          style={[inputStyle, styles.each]}
-        />
-      </View>
-
       <View style={styles.head}>
-        <AppText weight="semibold" color={colors.muted} style={[styles.headText, styles.noCol]}>
-          STT
-        </AppText>
         <AppText weight="semibold" color={colors.muted} style={[styles.headText, styles.flex]}>
           Tên người đóng
         </AppText>
         <AppText weight="semibold" color={colors.muted} style={[styles.headText, styles.amountCol]}>
-          Số tiền (nghìn đồng)
+          Số tiền (₫)
         </AppText>
       </View>
       {rows.map((row, index) => (
         <View key={index} style={styles.personRow}>
-          <AppText weight="semibold" color={colors.muted} style={styles.noCol}>
-            {index + 1}
-          </AppText>
           <View style={[styles.nameBox, styles.flex]}>
             <TextInput
               value={row.name}
@@ -228,23 +208,18 @@ export function ContributionForm({ fund, existing, onChanged }: Props) {
               accessibilityLabel={`Tên người đóng ${index + 1}`}
               style={[inputStyle, styles.nameInput]}
             />
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Chọn người ${index + 1} từ danh sách`}
-              onPress={() => setPickingRow(index)}
-              style={styles.pickButton}>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Chọn người ${index + 1} từ danh sách`} onPress={() => setPickingRow(index)} style={styles.pickButton}>
               <View style={{ transform: [{ rotate: '90deg' }] }}>
                 <SvgIcon name="chevronRight" size={16} color={colors.muted} />
               </View>
             </Pressable>
           </View>
-          <TextInput
-            value={row.text}
-            onChangeText={(text) => changeRow(index, { text: maskNghinInput(text) })}
-            keyboardType="decimal-pad"
+          <MoneyTextInput
+            value={parseVndInput(row.text)}
+            onChangeValue={(vnd) => changeRow(index, { text: formatVndInput(vnd) })}
             placeholder="0"
             placeholderTextColor={colors.muted}
-            accessibilityLabel={`Số tiền người ${index + 1}, nghìn đồng`}
+            accessibilityLabel={`Số tiền người ${index + 1}`}
             style={[inputStyle, styles.amountCol, styles.amountInput]}
           />
         </View>
@@ -265,15 +240,18 @@ export function ContributionForm({ fund, existing, onChanged }: Props) {
         </AppText>
       )}
 
-      <Pressable
-        accessibilityRole="button"
-        disabled={busy}
-        onPress={() => void save()}
-        style={[styles.primary, { backgroundColor: colors.primary, borderColor: colors.primary }]}>
-        <AppText weight="semibold" color={colors.primaryInk} style={styles.primaryText}>
-          {existing ? 'Lưu thay đổi' : 'Lưu khoản thu'}
-        </AppText>
-      </Pressable>
+      <KeyboardAnchor>
+        <Pressable
+          accessibilityRole="button"
+          disabled={busy}
+          onPress={() => void save()}
+          style={[styles.primary, { backgroundColor: colors.primary, borderColor: colors.primary }]}
+        >
+          <AppText weight="semibold" color={colors.primaryInk} style={styles.primaryText}>
+            {existing ? 'Lưu thay đổi' : 'Lưu khoản thu'}
+          </AppText>
+        </Pressable>
+      </KeyboardAnchor>
 
       {pickingRow !== null && rows[pickingRow] && (
         <PersonPicker
@@ -311,14 +289,15 @@ const styles = StyleSheet.create({
   stepper: { flexDirection: 'row', alignItems: 'center', height: 46, borderWidth: 1, borderRadius: 12, paddingHorizontal: 2 },
   stepButton: { width: 36, height: 42, alignItems: 'center', justifyContent: 'center' },
   stepText: { fontSize: 20 },
-  count: { minWidth: 36, textAlign: 'center', fontSize: 16, padding: 0 },
+  count: { width: 36, textAlign: 'center', fontSize: 16, padding: 0 },
   people: { fontSize: 13, marginRight: 2 },
   check: { minHeight: 46, paddingHorizontal: 12, borderWidth: 1, borderRadius: 12, justifyContent: 'center' },
   checkText: { fontSize: 14 },
   each: { flex: 1, minWidth: 0, textAlign: 'right' },
   head: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
   headText: { fontSize: 12.5 },
-  noCol: { width: 28, textAlign: 'center' },
+  listHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 6 },
+  listTitle: { fontSize: 14 },
   amountCol: { width: 128 },
   personRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   nameBox: { justifyContent: 'center' },

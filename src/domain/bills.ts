@@ -1,8 +1,7 @@
 /**
  * Quy tắc Chia bill (hàm thuần, không đọc/ghi lưu trữ, không phụ thuộc giao diện). Chuyển từ `mod-c` của PWA.
  *
- * ĐƠN VỊ: bill lưu và tính bằng NGHÌN đồng (có thể lẻ). Chi tiêu cá nhân lưu ĐỒNG; chỉ `desiredBillExpense`
- * đổi sang đồng (`nghinToVnd`). Ngày là 'YYYY-MM-DD' theo giờ máy.
+ * ĐƠN VỊ: ĐỒNG (số nguyên), giống Chi tiêu cá nhân. Ngày là 'YYYY-MM-DD' theo giờ máy.
  *
  * Phần lập kế hoạch đồng bộ chi tiêu cá nhân `src:'cb'` (`planBillExpenseSync`) CHỈ lập kế hoạch;
  * việc thực hiện nằm ở tầng `data` (bước 4B). Chỉ đọc schema `v2`, không chạy migration cũ của PWA.
@@ -10,10 +9,9 @@
 
 import { DETAIL_MAX, MEMO_MAX } from '@/constants/categories';
 import { FUND_OWNER_NAME, type LinkedExpenseSnapshot } from '@/domain/funds';
-import { nghinToVnd } from '@/domain/money';
 import type { Bill, BillPerson, BillSplit, SplitProblem, SplitRow, Transfer } from '@/types/bill';
 import type { DateStr, ExpenseRef } from '@/types/expense';
-import type { Nghin, Vnd } from '@/types/money';
+import type { Vnd } from '@/types/money';
 import { todayStr } from '@/utils/date';
 import { formatVnd } from '@/utils/format';
 
@@ -25,8 +23,8 @@ export const MIN_BILL_PEOPLE = 2;
 export const MAX_BILL_PEOPLE = 20;
 /** Tên mặc định theo thứ tự dòng cho người không nhập tên (người đầu luôn là "Tôi"). */
 const DEFAULT_LETTERS = 'ABCDEFGHIJKLMNOPQRST';
-/** Sai số (nghìn đồng) dưới mức này coi là bằng nhau, như `.05` trong PWA. */
-const TOLERANCE = 0.05;
+/** Sai số (đồng) dưới mức này coi là bằng nhau. */
+const TOLERANCE = 50;
 
 /** Tên mặc định của người thứ `index` (0 là "Tôi", 1 là "B", ...). */
 export function defaultPersonName(index: number): string {
@@ -42,8 +40,8 @@ export function weightOf(person: Pick<BillPerson, 'w'> | null | undefined): numb
   return Number.isFinite(value) && value >= 0 ? value : 1;
 }
 
-/** Mức cố định (nghìn đồng); `null` nếu người này chia theo hệ số (hàm `dt`). */
-export function fixedOf(person: Pick<BillPerson, 'fix'> | null | undefined): Nghin | null {
+/** Mức cố định (đồng); `null` nếu người này chia theo hệ số (hàm `dt`). */
+export function fixedOf(person: Pick<BillPerson, 'fix'> | null | undefined): Vnd | null {
   if (!person || person.fix === undefined || person.fix === null || (person.fix as unknown) === '') return null;
   const value = +person.fix;
   return Number.isFinite(value) && value >= 0 ? value : null;
@@ -56,7 +54,7 @@ export function fixedOf(person: Pick<BillPerson, 'fix'> | null | undefined): Ngh
 export function suggestTransfers(rows: readonly Pick<SplitRow, 'name' | 'net'>[]): Transfer[] {
   const debtors: { name: string; amt: number }[] = [];
   const creditors: { name: string; amt: number }[] = [];
-  const nets = rows.map((row) => Math.round(row.net * 1e3));
+  const nets = rows.map((row) => Math.round(row.net));
   const sum = nets.reduce((acc, value) => acc + value, 0);
 
   let largest = -1;
@@ -78,7 +76,7 @@ export function suggestTransfers(rows: readonly Pick<SplitRow, 'name' | 'net'>[]
   let c = 0;
   while (d < debtors.length && c < creditors.length) {
     const amount = Math.min(debtors[d].amt, creditors[c].amt);
-    if (amount > 0) transfers.push({ from: debtors[d].name, to: creditors[c].name, amt: amount / 1e3 });
+    if (amount > 0) transfers.push({ from: debtors[d].name, to: creditors[c].name, amt: amount });
     debtors[d].amt -= amount;
     creditors[c].amt -= amount;
     if (debtors[d].amt === 0) d++;
@@ -131,8 +129,8 @@ export function canSaveBill(split: Pick<BillSplit, 'total' | 'n' | 'bad'>): bool
 
 /** Câu cảnh báo khi mức cố định sai (đúng chữ PWA); chuỗi rỗng nếu không lỗi. */
 export function describeSplitProblem(split: Pick<BillSplit, 'bad' | 'sumFix' | 'total'>): string {
-  const fixed = formatVnd(nghinToVnd(split.sumFix));
-  const total = formatVnd(nghinToVnd(split.total));
+  const fixed = formatVnd(split.sumFix);
+  const total = formatVnd(split.total);
   if (split.bad === 'over') return `Tổng mức cố định (${fixed}) lớn hơn tổng bill (${total}).`;
   if (split.bad === 'gap') return `Ai cũng trả mức cố định nhưng cộng lại (${fixed}) khác tổng bill (${total}).`;
   return '';
@@ -192,7 +190,7 @@ export interface DesiredBillExpense {
 
 /**
  * Khoản chi cá nhân của một bill (phần `N()` của PWA): phần của "Tôi" = nhỏ hơn giữa số đã chi và phần phải trả,
- * đổi sang đồng. Không có khi bill lỗi mức cố định, không có người tên đúng "Tôi", hoặc phần đó làm tròn về 0.
+ * làm tròn đồng. Không có khi bill lỗi mức cố định, không có người tên đúng "Tôi", hoặc phần đó làm tròn về 0.
  * Dòng chi tiết `i` có thêm "Trả trước …" khi "Tôi" đã chi ít hơn phần mình. `n` và `i` được cắt giống `addExp`
  * (80 và 120 ký tự) để so sánh với bản đã lưu luôn ổn định.
  */
@@ -201,13 +199,13 @@ export function desiredBillExpense(bill: Pick<Bill, 'people' | 'title' | 'date' 
   if (split.bad) return null;
   const mine = split.rows.find((row) => row.name === BILL_OWNER_NAME);
   if (!mine) return null;
-  const amount = nghinToVnd(Math.min(mine.paid, mine.share));
+  const amount = Math.round(Math.min(mine.paid, mine.share));
   if (amount <= 0) return null;
 
   const date = String(bill.date);
   const parts = date.split('-');
   const dayMonth = parts.length === 3 ? `${parts[2]}/${parts[1]}` : date.slice(0, 5);
-  const prepaid = mine.paid < mine.share - TOLERANCE ? `\nTrả trước ${formatVnd(nghinToVnd(mine.paid))}` : '';
+  const prepaid = mine.paid < mine.share - TOLERANCE ? `\nTrả trước ${formatVnd(mine.paid)}` : '';
   return {
     a: amount,
     c: bill.cat || DEFAULT_BILL_CATEGORY,

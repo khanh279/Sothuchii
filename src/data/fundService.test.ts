@@ -77,6 +77,7 @@ describe('fundService', () => {
 
   it('chi quỹ: lưu đồng, xoá được, không sinh khoản chi cá nhân', async () => {
     const { value: fund } = await createFundSynced('A');
+    await saveContributionSynced({ fundId: fund.id, title: 'Đóng', date: '2025-10-01', people: [{ name: 'An', amount: 100_000 }] });
     const saved = await saveFundExpenseSynced({ fundId: fund.id, title: 'Nước', date: '2025-10-05', amount: 12_000 });
     expect((await json('quy_nhom_v1')).expenses).toEqual([{ id: saved.value, fundId: fund.id, title: 'Nước', date: '2025-10-05', amount: 12_000 }]);
     expect(await AsyncStorage.getItem('sct:m:2025-10')).toBeNull();

@@ -1,6 +1,6 @@
 /**
  * Kế hoạch "Thanh toán" công nợ với MỘT người (hàm thuần): bốn lựa chọn Nợ bill / Nợ vay / Một phần / Toàn bộ.
- * Tiền là NGHÌN đồng. Chỉ lập các bản nháp khoản trả; việc ghi và đồng bộ nằm ở `data/payService`.
+ * Tiền là ĐỒNG. Chỉ lập các bản nháp khoản trả; việc ghi và đồng bộ nằm ở `data/payService`.
  *
  * Quy tắc (theo yêu cầu 6D, dựa trên `paymentDraft` của PWA):
  * - Chỉ thanh toán khi hai sổ CÙNG dấu hoặc chỉ một sổ còn nợ. Hai sổ trái dấu → rỗng (phải "Gộp nợ" trước, không tự bù trừ).
@@ -9,31 +9,32 @@
  * - Không bỏ sót đồng nào: tổng các khoản nháp bằng số tiền nhập (đã làm tròn `r3`).
  */
 
-import { formatMoney } from '@/domain/billForm';
-import { canMerge, isNearZero, paymentDraft, r3, type PayDraft } from '@/domain/ledger';
-import type { Nghin } from '@/types/money';
+import { canMerge, isNearZero, paymentDraft, type PayDraft } from '@/domain/ledger';
+import type { Vnd } from '@/types/money';
 import type { Ledger, PersonDebt } from '@/types/pay';
+import { roundVnd } from '@/domain/money';
+import { formatVnd } from '@/utils/format';
 
 export type DebtPayOption = 'bill' | 'loan' | 'partial' | 'all';
 
 /** Ghi chú của khoản vay mới sinh ra từ phần tiền trả dư. */
 export const PAY_SURPLUS_NOTE = 'Trả dư';
 
-/** Số tiền tối đa trả được ở sổ `ledger`: trị tuyệt đối số dư, 0 nếu đã hết nợ (dưới 0,05 nghìn). */
-const owed = (debt: Pick<PersonDebt, 'loan' | 'bill'>, ledger: Ledger): Nghin => (isNearZero(debt[ledger]) ? 0 : r3(Math.abs(debt[ledger])));
+/** Số tiền tối đa trả được ở sổ `ledger`: trị tuyệt đối số dư, 0 nếu đã hết nợ (dưới 50 đồng). */
+const owed = (debt: Pick<PersonDebt, 'loan' | 'bill'>, ledger: Ledger): Vnd => (isNearZero(debt[ledger]) ? 0 : roundVnd(Math.abs(debt[ledger])));
 
 /**
  * Các bản nháp khoản trả cho `debt` theo lựa chọn `option` (`amount` chỉ dùng cho 'partial').
  * Thứ tự: nợ bill, nợ vay, rồi (nếu có) phần dư.
  */
-export function planDebtPayment(debt: PersonDebt, option: DebtPayOption, amount?: Nghin): PayDraft[] {
+export function planDebtPayment(debt: PersonDebt, option: DebtPayOption, amount?: Vnd): PayDraft[] {
   if (canMerge(debt)) return [];
   const billOwed = owed(debt, 'bill');
   const loanOwed = owed(debt, 'loan');
   if (!(billOwed > 0) && !(loanOwed > 0)) return [];
 
   const drafts: PayDraft[] = [];
-  const add = (ledger: Ledger, value: Nghin) => {
+  const add = (ledger: Ledger, value: Vnd) => {
     const draft = value > 0 ? paymentDraft(debt, ledger, value) : null;
     if (draft) drafts.push(draft);
   };
@@ -44,11 +45,11 @@ export function planDebtPayment(debt: PersonDebt, option: DebtPayOption, amount?
     add('bill', billOwed);
     add('loan', loanOwed);
   } else {
-    const total = r3(Number(amount));
+    const total = roundVnd(Number(amount));
     if (!(total > 0)) return [];
     const toBill = Math.min(total, billOwed);
-    const toLoan = Math.min(r3(total - toBill), loanOwed);
-    const surplus = r3(total - toBill - toLoan);
+    const toLoan = Math.min(roundVnd(total - toBill), loanOwed);
+    const surplus = roundVnd(total - toBill - toLoan);
     add('bill', toBill);
     add('loan', toLoan);
     if (surplus > 0) {
@@ -64,5 +65,5 @@ export function planDebtPayment(debt: PersonDebt, option: DebtPayOption, amount?
 /** Câu thông báo sau khi ghi: "Đã ghi Tôi → An 300.000 ₫ · Tôi → An 500.000 ₫". Rỗng nếu không có khoản nào. */
 export function debtPaymentMessage(drafts: readonly Pick<PayDraft, 'from' | 'to' | 'amt'>[]): string {
   if (!drafts.length) return '';
-  return `Đã ghi ${drafts.map((d) => `${d.from} → ${d.to} ${formatMoney(d.amt)}`).join(' · ')}`;
+  return `Đã ghi ${drafts.map((d) => `${d.from} → ${d.to} ${formatVnd(d.amt)}`).join(' · ')}`;
 }

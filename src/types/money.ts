@@ -1,10 +1,6 @@
 /**
- * Đơn vị tiền. PWA cũ dùng hai đơn vị khác nhau:
- * - Chi tiêu cá nhân (mod-a) và Quỹ nhóm (mod-b): lưu bằng đồng (VND).
- * - Chia bill và công nợ (mod-c): lưu bằng NGHÌN đồng (có thể có số lẻ).
- *
- * Hai kiểu dưới đây chỉ là tên gọi để code dễ đọc; TypeScript vẫn coi chúng là number.
- * Muốn đổi qua lại, luôn dùng hàm trong `@/domain/money`.
+ * Đơn vị tiền DUY NHẤT của ứng dụng: ĐỒNG (VND), số nguyên.
+ * Chi tiêu, Quỹ nhóm, Chia bill và Công nợ đều lưu và tính bằng đồng; không còn đơn vị "nghìn đồng".
+ * Kiểu này chỉ là tên gọi để code dễ đọc (TypeScript vẫn coi là number).
  */
 export type Vnd = number;
-export type Nghin = number;

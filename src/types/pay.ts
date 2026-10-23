@@ -1,10 +1,10 @@
 import type { Bill } from '@/types/bill';
 import type { DateStr, ExpenseRef } from '@/types/expense';
-import type { Nghin } from '@/types/money';
+import type { Vnd } from '@/types/money';
 
 /**
  * Khoản thanh toán / chuyển tiền (Công nợ), đúng schema `v2` của PWA (khóa `chiabill:v2:pays`).
- * Tiền là NGHÌN đồng. Dữ liệu cũ có thể thiếu nhiều trường nên hầu hết đều tuỳ chọn.
+ * Tiền là ĐỒNG (dữ liệu cũ lưu nghìn đồng đã được chuyển một lần sang đồng). Dữ liệu cũ có thể thiếu nhiều trường nên hầu hết đều tuỳ chọn.
  */
 export interface Pay {
   id: string;
@@ -15,7 +15,7 @@ export interface Pay {
   from: string;
   /** Người nhận. */
   to: string;
-  amt: Nghin;
+  amt: Vnd;
   /** 'vay' | 'billpay' | 'repay' | 'bill' | 'bt' (gộp nợ) | 'loan' | 'xfer' | 'other' | thiếu (dữ liệu cũ). */
   kind?: string;
   bill?: string;
@@ -40,7 +40,7 @@ export type Ledger = 'loan' | 'bill';
 export interface DebtEvent {
   led: Ledger;
   who: string;
-  v: Nghin;
+  v: Vnd;
   /** 'bill' = từ gợi ý chuyển tiền của một bill; 'pay' = khoản trả; 'bt' = gộp nợ. */
   k: 'bill' | 'pay' | 'bt';
   bill?: Bill;
@@ -52,8 +52,8 @@ export interface DebtEvent {
 /** Số dư với một người ở hai sổ (dấu: dương = người đó nợ tôi). */
 export interface PersonDebt {
   name: string;
-  loan: Nghin;
-  bill: Nghin;
+  loan: Vnd;
+  bill: Vnd;
 }
 
 export interface PersonLedger extends PersonDebt {
@@ -63,9 +63,9 @@ export interface PersonLedger extends PersonDebt {
 export interface AllDebts {
   list: PersonDebt[];
   /** Tổng người khác nợ tôi. */
-  get: Nghin;
+  get: Vnd;
   /** Tổng tôi nợ. */
-  owe: Nghin;
+  owe: Vnd;
 }
 
 /** Một khoản chi cá nhân cần có từ khoản trả (tiền ĐỒNG), chưa có `src`. */

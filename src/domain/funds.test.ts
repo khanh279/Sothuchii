@@ -7,6 +7,7 @@ import {
   isFundLinkedExpense,
   desiredLinkedExpense,
   fundBalance,
+  fundMembers,
   fundLastActivity,
   fundPeriodTotals,
   fundTotals,
@@ -462,5 +463,26 @@ describe('fundLastActivity (ngày cập nhật gần nhất của quỹ)', () =>
     expect(fundLastActivity(data, 'f_a')).toBe('2025-10-09');
     expect(fundLastActivity(data, 'f_b')).toBe('2025-12-01');
     expect(fundLastActivity(data, 'f_c')).toBeNull();
+  });
+});
+
+describe('fundMembers — người thuộc một quỹ', () => {
+  // DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng.
+  const data = {
+    contribs: [
+      { id: 'c1', fundId: 'f1', title: 'Đóng quỹ', date: '2025-10-01', people: [{ name: 'An', amount: 100 }, { name: 'Tôi', amount: 100 }] },
+      { id: 'c2', fundId: 'f2', title: 'Đóng quỹ', date: '2025-10-01', people: [{ name: 'Bình', amount: 100 }] },
+    ],
+    expenses: [{ id: 'e1', fundId: 'f1', title: 'Mua', date: '2025-10-02', amount: 10, mode: 'personal', payer: 'Chi ' } as never],
+    advances: [{ id: 'a1', fundId: 'f1', person: 'An', title: 'Ứng', date: '2025-10-03', amount: 10 }],
+  } as Parameters<typeof fundMembers>[0];
+
+  it('chỉ lấy người của quỹ đó, không trùng, "Tôi" đứng đầu, gồm cả người ứng chi', () => {
+    expect(fundMembers(data, 'f1')).toEqual(['Tôi', 'An', 'Chi']);
+    expect(fundMembers(data, 'f2')).toEqual(['Bình']);
+  });
+
+  it('quỹ không có ai thì rỗng', () => {
+    expect(fundMembers(data, 'f3')).toEqual([]);
   });
 });

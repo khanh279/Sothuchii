@@ -18,15 +18,16 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   jest.requireActual('@react-native-async-storage/async-storage/jest/async-storage-mock'),
 );
 
-// DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng. Tiền là NGHÌN đồng.
+// DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng. Tiền là ĐỒNG.
 const KEY = 'chiabill:v2:pays';
 const raw = async () => JSON.parse((await AsyncStorage.getItem(KEY)) as string);
 const seed = (value: unknown) => AsyncStorage.setItem(KEY, typeof value === 'string' ? value : JSON.stringify(value));
-const rec = (id: string, over: Record<string, unknown> = {}) => ({ id, createdAt: 1, date: '2025-10-05', note: '', from: 'Tôi', to: 'An', amt: 10, kind: 'vay', ...over });
+const rec = (id: string, over: Record<string, unknown> = {}) => ({ id, createdAt: 1, date: '2025-10-05', note: '', from: 'Tôi', to: 'An', amt: 10_000, kind: 'vay', ...over });
 const pay = (id: string, over: Partial<Pay> = {}): Pay => rec(id, over) as Pay;
 
 beforeEach(async () => {
   await AsyncStorage.clear();
+  await AsyncStorage.setItem('chiabill:unit', 'vnd'); // dữ liệu mẫu đã ở đơn vị đồng
 });
 
 describe('đọc', () => {
@@ -47,24 +48,24 @@ describe('đọc', () => {
 });
 
 describe('thêm', () => {
-  it('lưu đúng định dạng PWA, tiền giữ nguyên NGHÌN đồng và làm tròn từng đồng', async () => {
-    await appendPays([pay('a', { amt: 12.3456, note: 'ăn' })]);
-    expect(await raw()).toEqual([{ id: 'a', createdAt: 1, date: '2025-10-05', note: 'ăn', from: 'Tôi', to: 'An', amt: 12.346, kind: 'vay' }]);
+  it('lưu đúng định dạng PWA, tiền giữ nguyên ĐỒNG và làm tròn từng đồng', async () => {
+    await appendPays([pay('a', { amt: 12345.6, note: 'ăn' })]);
+    expect(await raw()).toEqual([{ id: 'a', createdAt: 1, date: '2025-10-05', note: 'ăn', from: 'Tôi', to: 'An', amt: 12_346, kind: 'vay' }]);
   });
 
   it('khoản không hợp lệ bị từ chối và không ghi gì (cả lô)', async () => {
-    for (const bad of [pay('a', { amt: 0 }), pay('a', { amt: NaN }), pay('a', { amt: 0.0004 }), pay('a', { from: ' ' }), pay('a', { to: '' }), pay('', {}), pay('a', { date: 'sai' })]) {
+    for (const bad of [pay('a', { amt: 0 }), pay('a', { amt: NaN }), pay('a', { amt: 0.4 }), pay('a', { from: ' ' }), pay('a', { to: '' }), pay('', {}), pay('a', { date: 'sai' })]) {
       await expect(appendPays([pay('ok'), bad])).rejects.toBeInstanceOf(PayInputError);
     }
     expect(await AsyncStorage.getItem(KEY)).toBeNull();
   });
 
   it('khoản mới giống hệt khoản đã có → CỘNG vào khoản đó; trường lạ và mục lạ giữ nguyên', async () => {
-    await seed([rec('a', { amt: 10, extra: 'giữ', nexp: [{ m: '2025-10', id: 'old' }], exp: [{ m: '2025-10', id: 'x' }] }), 'rác']);
-    await appendPays([pay('b', { amt: 5 })]);
+    await seed([rec('a', { amt: 10_000, extra: 'giữ', nexp: [{ m: '2025-10', id: 'old' }], exp: [{ m: '2025-10', id: 'x' }] }), 'rác']);
+    await appendPays([pay('b', { amt: 5000 })]);
     const list = await raw();
     expect(list).toHaveLength(2);
-    expect(list[0]).toEqual(rec('a', { amt: 15, extra: 'giữ', nexp: [{ m: '2025-10', id: 'old' }], exp: [{ m: '2025-10', id: 'x' }] }));
+    expect(list[0]).toEqual(rec('a', { amt: 15_000, extra: 'giữ', nexp: [{ m: '2025-10', id: 'old' }], exp: [{ m: '2025-10', id: 'x' }] }));
     expect(list[1]).toBe('rác');
   });
 
@@ -92,26 +93,26 @@ describe('thêm', () => {
 });
 
 describe('sửa', () => {
-  const patch = { date: '2025-10-05', note: '', from: 'Tôi', to: 'An', amt: 10 };
+  const patch = { date: '2025-10-05', note: '', from: 'Tôi', to: 'An', amt: 10_000 };
 
   it('giữ id, createdAt, exp, loại và trường lạ; chỉ đổi các trường được sửa', async () => {
     await seed([rec('a', { exp: [{ m: '2025-10', id: 'x' }], la: 1, kind: 'billpay' })]);
-    expect(await updatePay('a', { ...patch, date: '2025-10-07', note: 'mới', to: 'Bình', amt: 7.0004 })).toBe(true);
-    expect((await raw())[0]).toEqual(rec('a', { exp: [{ m: '2025-10', id: 'x' }], la: 1, kind: 'billpay', date: '2025-10-07', note: 'mới', to: 'Bình', amt: 7 }));
+    expect(await updatePay('a', { ...patch, date: '2025-10-07', note: 'mới', to: 'Bình', amt: 7000.4 })).toBe(true);
+    expect((await raw())[0]).toEqual(rec('a', { exp: [{ m: '2025-10', id: 'x' }], la: 1, kind: 'billpay', date: '2025-10-07', note: 'mới', to: 'Bình', amt: 7000 }));
   });
 
   it('sửa thành giống hệt một khoản khác KHÔNG gộp: tiền hai khoản giữ nguyên, không cộng hai lần', async () => {
-    await seed([rec('a', { amt: 10 }), rec('b', { amt: 4, note: 'khác' })]);
-    expect(await updatePay('b', { ...patch, amt: 4 })).toBe(true); // b giờ giống hệt a về khóa
-    expect((await raw()).map((x: { id: string; amt: number }) => [x.id, x.amt])).toEqual([['a', 10], ['b', 4]]);
-    expect(await updatePay('a', { ...patch, amt: 10 })).toBe(true); // sửa a mà không đổi gì
-    expect((await raw()).map((x: { id: string; amt: number }) => [x.id, x.amt])).toEqual([['a', 10], ['b', 4]]);
+    await seed([rec('a', { amt: 10_000 }), rec('b', { amt: 4000, note: 'khác' })]);
+    expect(await updatePay('b', { ...patch, amt: 4000 })).toBe(true); // b giờ giống hệt a về khóa
+    expect((await raw()).map((x: { id: string; amt: number }) => [x.id, x.amt])).toEqual([['a', 10_000], ['b', 4000]]);
+    expect(await updatePay('a', { ...patch, amt: 10_000 })).toBe(true); // sửa a mà không đổi gì
+    expect((await raw()).map((x: { id: string; amt: number }) => [x.id, x.amt])).toEqual([['a', 10_000], ['b', 4000]]);
   });
 
   it('khoản không được sửa vẫn được gộp như PWA khi hai khoản khác trùng nhau', async () => {
-    await seed([rec('a', { amt: 10 }), rec('b', { amt: 4, note: 'khác' }), rec('c', { amt: 3, note: 'khác' })]);
-    await updatePay('a', { ...patch, amt: 10 });
-    expect((await raw()).map((x: { id: string; amt: number }) => [x.id, x.amt])).toEqual([['a', 10], ['b', 7]]);
+    await seed([rec('a', { amt: 10_000 }), rec('b', { amt: 4000, note: 'khác' }), rec('c', { amt: 3000, note: 'khác' })]);
+    await updatePay('a', { ...patch, amt: 10_000 });
+    expect((await raw()).map((x: { id: string; amt: number }) => [x.id, x.amt])).toEqual([['a', 10_000], ['b', 7000]]);
   });
 
   it('đổi loại chủ động: đổi kind và bỏ cờ ds; khoản gắn với bill thì giữ loại', async () => {
@@ -137,7 +138,7 @@ describe('sửa', () => {
 
   it('thay cả nhóm bằng một khoản; đổi ghi chú hàng loạt', async () => {
     await seed([rec('a', { bills: ['x'], kind: 'billpay' }), rec('b', { bills: ['y'], kind: 'billpay' }), rec('c', { to: 'Bình' })]);
-    expect(await replacePayGroup(['a', 'b'], pay('n', { amt: 30, kind: 'repay', bills: ['x', 'y'], lbl: 'Thanh toán bill' }))).toBe(true);
+    expect(await replacePayGroup(['a', 'b'], pay('n', { amt: 30_000, kind: 'repay', bills: ['x', 'y'], lbl: 'Thanh toán bill' }))).toBe(true);
     expect((await raw()).map((x: { id: string }) => x.id)).toEqual(['c', 'n']);
     expect(await replacePayGroup(['khong-co'], pay('z'))).toBe(false);
     expect(await setPayNotes(['c', 'n'], 'ghi chú')).toBe(2);

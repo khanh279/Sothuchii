@@ -2,8 +2,9 @@ import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 
 import { AppText } from '@/components/app-text';
-import { Panel, PersonAmountRow, SectionHeader } from '@/components/design';
+import { Panel, PersonAmountRow, SectionHeader, SummaryCard } from '@/components/design';
 import { buildOverviewFundCard } from '@/domain/fundHistory';
+import { fundBalance } from '@/domain/funds';
 import { useFundData } from '@/features/funds/hooks';
 import { useColors } from '@/hooks/use-colors';
 import type { Period } from '@/types/expense';
@@ -65,3 +66,24 @@ const styles = StyleSheet.create({
   more: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   moreText: { fontSize: 14 },
 });
+
+/**
+ * Thẻ số liệu "Quỹ nhóm" (chỉ xem, không bấm): TỔNG SỐ DƯ của các quỹ cộng lại (toàn thời gian, không phụ thuộc kỳ) và số quỹ.
+ * Số dư lấy từ `fundBalance` đã có; vào chi tiết bằng tab Quỹ nhóm.
+ */
+export function FundStatCard({ style }: { style?: React.ComponentProps<typeof SummaryCard>['style'] }) {
+  const { data, loaded, error } = useFundData();
+  const balance = useMemo(() => data.funds.reduce((sum, fund) => sum + fundBalance(data, fund.id), 0), [data]);
+  const ready = loaded && !error;
+  return (
+    <SummaryCard
+      label="Quỹ nhóm"
+      icon="people"
+      tint="teal"
+      value={ready ? formatVnd(balance) : '—'}
+      tone={ready && balance < 0 ? 'owe' : undefined}
+      caption={ready ? (data.funds.length === 0 ? 'Chưa có quỹ' : `${data.funds.length} quỹ`) : undefined}
+      style={style}
+    />
+  );
+}

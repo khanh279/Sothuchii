@@ -14,6 +14,7 @@ interface Props {
   value: DateStr;
   today: DateStr;
   min?: DateStr;
+  /** Ngày muộn nhất chọn được; bỏ trống = HÔM NAY (các ngày sau hôm nay bị mờ và không chọn được ở mọi ô chọn ngày đơn lẻ). */
   max?: DateStr;
   /**
    * 'overlay': phủ kín khung cha (khung cha phải `position: relative`), dùng trong form nhập.
@@ -28,7 +29,8 @@ interface Props {
  * Lịch chọn ngày tự dựng của PWA (`.calp`): tiêu đề "Chọn ngày", điều hướng tháng, hàng T2…CN,
  * lưới ngày, hai nút Huỷ / OK. Chọn ngày chỉ có hiệu lực khi bấm OK.
  */
-export function CalendarPanel({ value, today, min, max, variant, onCancel, onConfirm }: Props) {
+export function CalendarPanel({ value, today, min, max: maxProp, variant, onCancel, onConfirm }: Props) {
+  const max = maxProp ?? today;
   const colors = useColors();
   const { width } = useWindowDimensions();
   const [state, setState] = useState(() => openCalendar(value, today, { min, max }));

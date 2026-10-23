@@ -1,5 +1,7 @@
 # Kiến trúc dự án Sổ Thu Chi Mobile
 
+> **Lưu ý (đã lỗi thời một phần):** file này là bản khung đề xuất ban đầu. Hiện trạng thực tế của ứng dụng (route, luồng nghiệp vụ, dữ liệu, component và logic dùng chung, rủi ro) nằm ở bộ tài liệu bắt đầu từ [`SO-DO-TONG-QUAN.md`](SO-DO-TONG-QUAN.md). Các chỗ lệch giữa file này và code được liệt kê ở mục 4 của [`MA-TRAN-ANH-HUONG.md`](MA-TRAN-ANH-HUONG.md).
+
 Tài liệu này mô tả cấu trúc đích được đề xuất dựa trên dự án Expo hiện tại. Đây là bản khung để học và phát triển từng bước; chưa chuyển logic PWA cũ và chưa thay đổi màn hình mẫu.
 
 ## 1. Cây thư mục đề xuất

@@ -1,6 +1,6 @@
 /**
  * Đọc/ghi Chia bill vào bộ nhớ máy, đúng định dạng PWA:
- *   chiabill:v2:bills  ->  [ { id, title, date, createdAt, cat, people: [{name, paid, w, fix?}], exp? }, ... ]  (tiền: NGHÌN đồng)
+ *   chiabill:v2:bills  ->  [ { id, title, date, createdAt, cat, people: [{name, paid, w, fix?}], exp? }, ... ]  (tiền: ĐỒNG)
  *   chiabill:names     ->  [tên, ...]  (nhóm người của lần chia gần nhất)
  *
  * Nguyên tắc an toàn dữ liệu (giống fundRepository): một hàng đợi duy nhất; đọc-sửa-ghi trên bản THÔ nên trường lạ
@@ -8,6 +8,7 @@
  * StorageCorruptError và KHÔNG bị ghi đè. Chỉ đọc schema `v2`, không chạy migration cũ của PWA.
  */
 
+import { ensureVndUnits } from '@/data/moneyMigration';
 import { StorageCorruptError, StorageKeys, loadJsonStrict, saveJsonStrict } from '@/data/storage';
 import { DEFAULT_BILL_CATEGORY, DEFAULT_BILL_TITLE, canSaveBill, computeSplit, normalizeBills } from '@/domain/bills';
 import type { Bill, BillPerson } from '@/types/bill';
@@ -40,6 +41,7 @@ function serial<T>(task: () => Promise<T>): Promise<T> {
 
 /** `undefined` = chưa từng lưu. Có dữ liệu mà không phải mảng thì coi là hỏng, không ghi đè. */
 export async function readBillsRaw(): Promise<unknown[] | undefined> {
+  await ensureVndUnits();
   const value = await loadJsonStrict<unknown>(StorageKeys.bills);
   if (value === undefined) return undefined;
   if (!Array.isArray(value)) throw new StorageCorruptError(StorageKeys.bills);
@@ -87,7 +89,7 @@ export interface BillInput {
   title: string;
   date?: DateStr;
   cat?: string;
-  /** Tiền NGHÌN đồng. */
+  /** Tiền ĐỒNG. */
   people: readonly BillPerson[];
 }
 

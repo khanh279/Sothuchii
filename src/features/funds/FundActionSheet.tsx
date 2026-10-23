@@ -1,24 +1,25 @@
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StyleSheet, TextInput, View } from 'react-native';
 
 import { AmountInput } from '@/components/amount-input';
 import { AppText } from '@/components/app-text';
+import { KeyboardAnchor } from '@/components/keyboard-aware-scroll';
 import { CalendarPanel } from '@/components/calendar-panel';
 import { DateField } from '@/components/date-field';
-import { ModalHeader, PrimaryButton } from '@/components/design';
+import { PrimaryButton } from '@/components/design';
+import { FormPage } from '@/components/form-page';
+import { TopFormModal } from '@/components/top-form-modal';
 import { useToast } from '@/components/toast';
 import { AppFonts } from '@/constants/fonts';
 import { FundInputError } from '@/data/fundRepository';
-import { saveFundExpenseSynced, saveFundTxnSynced } from '@/data/fundService';
+import { saveFundExpenseSynced, saveFundTxnSynced, updateFundTxnSynced } from '@/data/fundService';
 import { newExpenseId } from '@/domain/expenses';
-import { checkPayout, checkRefund } from '@/domain/fundAdvance';
+import { checkPayout, checkRefund, planAdvanceSpend } from '@/domain/fundAdvance';
 import { FUND_TITLE_MAX } from '@/domain/fundForms';
 import { describeFundError } from '@/features/funds/hooks';
 import { useColors } from '@/hooks/use-colors';
 import type { FundData } from '@/types/fund';
 import { todayStr } from '@/utils/date';
-import { formatVnd } from '@/utils/format';
 
 /**
  * Tờ nổi cho ba thao tác nhỏ của chi quỹ nâng cao, dùng lại giao diện form chi quỹ (nhãn, ô số tiền, ô ngày, nút lưu):
@@ -28,37 +29,48 @@ import { formatVnd } from '@/utils/format';
  * Số tiền được kiểm tra lại ở domain và lần nữa ở tầng lưu trữ; mã bản ghi sinh một lần cho mỗi lần mở nên bấm lưu nhiều lần không tạo trùng.
  */
 export type FundActionTarget =
-  | { mode: 'expense'; advanceId: string; fundId: string }
+  | { mode: 'expense'; person: string; fundId: string }
   | { mode: 'refund'; advanceId: string; max: number }
   | { mode: 'payout'; expenseId?: string; advanceId?: string; person: string; max: number };
 
 interface Props {
   target: FundActionTarget;
   data: Pick<FundData, 'contribs' | 'expenses' | 'advances' | 'txns'>;
+  /**
+   * Đang SỬA một giao dịch hoàn tiền / thanh toán đã ghi: điền sẵn số tiền, ngày và lưu vào đúng giao dịch đó (không tạo mới). Người gọi phải truyền `data`
+   * đã bỏ chính giao dịch này để `max` và kiểm tra số tiền tính đúng.
+   */
+  existing?: { id: string; amount: number; date: string };
   onClose: () => void;
   onDone: () => void;
+  /** true: hiện như MỘT TRANG biểu mẫu (khi mở bằng điều hướng, như các trang sửa khác); mặc định là khung phủ toàn màn hình. */
+  asPage?: boolean;
 }
 
-export function FundActionSheet({ target, data, onClose, onDone }: Props) {
+export function FundActionSheet({ target, data, existing, onClose, onDone, asPage = false }: Props) {
   const colors = useColors();
-  const insets = useSafeAreaInsets();
   const toast = useToast();
   const today = todayStr();
-  const [amount, setAmount] = useState(target.mode === 'expense' ? 0 : target.max);
+  const [amount, setAmount] = useState(existing?.amount ?? (target.mode === 'expense' ? 0 : target.max));
   const [title, setTitle] = useState('');
-  const [date, setDate] = useState(today);
+  const [date, setDate] = useState(existing?.date ?? today);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [clientId] = useState(() => newExpenseId(Date.now()));
 
-  const heading = target.mode === 'expense' ? 'Thêm khoản chi từ tiền ứng' : target.mode === 'refund' ? 'Hoàn tiền ứng' : `Thanh toán cho ${target.person}`;
-  const hint =
+  /** Người nhận ứng của hồ sơ (cho tiêu đề "Chi từ A ứng" / "A hoàn tiền ứng"). */
+  const advancePerson = target.mode === 'payout' || target.mode === 'expense' ? target.person : (data.advances?.find((item) => item.id === target.advanceId)?.person ?? '');
+  const heading =
     target.mode === 'expense'
-      ? 'Khoản chi được ghi vào lịch sử chi quỹ và tính vào tổng chi; tiền quỹ không bị trừ thêm vì đã giao ứng trước.'
+      ? `Chi từ ${advancePerson} ứng`
       : target.mode === 'refund'
-        ? `Số tiền ứng còn giữ: ${formatVnd(target.max)}. Hoàn tiền chỉ làm tăng tiền quỹ, không phải khoản thu.`
-        : `Quỹ còn nợ: ${formatVnd(target.max)}. Thanh toán chỉ đổi dòng tiền và công nợ, không tăng tổng chi.`;
+        ? existing
+          ? `Sửa ${advancePerson} hoàn tiền ứng`
+          : `${advancePerson} hoàn tiền ứng`
+        : existing
+          ? `Sửa thanh toán cho ${target.person}`
+          : `Thanh toán cho ${target.person}`;
 
   async function save() {
     if (busy) return;
@@ -67,14 +79,34 @@ export function FundActionSheet({ target, data, onClose, onDone }: Props) {
       if (!title.trim()) return setError('Nhập nội dung chi.');
       if (!(amount > 0)) return setError('Nhập số tiền lớn hơn 0.');
     } else {
-      const check = target.mode === 'refund' ? checkRefund(data, target.advanceId, amount) : checkPayout(data, target.expenseId ? { expenseId: target.expenseId } : { advanceId: target.advanceId! }, amount);
+      const check =
+        target.mode === 'refund'
+          ? checkRefund(data, target.advanceId, amount)
+          : checkPayout(data, target.expenseId ? { expenseId: target.expenseId } : { advanceId: target.advanceId! }, amount);
       if (!check.ok) return setError(check.message);
     }
     setBusy(true);
     try {
       if (target.mode === 'expense') {
-        await saveFundExpenseSynced({ clientId, fundId: target.fundId, title: title.trim(), date, amount, mode: 'advance', advanceId: target.advanceId });
+        // Các lần giao ứng của người này là một khoản chung: chi vào lần giao CŨ NHẤT trước, mới nhất sau (mỗi phần một khoản chi gắn đúng một hồ sơ ứng).
+        const parts = planAdvanceSpend(data, target.fundId, target.person, amount);
+        if (parts.length === 0) return setError('Người này chưa có khoản giao tiền ứng.');
+        for (const [index, part] of parts.entries()) {
+          await saveFundExpenseSynced({
+            clientId: `${clientId}-${index}`,
+            fundId: part.fundId,
+            title: title.trim(),
+            date,
+            amount: part.amount,
+            mode: 'advance',
+            advanceId: part.advanceId,
+          });
+        }
         toast.show('Đã ghi khoản chi');
+      } else if (existing) {
+        const result = await updateFundTxnSynced(existing.id, { amount, date });
+        if (!result.value) return setError('Không tìm thấy giao dịch này. Có thể nó đã bị xoá.');
+        toast.show('Đã lưu thay đổi');
       } else if (target.mode === 'refund') {
         await saveFundTxnSynced({ clientId, kind: 'refund', advanceId: target.advanceId, amount, date });
         toast.show('Đã ghi nhận hoàn tiền');
@@ -90,61 +122,56 @@ export function FundActionSheet({ target, data, onClose, onDone }: Props) {
     }
   }
 
-  return (
-    <Modal transparent animationType="fade" visible onRequestClose={onClose}>
-      <View style={[styles.scrim, { backgroundColor: colors.scrim }]}>
-        <Pressable style={styles.flex} onPress={onClose} accessibilityLabel="Đóng" />
-        <View style={[styles.sheet, { backgroundColor: colors.surface, paddingBottom: 16 + insets.bottom }]}>
-          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
-            <ModalHeader title={heading} onClose={onClose} />
-            <AppText color={colors.muted} style={styles.hint}>
-              {hint}
-            </AppText>
-            <View>
-              <AppText weight="medium" color={colors.muted} style={styles.label}>
-                Số tiền
-              </AppText>
-              <AmountInput
-                value={amount}
-                onChangeValue={(next) => {
-                  setAmount(next);
-                  setError('');
-                }}
-              />
-            </View>
-            {target.mode === 'expense' && (
-              <View>
-                <AppText weight="medium" color={colors.muted} style={styles.label}>
-                  Nội dung
-                </AppText>
-                <TextInput
-                  value={title}
-                  onChangeText={(text) => {
-                    setTitle(text);
-                    setError('');
-                  }}
-                  maxLength={FUND_TITLE_MAX}
-                  placeholder="Ví dụ: Mua nước, thuê sân"
-                  placeholderTextColor={colors.muted}
-                  style={[styles.input, { backgroundColor: colors.bg, borderColor: colors.line, color: colors.ink, fontFamily: AppFonts.semibold }]}
-                />
-              </View>
-            )}
-            <View>
-              <AppText weight="medium" color={colors.muted} style={styles.label}>
-                Ngày
-              </AppText>
-              <DateField value={date} onPress={() => setCalendarOpen(true)} />
-            </View>
-            {!!error && (
-              <AppText color={colors.danger} style={styles.error} accessibilityRole="alert">
-                {error}
-              </AppText>
-            )}
-            <PrimaryButton label={target.mode === 'expense' ? 'Lưu khoản chi' : target.mode === 'refund' ? 'Lưu hoàn tiền' : 'Lưu thanh toán'} disabled={busy} onPress={() => void save()} />
-          </ScrollView>
-        </View>
+  const form = (
+    <>
+      <View>
+        <AppText weight="medium" color={colors.muted} style={styles.label}>
+          Số tiền
+        </AppText>
+        <AmountInput
+          value={amount}
+          onChangeValue={(next) => {
+            setAmount(next);
+            setError('');
+          }}
+        />
       </View>
+      {target.mode === 'expense' && (
+        <View>
+          <AppText weight="medium" color={colors.muted} style={styles.label}>
+            Nội dung
+          </AppText>
+          <TextInput
+            value={title}
+            onChangeText={(text) => {
+              setTitle(text);
+              setError('');
+            }}
+            maxLength={FUND_TITLE_MAX}
+            placeholder="Ví dụ: Mua nước, thuê sân"
+            placeholderTextColor={colors.muted}
+            style={[styles.input, { backgroundColor: colors.bg, borderColor: colors.line, color: colors.ink, fontFamily: AppFonts.semibold }]}
+          />
+        </View>
+      )}
+      <View>
+        <AppText weight="medium" color={colors.muted} style={styles.label}>
+          Ngày
+        </AppText>
+        <DateField value={date} onPress={() => setCalendarOpen(true)} />
+      </View>
+      {!!error && (
+        <AppText color={colors.danger} style={styles.error} accessibilityRole="alert">
+          {error}
+        </AppText>
+      )}
+      <KeyboardAnchor>
+        <PrimaryButton
+          label={target.mode === 'expense' ? 'Lưu khoản chi' : target.mode === 'refund' ? 'Lưu hoàn tiền' : 'Lưu thanh toán'}
+          disabled={busy}
+          onPress={() => void save()}
+        />
+      </KeyboardAnchor>
       {calendarOpen && (
         <CalendarPanel
           variant="popup"
@@ -158,16 +185,19 @@ export function FundActionSheet({ target, data, onClose, onDone }: Props) {
           }}
         />
       )}
-    </Modal>
+    </>
+  );
+  return asPage ? (
+    <FormPage title={heading}>{form}</FormPage>
+  ) : (
+    <TopFormModal title={heading} onClose={onClose}>
+      {form}
+    </TopFormModal>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  scrim: { flex: 1, justifyContent: 'flex-end' },
-  sheet: { borderTopLeftRadius: 22, borderTopRightRadius: 22, maxHeight: '88%' },
-  content: { padding: 16, gap: 12 },
-  hint: { fontSize: 13, lineHeight: 18 },
   label: { fontSize: 13, marginBottom: 4 },
   input: { height: 46, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, fontSize: 16 },
   error: { fontSize: 13.5 },

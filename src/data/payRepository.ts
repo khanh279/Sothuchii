@@ -1,6 +1,6 @@
 /**
  * Đọc/ghi khoản thanh toán (Công nợ) vào bộ nhớ máy, đúng định dạng PWA:
- *   chiabill:v2:pays  ->  [ { id, createdAt, date, note, from, to, amt, kind?, grp?, led?, exp?: [{m,id}], ... }, ... ]  (tiền: NGHÌN đồng)
+ *   chiabill:v2:pays  ->  [ { id, createdAt, date, note, from, to, amt, kind?, grp?, led?, exp?: [{m,id}], ... }, ... ]  (tiền: ĐỒNG)
  *
  * Nguyên tắc an toàn dữ liệu (giống billRepository): một hàng đợi duy nhất; đọc-sửa-ghi trên bản THÔ nên trường lạ
  * (kể cả `nexp` cũ, không bao giờ đọc hay xoá) và mục không hiểu được đều được giữ nguyên; dữ liệu hỏng (JSON lỗi, không phải
@@ -10,12 +10,14 @@
  * để sửa không cộng tiền hai lần.
  */
 
+import { ensureVndUnits } from '@/data/moneyMigration';
 import { StorageCorruptError, StorageKeys, loadJsonStrict, saveJsonStrict } from '@/data/storage';
-import { MIN_PAY_AMOUNT, r3 } from '@/domain/ledger';
+import { MIN_PAY_AMOUNT } from '@/domain/ledger';
 import { normalizePays, payDedupeKey } from '@/domain/pays';
 import type { DateStr, ExpenseRef } from '@/types/expense';
 import type { Pay } from '@/types/pay';
 import { isValidDateStr } from '@/utils/date';
+import { roundVnd } from '@/domain/money';
 
 type RawObject = Record<string, unknown>;
 
@@ -43,6 +45,7 @@ function serial<T>(task: () => Promise<T>): Promise<T> {
 
 /** `undefined` = chưa từng lưu. Có dữ liệu mà không phải mảng thì coi là hỏng, không ghi đè. */
 export async function readPaysRaw(): Promise<unknown[] | undefined> {
+  await ensureVndUnits();
   const value = await loadJsonStrict<unknown>(StorageKeys.pays);
   if (value === undefined) return undefined;
   if (!Array.isArray(value)) throw new StorageCorruptError(StorageKeys.pays);
@@ -84,7 +87,7 @@ function dedupeRaw(list: unknown[], locked: ReadonlySet<string>): unknown[] {
       first.set(key, index);
       sums.set(index, pay.amt);
     } else {
-      sums.set(kept, Math.round(((sums.get(kept) ?? 0) + pay.amt) * 1e3) / 1e3);
+      sums.set(kept, Math.round((sums.get(kept) ?? 0) + pay.amt));
       dropped.add(index);
     }
   });
@@ -97,7 +100,7 @@ function dedupeRaw(list: unknown[], locked: ReadonlySet<string>): unknown[] {
 // ───────────────────────── Thêm ─────────────────────────
 
 function checkNewPay(pay: Pay): void {
-  if (!Number.isFinite(pay.amt) || r3(pay.amt) <= MIN_PAY_AMOUNT) throw new PayInputError('Nhập số tiền lớn hơn 0.');
+  if (!Number.isFinite(pay.amt) || roundVnd(pay.amt) <= MIN_PAY_AMOUNT) throw new PayInputError('Nhập số tiền lớn hơn 0.');
   if (!pay.from.trim() || !pay.to.trim()) throw new PayInputError('Chọn người trả và người nhận.');
   if (!pay.id) throw new PayInputError('Khoản trả thiếu mã.');
   if (!isValidDateStr(pay.date)) throw new PayInputError('Ngày không hợp lệ.');
@@ -118,7 +121,7 @@ export async function appendPays(pays: readonly Pay[]): Promise<void> {
   for (const pay of pays) checkNewPay(pay);
   return mutate((list) => {
     if (!pays.length) return { next: list, result: undefined };
-    return { next: dedupeRaw([...list, ...pays.map((pay) => toRaw({ ...pay, amt: r3(pay.amt) }))], new Set()), result: undefined };
+    return { next: dedupeRaw([...list, ...pays.map((pay) => toRaw({ ...pay, amt: roundVnd(pay.amt) }))], new Set()), result: undefined };
   });
 }
 
@@ -140,7 +143,7 @@ export interface PayPatch {
  * đổi loại thì mất cờ `ds`, như PWA. Trả về false nếu không tìm thấy.
  */
 export function updatePay(id: string, patch: PayPatch): Promise<boolean> {
-  if (!Number.isFinite(patch.amt) || r3(patch.amt) <= MIN_PAY_AMOUNT) return Promise.reject(new PayInputError('Nhập số tiền lớn hơn 0.'));
+  if (!Number.isFinite(patch.amt) || roundVnd(patch.amt) <= MIN_PAY_AMOUNT) return Promise.reject(new PayInputError('Nhập số tiền lớn hơn 0.'));
   if (!patch.from.trim() || !patch.to.trim()) return Promise.reject(new PayInputError('Chọn người trả và người nhận.'));
   if (!isValidDateStr(patch.date)) return Promise.reject(new PayInputError('Ngày không hợp lệ.'));
   return mutate((list) => {
@@ -148,7 +151,7 @@ export function updatePay(id: string, patch: PayPatch): Promise<boolean> {
     const updated = list.map((item) => {
       if (!isRecord(item) || String(item.id) !== id) return item;
       found = true;
-      const next: RawObject = { ...item, date: patch.date, note: patch.note, from: patch.from, to: patch.to, amt: r3(patch.amt) };
+      const next: RawObject = { ...item, date: patch.date, note: patch.note, from: patch.from, to: patch.to, amt: roundVnd(patch.amt) };
       if (patch.kind !== undefined && patch.kind !== item.kind && !item.bill) {
         next.kind = patch.kind;
         delete next.ds;
@@ -170,7 +173,7 @@ export async function replacePayGroup(ids: readonly string[], replacement: Pay):
     const inGroup = list.filter((item) => isRecord(item) && idSet.has(String(item.id)));
     if (!inGroup.length) return { next: list, result: false };
     const rest = list.filter((item) => !(isRecord(item) && idSet.has(String(item.id))));
-    return { next: dedupeRaw([...rest, toRaw({ ...replacement, amt: r3(replacement.amt) })], new Set([replacement.id])), result: true };
+    return { next: dedupeRaw([...rest, toRaw({ ...replacement, amt: roundVnd(replacement.amt) })], new Set([replacement.id])), result: true };
   });
 }
 

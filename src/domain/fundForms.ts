@@ -1,6 +1,6 @@
 /**
  * Quy tắc của hai form Quỹ nhóm (đóng quỹ và chi quỹ), hàm thuần. Chuyển từ `mod-b` của PWA.
- * Số tiền trong file này luôn là ĐỒNG; việc đổi từ chữ "nghìn đồng" ở ô nhập do `money.ts` lo.
+ * Số tiền trong file này luôn là ĐỒNG; việc đổi từ chữ trong ô nhập do `money.ts` lo.
  */
 
 import { DEFAULT_CONTRIBUTION_TITLE } from '@/domain/funds';
@@ -85,8 +85,8 @@ export function validateContribution(draft: ContributionDraft): string | null {
   if (!draft.fundId) return 'Chọn quỹ trước khi lưu.';
   if (!draft.people.length) {
     return draft.all
-      ? 'Nhập số tiền mỗi người (đơn vị nghìn đồng).'
-      : 'Nhập số tiền (đơn vị nghìn đồng) cho ít nhất một người.';
+      ? 'Nhập số tiền mỗi người.'
+      : 'Nhập số tiền cho ít nhất một người.';
   }
   return null;
 }

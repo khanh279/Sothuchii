@@ -1,4 +1,4 @@
-import { swipeIntent, swipeOffset, swipeSettle, swipeToggle } from './swipe';
+import { ROW_SWIPE, swipeIntent, swipeOffset, swipeSettle, swipeToggle, slideProgress, slideSettle } from './swipe';
 
 describe('swipeIntent', () => {
   it('chưa đủ 8px thì còn chờ', () => {
@@ -79,5 +79,48 @@ describe('swipeToggle (ô trượt không có nút)', () => {
     expect(swipeToggle(-60, 60, false)).toBeNull();
     expect(swipeToggle(-45, 40, false)).toBeNull();
     expect(swipeToggle(5, 5, false)).toBeNull();
+  });
+});
+
+describe('ô trượt hai lớp (slideProgress / slideSettle)', () => {
+  it('kéo trái tăng tiến độ, kéo phải giảm, luôn kẹp trong 0..1', () => {
+    expect(slideProgress(0, -100, 200)).toBe(0.5);
+    expect(slideProgress(0, -400, 200)).toBe(1);
+    expect(slideProgress(1, 100, 200)).toBe(0.5);
+    expect(slideProgress(1, 300, 200)).toBe(0);
+    expect(slideProgress(0, 80, 200)).toBe(0);
+  });
+
+  it('chưa đo được bề rộng thì không chia cho 0', () => {
+    expect(Number.isFinite(slideProgress(0, -10, 0))).toBe(true);
+  });
+
+  it('thả tay: quá nửa thì sang lớp thứ hai, chưa tới nửa thì quay lại', () => {
+    expect(slideSettle(0.6, 0)).toBe(1);
+    expect(slideSettle(0.4, 0)).toBe(0);
+  });
+
+  it('vuốt nhanh thì theo hướng vuốt dù chưa kéo quá nửa', () => {
+    expect(slideSettle(0.2, -0.6)).toBe(1);
+    expect(slideSettle(0.8, 0.6)).toBe(0);
+  });
+});
+
+describe('swipeIntent với ngưỡng dòng Sửa / Xoá (ROW_SWIPE)', () => {
+  it('vùng chết nhỏ hơn: 5px đã nhận diện, dưới 5px còn chờ', () => {
+    expect(swipeIntent(-4, 4, false, ROW_SWIPE)).toBe('pending');
+    expect(swipeIntent(-6, 0, false, ROW_SWIPE)).toBe('horizontal');
+  });
+
+  it('vuốt hơi chéo (|dx| > |dy|) vẫn là ngang, trong khi ngưỡng mặc định coi là dọc', () => {
+    expect(swipeIntent(-20, 16, false, ROW_SWIPE)).toBe('horizontal');
+    expect(swipeIntent(-20, 16, false)).toBe('vertical');
+  });
+
+  it('cuộn dọc vẫn là dọc: |dy| ≥ |dx| hoặc vuốt sang phải khi dòng đóng', () => {
+    expect(swipeIntent(-10, 30, false, ROW_SWIPE)).toBe('vertical');
+    expect(swipeIntent(-20, 20, false, ROW_SWIPE)).toBe('vertical');
+    expect(swipeIntent(30, 0, false, ROW_SWIPE)).toBe('vertical');
+    expect(swipeIntent(30, 0, true, ROW_SWIPE)).toBe('horizontal');
   });
 });

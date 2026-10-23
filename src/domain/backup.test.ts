@@ -29,7 +29,7 @@ describe('buildBackup', () => {
       people: ['An', 'Bình'],
       chiTieu: { settings: { budget: 3_000_000, cats: [] }, months: { '2025-10': snapshot.months['2025-10'] } },
       quyNhom: snapshot.fund,
-      chiaBill: { v: 6, unit: 'k', bills: [{ id: 'b1', people: [] }], pays: [], names: ['Tôi', 'An'] },
+      chiaBill: { v: 7, unit: 'd', bills: [{ id: 'b1', people: [] }], pays: [], names: ['Tôi', 'An'] },
     });
   });
 
@@ -83,10 +83,30 @@ describe('parseBackup', () => {
     expect(r.ok && r.plan.chiTieu).toEqual({ months: {} });
   });
 
-  it('Chia bill: thiếu pays / names thì là mảng rỗng; people được giữ', () => {
-    const r = parseBackup(JSON.stringify({ app: 'so-tien', people: ['An'], chiaBill: { bills: [{ id: 'b' }] } }));
+  it('Chia bill: thiếu pays / names thì là mảng rỗng; people được giữ (file đồng, unit "d")', () => {
+    const r = parseBackup(JSON.stringify({ app: 'so-tien', people: ['An'], chiaBill: { unit: 'd', bills: [{ id: 'b' }] } }));
     expect(r.ok && r.plan.chiaBill).toEqual({ bills: [{ id: 'b' }], pays: [], names: [] });
     expect(r.ok && r.plan.people).toEqual(['An']);
+  });
+
+  it('Chia bill thiếu unit hoặc unit "k" (PWA / bản cũ, NGHÌN đồng) được đổi sang ĐỒNG khi lập kế hoạch khôi phục', () => {
+    const bills = [{ id: 'b', people: [{ name: 'Tôi', paid: 120, w: 1 }, { name: 'An', paid: 0, fix: 1.5 }] }];
+    const pays = [{ id: 'p', amt: 30.5, kind: 'vay' }];
+    for (const unit of [undefined, 'k']) {
+      const r = parseBackup(JSON.stringify({ app: 'so-tien', chiaBill: { v: 6, unit, bills, pays, names: ['Tôi'] } }));
+      expect(r.ok && r.plan.chiaBill).toEqual({
+        bills: [{ id: 'b', people: [{ name: 'Tôi', paid: 120_000, w: 1 }, { name: 'An', paid: 0, fix: 1500 }] }],
+        pays: [{ id: 'p', amt: 30_500, kind: 'vay' }],
+        names: ['Tôi'],
+      });
+    }
+  });
+
+  it('Chia bill unit "d" (đồng) được giữ nguyên số tiền', () => {
+    const bills = [{ id: 'b', people: [{ name: 'Tôi', paid: 120_000 }] }];
+    const pays = [{ id: 'p', amt: 30_500 }];
+    const r = parseBackup(JSON.stringify({ app: 'so-tien', chiaBill: { v: 7, unit: 'd', bills, pays } }));
+    expect(r.ok && r.plan.chiaBill).toEqual({ bills, pays, names: [] });
   });
 
   it('bản sao lưu Quỹ nhóm riêng của app cũ được nhận', () => {

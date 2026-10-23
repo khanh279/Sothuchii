@@ -2,20 +2,20 @@ import type { Pay } from '@/types/pay';
 
 import { dedupePays, normalizePays, payDedupeKey, payExpenseRefs } from './pays';
 
-// DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng. Tiền là NGHÌN đồng.
-const pay = (id: string, over: Partial<Pay> = {}): Pay => ({ id, createdAt: 1, date: '2025-10-05', note: '', from: 'Tôi', to: 'An', amt: 10, kind: 'vay', ...over });
+// DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng. Tiền là ĐỒNG.
+const pay = (id: string, over: Partial<Pay> = {}): Pay => ({ id, createdAt: 1, date: '2025-10-05', note: '', from: 'Tôi', to: 'An', amt: 10_000, kind: 'vay', ...over });
 
 describe('normalizePays', () => {
   it('bỏ mục không phải đối tượng; điền mặc định; đọc exp dạng mảng hoặc đơn lẻ', () => {
     const pays = normalizePays([
-      { id: 'a', date: '2025-10-05', from: 'Tôi', to: 'An', amt: '12.5', kind: 'billpay', exp: [{ m: '2025-10', id: 'x' }, { m: '', id: 'bad' }, 'rác'] },
+      { id: 'a', date: '2025-10-05', from: 'Tôi', to: 'An', amt: '12500', kind: 'billpay', exp: [{ m: '2025-10', id: 'x' }, { m: '', id: 'bad' }, 'rác'] },
       { id: 7, exp: { m: '2025-09', id: 'y' } },
       null,
       'rác',
       [],
     ]);
     expect(pays).toHaveLength(2);
-    expect(pays[0]).toEqual({ id: 'a', createdAt: 0, date: '2025-10-05', note: '', from: 'Tôi', to: 'An', amt: 12.5, kind: 'billpay', exp: [{ m: '2025-10', id: 'x' }] });
+    expect(pays[0]).toEqual({ id: 'a', createdAt: 0, date: '2025-10-05', note: '', from: 'Tôi', to: 'An', amt: 12_500, kind: 'billpay', exp: [{ m: '2025-10', id: 'x' }] });
     expect(pays[1]).toMatchObject({ id: '7', amt: 0, exp: [{ m: '2025-09', id: 'y' }] });
   });
 
@@ -59,9 +59,9 @@ describe('payDedupeKey', () => {
 
 describe('dedupePays (chỉ dùng khi lưu)', () => {
   it('khoản trùng khóa được gộp vào khoản đầu: CỘNG số tiền, làm tròn từng đồng; trả danh sách khoản bị gộp', () => {
-    const list = [pay('a', { amt: 10.1 }), pay('b', { amt: 20.2 }), pay('c', { amt: 0.0004 }), pay('d', { to: 'Bình', amt: 5 })];
+    const list = [pay('a', { amt: 10_100 }), pay('b', { amt: 20_200 }), pay('c', { amt: 0.4 }), pay('d', { to: 'Bình', amt: 5000 })];
     const { pays, removed } = dedupePays(list);
-    expect(pays.map((x) => [x.id, x.amt])).toEqual([['a', 30.3], ['d', 5]]);
+    expect(pays.map((x) => [x.id, x.amt])).toEqual([['a', 30_300], ['d', 5000]]);
     expect(removed.map((x) => x.id)).toEqual(['b', 'c']);
   });
 
@@ -71,21 +71,21 @@ describe('dedupePays (chỉ dùng khi lưu)', () => {
   });
 
   it('khoản đang SỬA (locked) không gộp theo cả hai chiều: tiền không bị cộng hai lần', () => {
-    const edited = pay('e', { amt: 10 });
-    const same = pay('o', { amt: 10 });
+    const edited = pay('e', { amt: 10_000 });
+    const same = pay('o', { amt: 10_000 });
     const forward = dedupePays([same, edited], new Set(['e']));
-    expect(forward.pays.map((x) => [x.id, x.amt])).toEqual([['o', 10], ['e', 10]]);
+    expect(forward.pays.map((x) => [x.id, x.amt])).toEqual([['o', 10_000], ['e', 10_000]]);
     expect(forward.removed).toEqual([]);
     const backward = dedupePays([edited, same], new Set(['e']));
-    expect(backward.pays.map((x) => [x.id, x.amt])).toEqual([['e', 10], ['o', 10]]);
+    expect(backward.pays.map((x) => [x.id, x.amt])).toEqual([['e', 10_000], ['o', 10_000]]);
     // không khoá thì đúng hành vi PWA: gộp và cộng
-    expect(dedupePays([same, edited]).pays.map((x) => x.amt)).toEqual([20]);
+    expect(dedupePays([same, edited]).pays.map((x) => x.amt)).toEqual([20_000]);
   });
 
   it('hai khoản mới trùng nhau trong cùng lần lưu vẫn được gộp; khoản locked không cản gộp các khoản khác', () => {
     const list = [pay('a'), pay('b'), pay('e')];
     const { pays } = dedupePays(list, new Set(['e']));
-    expect(pays.map((x) => [x.id, x.amt])).toEqual([['a', 20], ['e', 10]]);
+    expect(pays.map((x) => [x.id, x.amt])).toEqual([['a', 20_000], ['e', 10_000]]);
   });
 
   it('không sửa đầu vào, kể cả số tiền của khoản đầu', () => {

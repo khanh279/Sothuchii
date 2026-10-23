@@ -1,7 +1,6 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
-import { SvgIcon } from '@/components/svg-icon';
 import { AppRadius } from '@/constants/palette';
 import { periodTitle, type BudgetSummary } from '@/domain/expenses';
 import { useColors } from '@/hooks/use-colors';
@@ -16,21 +15,19 @@ interface Props {
   count: number;
   average: number | null;
   budget: BudgetSummary | null;
-  /** Mở Cài đặt (biểu tượng bánh răng ở góc phải thẻ). */
-  onSettings: () => void;
 }
 
 /**
  * Thẻ "Tổng chi tiêu" nổi bật ở đầu Tổng quan (nền navy, chữ trắng): tổng chi của kỳ đang chọn, số khoản chi, trung bình/ngày và ngân sách
- * nếu có. Thẻ CHỈ để xem (không bấm được); riêng biểu tượng bánh răng ở góc phải mở Cài đặt. Chỉ dùng số liệu chi tiêu cá nhân sẵn có.
+ * nếu có. Thẻ CHỈ để xem (không bấm được); nút Cài đặt nằm trong ô chọn thời gian ở đầu trang. Chỉ dùng số liệu chi tiêu cá nhân sẵn có.
  */
-export function SpentCard({ period, loaded, total, count, average, budget, onSettings }: Props) {
+export function SpentCard({ period, loaded, total, count, average, budget }: Props) {
   const colors = useColors();
 
   return (
     <View style={[styles.card, { backgroundColor: colors.heroBg }]}>
       <View style={styles.hero} accessible accessibilityLabel={`Tổng chi tiêu ${periodTitle(period)}: ${formatVnd(total)}`}>
-        <View style={styles.head}>
+        <View>
           <AppText weight="medium" color={colors.heroSoft} style={styles.label}>
             {loaded ? 'Tổng chi tiêu' : 'Đang mở sổ…'}
           </AppText>
@@ -96,9 +93,6 @@ export function SpentCard({ period, loaded, total, count, average, budget, onSet
           </>
         )}
       </View>
-      <Pressable accessibilityRole="button" accessibilityLabel="Cài đặt" hitSlop={6} onPress={onSettings} style={[styles.gear, { backgroundColor: colors.heroTrack }]}>
-        <SvgIcon name="gear" size={18} color={colors.heroInk} strokeWidth={1.9} />
-      </Pressable>
     </View>
   );
 }
@@ -118,7 +112,4 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
   rowText: { fontSize: 13, lineHeight: 19, flexShrink: 1 },
   dayText: { fontSize: 12.2, lineHeight: 18 },
-  head: { paddingRight: 40 },
-  /** Biểu tượng bánh răng ở góc phải trên của thẻ. */
-  gear: { position: 'absolute', top: 14, right: 14, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
 });

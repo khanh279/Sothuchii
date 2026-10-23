@@ -20,11 +20,12 @@ const exp = (over: Record<string, unknown> = {}) => ({ a: 5000, c: 'food', n: 'P
 const fund = { funds: [{ id: 'f', name: 'Quỹ' }], contribs: [{ id: 'c', fundId: 'f', title: 'T', date: '2025-10-05', people: [{ name: 'Bình', amount: 1000 }] }], expenses: [] };
 
 async function seedAll() {
+  await AsyncStorage.setItem('chiabill:unit', 'vnd'); // bill / khoản trả mẫu đã ở đơn vị đồng
   await put('sct:settings', { budget: 3_000_000, cats: [] });
   await put('sct:m:2025-10', { x1: exp() });
   await put('sct:m:2025-09', { x2: exp({ d: '2025-09-01' }) });
   await put('quy_nhom_v1', fund);
-  await put('chiabill:v2:bills', [{ id: 'b1', title: 'T', date: '2025-10-05', cat: 'food', createdAt: 1, people: [{ name: 'An', paid: 10, w: 1 }] }]);
+  await put('chiabill:v2:bills', [{ id: 'b1', title: 'T', date: '2025-10-05', cat: 'food', createdAt: 1, people: [{ name: 'An', paid: 10_000, w: 1 }] }]);
   await put('chiabill:v2:pays', []);
   await put('chiabill:names', ['Tôi', 'An']);
   await put('sotien:people', ['An']);
@@ -41,7 +42,7 @@ describe('tạo sao lưu', () => {
     expect(doc).toMatchObject({ app: 'so-tien', v: 2, people: ['An'], quyNhom: fund });
     expect(Object.keys(doc.chiTieu.months).sort()).toEqual(['2025-09', '2025-10']);
     expect(doc.chiTieu.settings).toEqual({ budget: 3_000_000, cats: [] });
-    expect(doc.chiaBill).toMatchObject({ v: 6, unit: 'k', names: ['Tôi', 'An'] });
+    expect(doc.chiaBill).toMatchObject({ v: 7, unit: 'd', names: ['Tôi', 'An'] });
     expect(doc.chiaBill.bills).toHaveLength(1);
   });
 
@@ -71,6 +72,10 @@ describe('khôi phục', () => {
     expect(result).toEqual({ ok: true, sections: ['chi-tieu', 'quy-nhom', 'chia-bill'], message: 'Đã khôi phục: Chi tiêu, Quỹ nhóm, Chia bill' });
     for (const [key, value] of Object.entries(before)) {
       if (key === 'sotien:people') continue; // được bổ sung tên từ dữ liệu sau khi khôi phục (xem dưới)
+      if (key === 'chiabill:unit') {
+        expect(await AsyncStorage.getItem(key)).toBe('vnd'); // khôi phục đặt dấu hiệu đơn vị đồng cùng lúc
+        continue;
+      }
       expect(JSON.parse(await AsyncStorage.getItem(key) as string)).toEqual(JSON.parse(value as string));
     }
     expect(await raw('sotien:people')).toEqual(['An', 'Bình']);
@@ -144,7 +149,7 @@ describe('xoá dữ liệu', () => {
   it('Chi tiêu: xoá mọi tháng và cài đặt, giữ Quỹ / Chia bill / Danh sách người', async () => {
     await seedAll();
     await wipeSection('chi-tieu');
-    expect(await keys()).toEqual(['chiabill:names', 'chiabill:v2:bills', 'chiabill:v2:pays', 'quy_nhom_v1', 'sotien:people']);
+    expect(await keys()).toEqual(['chiabill:names', 'chiabill:unit', 'chiabill:v2:bills', 'chiabill:v2:pays', 'quy_nhom_v1', 'sotien:people']);
   });
 
   it('Quỹ nhóm: xoá dữ liệu Quỹ và chỉ khoản chi cá nhân src "quy"; khoản tự nhập và "cb" còn nguyên', async () => {
@@ -162,8 +167,10 @@ describe('xoá dữ liệu', () => {
     await seedAll();
     await createExpense('q1', exp({ src: 'quy', c: 'fund' }));
     await createExpense('c1', exp({ src: 'cb' }));
+    await put('chiabill:v2:bills:nghin-backup', '[]');
+    await put('chiabill:v2:pays:nghin-backup', '[]');
     await wipeSection('chia-bill');
-    for (const k of ['chiabill:v2:bills', 'chiabill:v2:pays', 'chiabill:names']) expect(await AsyncStorage.getItem(k)).toBeNull();
+    for (const k of ['chiabill:v2:bills', 'chiabill:v2:pays', 'chiabill:names', 'chiabill:v2:bills:nghin-backup', 'chiabill:v2:pays:nghin-backup']) expect(await AsyncStorage.getItem(k)).toBeNull();
     expect(Object.keys(await raw('sct:m:2025-10')).sort()).toEqual(['q1', 'x1']);
     expect(await raw('quy_nhom_v1')).toEqual(fund);
   });
@@ -183,9 +190,10 @@ describe('khoản trả (Công nợ)', () => {
   const payExp = { a: 30_000, c: 'food', n: 'Ăn', i: 'Trả An · bill 01/10', d: '2025-10-05', t: 1, src: 'cb' };
 
   async function seedDebt() {
-    await put('chiabill:v2:bills', [{ id: 'b1', title: 'Ăn', date: '2025-10-01', cat: 'food', createdAt: 1, people: [{ name: 'Tôi', paid: 0, w: 1 }, { name: 'An', paid: 90, w: 1 }, { name: 'Bình', paid: 0, w: 1 }] }]);
+    await AsyncStorage.setItem('chiabill:unit', 'vnd'); // bill / khoản trả mẫu đã ở đơn vị đồng
+    await put('chiabill:v2:bills', [{ id: 'b1', title: 'Ăn', date: '2025-10-01', cat: 'food', createdAt: 1, people: [{ name: 'Tôi', paid: 0, w: 1 }, { name: 'An', paid: 90_000, w: 1 }, { name: 'Bình', paid: 0, w: 1 }] }]);
     await put(PAYS, [
-      { id: 'p1', createdAt: 2, date: '2025-10-05', note: '', from: 'Tôi', to: 'An', amt: 30, kind: 'billpay', exp: [{ m: '2025-10', id: 'pe' }], la: 'giữ', nexp: [{ m: '2025-10', id: 'cu' }] },
+      { id: 'p1', createdAt: 2, date: '2025-10-05', note: '', from: 'Tôi', to: 'An', amt: 30_000, kind: 'billpay', exp: [{ m: '2025-10', id: 'pe' }], la: 'giữ', nexp: [{ m: '2025-10', id: 'cu' }] },
       'mục lạ',
     ]);
     await put('sct:m:2025-10', { pe: payExp, mine: exp(), fund: exp({ src: 'quy', c: 'fund' }) });
@@ -235,12 +243,13 @@ describe('khoản trả (Công nợ)', () => {
   });
 
   it('gộp nợ (nhóm bt) và khoản "Trả dư": sao lưu → khôi phục giữ nguyên từng chữ, số dư và khả năng hoàn tác không đổi', async () => {
-    await put('chiabill:v2:bills', [{ id: 'b1', title: 'Ăn', date: '2025-10-01', cat: 'food', createdAt: 1, people: [{ name: 'Tôi', paid: 0, w: 1 }, { name: 'An', paid: 60, w: 1 }] }]); // tôi nợ An 30 (bill)
+    await AsyncStorage.setItem('chiabill:unit', 'vnd');
+    await put('chiabill:v2:bills', [{ id: 'b1', title: 'Ăn', date: '2025-10-01', cat: 'food', createdAt: 1, people: [{ name: 'Tôi', paid: 0, w: 1 }, { name: 'An', paid: 60_000, w: 1 }] }]); // tôi nợ An 30.000 (bill)
     await put(PAYS, [
-      { id: 'l1', createdAt: 2, date: '2025-10-02', note: '', from: 'Tôi', to: 'An', amt: 50, kind: 'vay', zz: 1 },
-      { id: 'm1', createdAt: 20, date: '2025-10-05', note: '', from: 'An', to: 'Tôi', amt: 30, kind: 'bt', led: 'loan', grp: 'g1' },
-      { id: 'm2', createdAt: 21, date: '2025-10-05', note: '', from: 'Tôi', to: 'An', amt: 30, kind: 'bt', led: 'bill', grp: 'g1' },
-      { id: 'd1', createdAt: 30, date: '2025-10-06', note: 'Trả dư', from: 'Tôi', to: 'An', amt: 20, kind: 'vay' },
+      { id: 'l1', createdAt: 2, date: '2025-10-02', note: '', from: 'Tôi', to: 'An', amt: 50_000, kind: 'vay', zz: 1 },
+      { id: 'm1', createdAt: 20, date: '2025-10-05', note: '', from: 'An', to: 'Tôi', amt: 30_000, kind: 'bt', led: 'loan', grp: 'g1' },
+      { id: 'm2', createdAt: 21, date: '2025-10-05', note: '', from: 'Tôi', to: 'An', amt: 30_000, kind: 'bt', led: 'bill', grp: 'g1' },
+      { id: 'd1', createdAt: 30, date: '2025-10-06', note: 'Trả dư', from: 'Tôi', to: 'An', amt: 20_000, kind: 'vay' },
     ]);
     const state = async () => {
       const [bills, pays] = [await loadBills(), await loadPays()];

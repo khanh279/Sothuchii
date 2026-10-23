@@ -1,6 +1,7 @@
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useMemo } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { LockableScrollView } from '@/components/lockable-scroll-view';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
@@ -10,13 +11,13 @@ import { SvgIcon } from '@/components/svg-icon';
 import { TOAST_BOTTOM_HISTORY, useToast } from '@/components/toast';
 import { AppRadius } from '@/constants/palette';
 import { deletePaySynced } from '@/data/payService';
-import { formatMoney } from '@/domain/billForm';
 import { dayHeading, periodFromParams, periodTitle } from '@/domain/expenses';
 import { buildPayHistory, payRowSubtitle, type PayRow } from '@/domain/payForm';
 import { describeDebtError, useDebtData } from '@/features/debts/hooks';
 import { useColors } from '@/hooks/use-colors';
 import { useSingleOpenRow } from '@/hooks/use-single-open-row';
 import { formatVnDate, todayStr } from '@/utils/date';
+import { formatVnd } from '@/utils/format';
 
 /** Màu theo chiều tiền (`.lg-ico.get/owe/mid` của PWA). */
 
@@ -60,7 +61,7 @@ export default function PayHistoryScreen() {
       ) : !loaded ? (
         <ActivityIndicator style={styles.loading} color={colors.primary} />
       ) : (
-        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} onScrollBeginDrag={closeAll}>
+        <LockableScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} onScrollBeginDrag={closeAll}>
           <View style={[styles.card, { backgroundColor: colors.surface }]}>
             <View style={styles.summary}>
               <View style={styles.summaryLeft}>
@@ -77,10 +78,10 @@ export default function PayHistoryScreen() {
                 </AppText>
                 <AppText weight="medium" style={styles.summaryAmount}>
                   <AppText color={colors.success} style={styles.summaryAmount}>
-                    +{formatMoney(history.totalIn)}
+                    +{formatVnd(history.totalIn)}
                   </AppText>
                   <AppText color={colors.danger} style={styles.summaryAmount}>
-                    {'  '}−{formatMoney(history.totalOut)}
+                    {'  '}−{formatVnd(history.totalOut)}
                   </AppText>
                 </AppText>
               </View>
@@ -113,7 +114,7 @@ export default function PayHistoryScreen() {
               )}
             </View>
           </View>
-        </ScrollView>
+        </LockableScrollView>
       )}
     </View>
   );
@@ -128,9 +129,13 @@ export function PayRowView({ row, rowProps, onDelete, badge }: { row: PayRow; ro
   return (
     <HistoryCard
       {...rowProps}
+      onPressRow={() => {
+        rowProps.onPressRow?.();
+        router.push({ pathname: '/cong-no/giao-dich', params: { id: row.ids[0] } });
+      }}
       onEdit={() => router.push({ pathname: '/cong-no/sua', params: { ids: row.ids.join(',') } })}
       onDelete={onDelete}
-      accessibilityLabel={`${row.from} trả ${row.to}, ${formatMoney(row.amt)}`}
+      accessibilityLabel={`${row.from} trả ${row.to}, ${formatVnd(row.amt)}`}
       icon={
         <IconTile color={tint}>
           <SvgIcon name="tabTransactions" size={22} color={tint} />
@@ -139,7 +144,7 @@ export function PayRowView({ row, rowProps, onDelete, badge }: { row: PayRow; ro
       title={`${row.from} → ${row.to}`}
       subtitle={[row.title, subtitle].filter(Boolean).join(' · ')}
       badge={badge}
-      amount={`${sign}${formatMoney(row.amt)}`}
+      amount={`${sign}${formatVnd(row.amt)}`}
       tone={row.tone}
     />
   );

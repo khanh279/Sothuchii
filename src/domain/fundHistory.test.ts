@@ -1,9 +1,21 @@
-import { buildFundHistory, buildOverviewFundCard, filterDaysByPerson } from './fundHistory';
+import { buildFundHistory, buildOverviewFundCard, filterDaysByPerson, mergePayoutEntries } from './fundHistory';
 
 // DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng.
-const funds = [{ id: 'a', name: 'Quỹ A' }, { id: 'b', name: 'Quỹ B' }];
+const funds = [
+  { id: 'a', name: 'Quỹ A' },
+  { id: 'b', name: 'Quỹ B' },
+];
 const contribs = [
-  { id: 'c1', fundId: 'a', title: 'T10', date: '2025-10-05', people: [{ name: 'Tôi', amount: 100_000 }, { name: 'An', amount: 50_000 }] },
+  {
+    id: 'c1',
+    fundId: 'a',
+    title: 'T10',
+    date: '2025-10-05',
+    people: [
+      { name: 'Tôi', amount: 100_000 },
+      { name: 'An', amount: 50_000 },
+    ],
+  },
   { id: 'c2', fundId: 'b', title: '', date: '2025-09-01', people: [{ name: 'Bình', amount: 30_000 }] },
 ];
 const expenses = [
@@ -129,7 +141,13 @@ describe('buildFundHistory với chi quỹ nâng cao', () => {
 describe('filterDaysByPerson', () => {
   it('chỉ giữ dòng của đúng người, bỏ ngày trống; không lọc khi rỗng; không đổi danh sách gốc', () => {
     const days = [
-      { date: '2025-10-03', entries: [{ kind: 'expense' as const, id: 'e1', date: '2025-10-03', title: 'x', fundId: 'f', amount: 1, meta: '', person: 'A' }, { kind: 'expense' as const, id: 'e2', date: '2025-10-03', title: 'y', fundId: 'f', amount: 1, meta: '', person: 'B' }] },
+      {
+        date: '2025-10-03',
+        entries: [
+          { kind: 'expense' as const, id: 'e1', date: '2025-10-03', title: 'x', fundId: 'f', amount: 1, meta: '', person: 'A' },
+          { kind: 'expense' as const, id: 'e2', date: '2025-10-03', title: 'y', fundId: 'f', amount: 1, meta: '', person: 'B' },
+        ],
+      },
       { date: '2025-10-01', entries: [{ kind: 'contribution' as const, id: 'c1', date: '2025-10-01', title: 'z', fundId: 'f', amount: 1, meta: '' }] },
     ];
     const a = filterDaysByPerson(days, 'A');
@@ -137,5 +155,89 @@ describe('filterDaysByPerson', () => {
     expect(a[0].entries.map((e) => e.id)).toEqual(['e1']);
     expect(filterDaysByPerson(days, '')).toHaveLength(2);
     expect(days[0].entries).toHaveLength(2);
+  });
+});
+
+describe('buildFundHistory — quỹ trả cho cá nhân ứng chi', () => {
+  // DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng.
+  const advanced = {
+    funds: [{ id: 'f1', name: 'Quỹ lớp' }],
+    contribs: [],
+    expenses: [{ id: 'x1', fundId: 'f1', title: 'Mua nước', date: '2025-10-04', amount: 200_000, mode: 'personal' as const, payer: 'An' }],
+    advances: [],
+    txns: [{ id: 't1', fundId: 'f1', kind: 'payout' as const, person: 'An', amount: 80_000, date: '2025-10-08', expenseId: 'x1' }],
+  };
+
+  it('tiêu đề to là nội dung khoản A đã chi, ghi chú nhỏ "A ứng chi"', () => {
+    const history = buildFundHistory(advanced, 'all', { mode: 'all' });
+    const entry = history.days.flatMap((day) => day.entries).find((item) => item.kind === 'payout');
+    expect(entry).toMatchObject({ title: 'Mua nước', meta: 'An ứng chi · 04/10/2025', person: 'An', expenseId: 'x1' });
+  });
+});
+
+describe('mergePayoutEntries — gộp quỹ trả cùng nội dung trong một ngày', () => {
+  // DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng.
+  const d = {
+    funds: [{ id: 'f1', name: 'Quỹ lớp' }],
+    contribs: [],
+    expenses: [
+      { id: 'x1', fundId: 'f1', title: 'Mua nước', date: '2025-10-04', amount: 200_000, mode: 'personal' as const, payer: 'An' },
+      { id: 'x2', fundId: 'f1', title: 'Thuê sân', date: '2025-10-04', amount: 100_000, mode: 'personal' as const, payer: 'An' },
+    ],
+    advances: [],
+    txns: [
+      { id: 't1', fundId: 'f1', kind: 'payout' as const, person: 'An', amount: 50_000, date: '2025-10-08', expenseId: 'x1' },
+      { id: 't2', fundId: 'f1', kind: 'payout' as const, person: 'An', amount: 70_000, date: '2025-10-08', expenseId: 'x1' },
+      { id: 't3', fundId: 'f1', kind: 'payout' as const, person: 'An', amount: 30_000, date: '2025-10-08', expenseId: 'x2' },
+      { id: 't4', fundId: 'f1', kind: 'payout' as const, person: 'An', amount: 20_000, date: '2025-10-09', expenseId: 'x1' },
+    ],
+  };
+
+  it('cùng ngày + cùng người + cùng nội dung → một dòng cộng số tiền; khác nội dung hoặc khác ngày thì giữ riêng', () => {
+    const merged = mergePayoutEntries(buildFundHistory(d, 'all', { mode: 'all' }).days);
+    const payouts = merged.flatMap((day) =>
+      day.entries.filter((entry) => entry.kind === 'payout').map((entry) => ({ date: day.date, title: entry.title, amount: entry.amount, ids: entry.mergedIds?.length })),
+    );
+    expect(payouts).toEqual(
+      expect.arrayContaining([
+        { date: '2025-10-08', title: 'Mua nước', amount: 120_000, ids: 2 },
+        { date: '2025-10-08', title: 'Thuê sân', amount: 30_000, ids: 1 },
+        { date: '2025-10-09', title: 'Mua nước', amount: 20_000, ids: 1 },
+      ]),
+    );
+    expect(payouts).toHaveLength(3);
+  });
+
+  it('không đổi dữ liệu gốc', () => {
+    const history = buildFundHistory(d, 'all', { mode: 'all' });
+    const before = JSON.stringify(history.days);
+    mergePayoutEntries(history.days);
+    expect(JSON.stringify(history.days)).toBe(before);
+  });
+});
+
+describe('mergePayoutEntries — gộp khoản Quỹ giao A ứng chi cùng ngày', () => {
+  it('cùng ngày + cùng người + cùng nội dung → một dòng; khác ngày giữ riêng', () => {
+    const d = {
+      funds: [{ id: 'f1', name: 'Quỹ' }],
+      contribs: [],
+      expenses: [
+        { id: 'x1', fundId: 'f1', title: 'Mua nước', date: '2025-10-04', amount: 200_000, mode: 'advance' as const, payer: 'An', advanceId: 'a1' },
+        { id: 'x2', fundId: 'f1', title: 'Mua nước', date: '2025-10-04', amount: 100_000, mode: 'advance' as const, payer: 'An', advanceId: 'a2' },
+        { id: 'x3', fundId: 'f1', title: 'Mua nước', date: '2025-10-05', amount: 50_000, mode: 'advance' as const, payer: 'An', advanceId: 'a2' },
+      ],
+      advances: [],
+      txns: [],
+    };
+    const rows = mergePayoutEntries(buildFundHistory(d, 'all', { mode: 'all' }).days).flatMap((day) =>
+      day.entries.map((e) => ({ date: day.date, amount: e.amount, ids: e.mergedIds?.length })),
+    );
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        { date: '2025-10-04', amount: 300_000, ids: 2 },
+        { date: '2025-10-05', amount: 50_000, ids: 1 },
+      ]),
+    );
+    expect(rows).toHaveLength(2);
   });
 });

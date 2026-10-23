@@ -36,7 +36,16 @@
         }
       ],
       "@react-native-community/datetimepicker",
-      "expo-font"
+      "expo-font",
+      "expo-sharing",
+      [
+        "expo-media-library",
+        {
+          "savePhotosPermission": "Cho phép Sổ Thu Chi lưu ảnh bill vào thư viện ảnh của bạn.",
+          "photosPermission": "Cho phép Sổ Thu Chi lưu ảnh bill vào thư viện ảnh của bạn.",
+          "granularPermissions": ["photo"]
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

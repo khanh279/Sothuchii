@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { CalendarPanel } from '@/components/calendar-panel';
 import { DateField } from '@/components/date-field';
 import { PrimaryButton, SecondaryButton, SegmentedControl } from '@/components/design';
+import { SheetFrame } from '@/components/sheet-frame';
 import { SvgIcon } from '@/components/svg-icon';
 import { AppRadius } from '@/constants/palette';
 import { canGoNext, initialPeriodView, normalizeCustomRange, periodOf, type PeriodView } from '@/domain/expenses';
@@ -25,6 +25,10 @@ interface Props {
   view: PeriodView;
   onChange: (view: PeriodView) => void;
   today: DateStr;
+  /** Dạng gọn đặt cạnh tiêu đề màn hình: một viên thuốc (biểu tượng lịch + tên kỳ + mũi tên), không có dòng khoảng ngày. */
+  compact?: boolean;
+  /** Chỉ dạng gọn: có = thêm nút bánh răng (mở Cài đặt) NGAY TRONG ô chọn thời gian, cách bởi một vạch. */
+  onSettings?: () => void;
 }
 
 /**
@@ -34,32 +38,56 @@ interface Props {
  * Component chỉ chọn kỳ; việc lọc dữ liệu do màn hình dùng `periodOf(view)` như trước. Quy tắc cũ được giữ: không tới kỳ tương lai
  * (`canGoNext`), khoảng Tuỳ chọn không quá hôm nay, ngày bắt đầu không sau ngày kết thúc và tối đa 5 năm (`normalizeCustomRange`).
  */
-export function PeriodFilter({ view, onChange, today }: Props) {
+export function PeriodFilter({ view, onChange, today, compact = false, onSettings }: Props) {
   const colors = useColors();
   const [open, setOpen] = useState(false);
   const period = periodOf(view);
 
   return (
     <>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ expanded: open }}
-        accessibilityLabel={`Bộ lọc thời gian: ${periodHeading(period)}, ${periodRangeLabel(period)}`}
-        onPress={() => setOpen(true)}
-        style={({ pressed }) => [styles.row, { backgroundColor: colors.surface, borderColor: open ? colors.primary : colors.line, opacity: pressed ? 0.85 : 1 }]}>
-        <SvgIcon name="calendar" size={20} color={colors.primary} strokeWidth={1.9} />
-        <View style={styles.rowText}>
-          <AppText weight="semibold" style={styles.heading} numberOfLines={1}>
-            {periodHeading(period)}
-          </AppText>
-          <AppText color={colors.muted} style={styles.range} numberOfLines={1}>
-            {periodRangeLabel(period)}
-          </AppText>
+      {compact ? (
+        <View style={[styles.pill, { backgroundColor: colors.surface, borderColor: open ? colors.primary : colors.line }]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: open }}
+            accessibilityLabel={`Bộ lọc thời gian: ${periodHeading(period)}, ${periodRangeLabel(period)}`}
+            onPress={() => setOpen(true)}
+            style={({ pressed }) => [styles.pillMain, { opacity: pressed ? 0.85 : 1 }]}>
+            <SvgIcon name="calendar" size={18} color={colors.primary} strokeWidth={1.9} />
+            <AppText weight="semibold" style={styles.pillText} numberOfLines={1}>
+              {periodHeading(period)}
+            </AppText>
+          </Pressable>
+          {!!onSettings && (
+            <>
+              <View style={[styles.pillRule, { backgroundColor: colors.line }]} />
+              <Pressable accessibilityRole="button" accessibilityLabel="Cài đặt" hitSlop={4} onPress={onSettings} style={({ pressed }) => [styles.pillGear, { opacity: pressed ? 0.7 : 1 }]}>
+                <SvgIcon name="gear" size={19} color={colors.primary} strokeWidth={1.9} />
+              </Pressable>
+            </>
+          )}
         </View>
-        <View style={{ transform: [{ rotate: open ? '-90deg' : '90deg' }] }}>
-          <SvgIcon name="chevronRight" size={18} color={colors.muted} strokeWidth={2.2} />
-        </View>
-      </Pressable>
+      ) : (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: open }}
+          accessibilityLabel={`Bộ lọc thời gian: ${periodHeading(period)}, ${periodRangeLabel(period)}`}
+          onPress={() => setOpen(true)}
+          style={({ pressed }) => [styles.row, { backgroundColor: colors.surface, borderColor: open ? colors.primary : colors.line, opacity: pressed ? 0.85 : 1 }]}>
+          <SvgIcon name="calendar" size={20} color={colors.primary} strokeWidth={1.9} />
+          <View style={styles.rowText}>
+            <AppText weight="semibold" style={styles.heading} numberOfLines={1}>
+              {periodHeading(period)}
+            </AppText>
+            <AppText color={colors.muted} style={styles.range} numberOfLines={1}>
+              {periodRangeLabel(period)}
+            </AppText>
+          </View>
+          <View style={{ transform: [{ rotate: open ? '-90deg' : '90deg' }] }}>
+            <SvgIcon name="chevronRight" size={18} color={colors.muted} strokeWidth={2.2} />
+          </View>
+        </Pressable>
+      )}
 
       {open && (
         <PeriodSheet
@@ -77,8 +105,15 @@ export function PeriodFilter({ view, onChange, today }: Props) {
 }
 
 function PeriodSheet({ initial, today, onClose, onApply }: { initial: PeriodView; today: DateStr; onClose: () => void; onApply: (view: PeriodView) => void }) {
+  return (
+    <SheetFrame onClose={onClose}>
+      <PeriodBody initial={initial} today={today} onApply={onApply} />
+    </SheetFrame>
+  );
+}
+
+function PeriodBody({ initial, today, onApply }: { initial: PeriodView; today: DateStr; onApply: (view: PeriodView) => void }) {
   const colors = useColors();
-  const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState<PeriodView>(initial);
   const [picking, setPicking] = useState<'from' | 'to' | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -98,18 +133,12 @@ function PeriodSheet({ initial, today, onClose, onApply }: { initial: PeriodView
   }
 
   return (
-    <Modal transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
-      <View style={styles.modal}>
-        <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: colors.scrim }]} onPress={onClose} accessibilityLabel="Đóng bảng chọn thời gian" />
-        <View style={[styles.sheet, { backgroundColor: colors.surface, paddingBottom: 16 + insets.bottom }]} accessibilityViewIsModal>
-          <View style={[styles.handle, { backgroundColor: colors.line }]} />
+    <>
+      <View style={styles.sheet}>
           <View style={styles.head}>
             <AppText weight="bold" style={styles.title} accessibilityRole="header">
               Chọn thời gian
             </AppText>
-            <Pressable accessibilityRole="button" accessibilityLabel="Đóng" hitSlop={10} onPress={onClose} style={[styles.close, { backgroundColor: colors.surface2 }]}>
-              <SvgIcon name="close" size={16} color={colors.muted} strokeWidth={2.4} />
-            </Pressable>
           </View>
 
           <SegmentedControl
@@ -187,7 +216,6 @@ function PeriodSheet({ initial, today, onClose, onApply }: { initial: PeriodView
             />
             <PrimaryButton label="Áp dụng" style={styles.action} onPress={() => onApply(draft)} />
           </View>
-        </View>
       </View>
 
       {picking && (
@@ -195,7 +223,9 @@ function PeriodSheet({ initial, today, onClose, onApply }: { initial: PeriodView
           variant="popup"
           value={picking === 'from' ? draft.from : draft.to}
           today={today}
-          max={today}
+          // Ngày bắt đầu: tối đa là ngày kết thúc đang chọn. Ngày kết thúc: tối thiểu là ngày bắt đầu, tối đa là hôm nay. Ngày ngoài khoảng bị mờ và không chọn được.
+          min={picking === 'to' ? draft.from : undefined}
+          max={picking === 'from' && draft.to < today ? draft.to : today}
           onCancel={() => setPicking(null)}
           onConfirm={(date) => {
             setPicking(null);
@@ -204,21 +234,23 @@ function PeriodSheet({ initial, today, onClose, onApply }: { initial: PeriodView
           }}
         />
       )}
-    </Modal>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   row: { minHeight: 52, borderRadius: AppRadius.card, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 12 },
   rowText: { flex: 1, minWidth: 0 },
+  pill: { height: 44, borderRadius: 22, borderWidth: 1, flexDirection: 'row', alignItems: 'center', flexShrink: 1 },
+  pillMain: { flexShrink: 1, height: '100%', paddingLeft: 12, paddingRight: 12, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  pillText: { flexShrink: 1, fontSize: 14, lineHeight: 19 },
+  pillRule: { width: 1, height: 22 },
+  pillGear: { width: 42, height: '100%', alignItems: 'center', justifyContent: 'center' },
   heading: { fontSize: 15, lineHeight: 20 },
   range: { fontSize: 12.5, lineHeight: 17 },
-  modal: { flex: 1, justifyContent: 'flex-end' },
-  sheet: { borderTopLeftRadius: AppRadius.hero, borderTopRightRadius: AppRadius.hero, paddingHorizontal: 16, paddingTop: 8, gap: 14 },
-  handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2 },
+  sheet: { gap: 14 },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { fontSize: 18, lineHeight: 26 },
-  close: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   body: { minHeight: 92, justifyContent: 'center', gap: 8 },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   stepperText: { flex: 1, alignItems: 'center' },

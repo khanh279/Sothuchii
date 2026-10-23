@@ -1,15 +1,14 @@
-import { Stack, router } from 'expo-router';
-import { useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { ScreenTitle } from '@/components/design';
-import { fundBalance } from '@/domain/funds';
-import { FundExpenseForm } from '@/features/funds/FundExpenseForm';
+import { KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll';
+import { FundExpensePanel } from '@/features/funds/FundExpensePanel';
 import { useFundData } from '@/features/funds/hooks';
+import { AppRadius } from '@/constants/palette';
 import { useColors } from '@/hooks/use-colors';
-
 
 /** Quay lại màn trước; nếu không có màn trước (mở thẳng trang này) thì về Tổng quan. */
 function leave() {
@@ -18,15 +17,15 @@ function leave() {
 }
 
 /**
- * Trang "Chi tiêu quỹ" mở từ nút nổi "+ Chi tiêu" ở Tổng quan (mục `data-fm="cq"` của PWA): dùng chung giao diện với trang
- * Chi tiêu cá nhân (số tiền, nội dung, hàng Ngày | Quỹ); lưu xong quay lại. Chỉ dùng được khi đã có quỹ.
+ * Trang riêng của form Chi tiêu quỹ (`mode="chi"`) và Thu quỹ (`mode="thu"`): mở sau khi chọn quỹ ở thẻ nổi (tham số route `fund` = mã quỹ đã chọn, form hiện ngay)
+ * từ nút "+" ở Tổng quan hoặc mục Giao dịch quỹ ở tab Quỹ nhóm; không có `fund` thì hiện danh sách quỹ để chọn trước. Lưu xong quay lại. Chỉ dùng được khi đã có quỹ.
  */
-export default function FundExpenseScreen() {
+export default function FundExpenseScreen({ mode = 'chi' }: { mode?: 'chi' | 'thu' } = {}) {
+  const heading = mode === 'thu' ? 'Thu quỹ' : 'Chi tiêu quỹ';
+  const { fund } = useLocalSearchParams<{ fund?: string }>();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { data, loaded, error } = useFundData();
-  const [pickedId, setPickedId] = useState<string | null>(null);
-  const fund = data.funds.find((item) => item.id === pickedId) ?? data.funds[0] ?? null;
 
   let body;
   if (error) {
@@ -39,34 +38,28 @@ export default function FundExpenseScreen() {
     );
   } else if (!loaded) {
     body = <ActivityIndicator style={styles.loading} color={colors.primary} />;
-  } else if (!fund) {
+  } else if (data.funds.length === 0) {
     body = (
       <View style={[styles.notice, { backgroundColor: colors.surface }]}>
         <AppText color={colors.muted} style={styles.noticeText}>
-          Chưa có quỹ nào. Hãy tạo quỹ ở trang Giao dịch trước khi ghi chi tiêu quỹ.
+          {mode === 'thu' ? 'Chưa có quỹ nào. Hãy tạo quỹ mới trước khi ghi khoản thu.' : 'Chưa có quỹ nào. Hãy tạo quỹ ở tab Quỹ nhóm trước khi ghi chi tiêu quỹ.'}
         </AppText>
       </View>
     );
   } else {
     body = (
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
-        <FundExpenseForm
-          variant="page"
-          showTitle={false}
-          fund={fund}
-          funds={data.funds}
-          onPickFund={setPickedId}
-          balance={fundBalance(data, fund.id)}
-          onChanged={leave}
-        />
-      </ScrollView>
+      <KeyboardAwareScrollView style={styles.screen} contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
+        <View style={[styles.card, { backgroundColor: colors.surface }]}>
+          <FundExpensePanel data={data} mode={mode} initialFundId={fund} onChanged={leave} />
+        </View>
+      </KeyboardAwareScrollView>
     );
   }
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
-      <Stack.Screen options={{ title: 'Chi tiêu quỹ', headerShown: false }} />
-      <ScreenTitle title="Chi tiêu quỹ" topInset={insets.top} />
+      <Stack.Screen options={{ title: heading, headerShown: false }} />
+      <ScreenTitle title={heading} topInset={insets.top} />
       {body}
     </View>
   );
@@ -74,9 +67,8 @@ export default function FundExpenseScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  bar: { paddingHorizontal: 16, minHeight: 44, justifyContent: 'center' },
-  barTitle: { fontSize: 17 },
   content: { paddingHorizontal: 12, paddingTop: 4 },
+  card: { borderRadius: AppRadius.card, padding: 16 },
   loading: { marginTop: 48 },
   notice: { marginHorizontal: 12, marginTop: 8, padding: 16, borderRadius: 16 },
   noticeText: { fontSize: 15 },

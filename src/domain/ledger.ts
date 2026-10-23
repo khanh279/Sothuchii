@@ -5,25 +5,23 @@
  *   dương = người kia nợ tôi (tôi sẽ nhận lại);  âm = tôi nợ người kia (tôi sẽ phải trả).
  * Hai sổ chỉ trừ vào nhau khi "Gộp nợ" (sinh hai khoản `kind:'bt'` cùng `grp`; xoá cả nhóm là hoàn tác).
  *
- * ĐƠN VỊ: NGHÌN đồng (số lẻ đến 3 chữ số = từng đồng). Số dư dưới 0,05 nghìn coi là bằng 0. Không tự làm tròn khác PWA:
- * cộng dồn bằng `r3`, hiển thị đổi sang đồng ở tầng giao diện.
+ * ĐƠN VỊ: ĐỒNG (số nguyên). Số dư dưới 50 đồng coi là bằng 0. Cộng dồn bằng `roundVnd` (làm tròn từng đồng).
  */
 
 import { BILL_OWNER_NAME, computeSplit } from '@/domain/bills';
-import { formatMoney } from '@/domain/billForm';
 import { isInPeriod } from '@/domain/expenses';
+import { roundVnd } from '@/domain/money';
 import type { Bill } from '@/types/bill';
 import type { DateStr, Period } from '@/types/expense';
-import type { Nghin } from '@/types/money';
+import type { Vnd } from '@/types/money';
 import type { AllDebts, DebtEvent, Ledger, Pay, PersonDebt, PersonLedger } from '@/types/pay';
+import { formatVnd } from '@/utils/format';
 
-/** Số dư nhỏ hơn mức này (nghìn đồng) coi là đã thanh toán xong (`nxZ`). */
-export const DEBT_ZERO = 0.05;
+/** Số dư nhỏ hơn mức này (đồng) coi là đã thanh toán xong (`nxZ`). */
+export const DEBT_ZERO = 50;
 /** Khoản trả nhỏ hơn hoặc bằng mức này bị bỏ khi lưu (`ot`). */
-export const MIN_PAY_AMOUNT = 5e-4;
+export const MIN_PAY_AMOUNT = 0.5;
 
-/** Làm tròn đến 3 chữ số thập phân (từng đồng), như `r3`. */
-export const r3 = (x: number): number => Math.round(x * 1e3) / 1e3;
 export const isNearZero = (x: number): boolean => Math.abs(x) < DEBT_ZERO;
 
 /** `y()` của PWA: đúng chữ "Tôi". */
@@ -95,8 +93,8 @@ export function personLedger(events: readonly DebtEvent[], name: string): Person
     result[event.led] += event.v;
     result.ev[event.led].push(event);
   }
-  result.loan = r3(result.loan);
-  result.bill = r3(result.bill);
+  result.loan = roundVnd(result.loan);
+  result.bill = roundVnd(result.bill);
   return result;
 }
 
@@ -109,7 +107,7 @@ export function allDebts(events: readonly DebtEvent[]): AllDebts {
     per.set(event.who, entry);
   }
   const list = [...per.values()]
-    .map((entry) => ({ ...entry, loan: r3(entry.loan), bill: r3(entry.bill) }))
+    .map((entry) => ({ ...entry, loan: roundVnd(entry.loan), bill: roundVnd(entry.bill) }))
     .filter((entry) => !isNearZero(entry.loan) || !isNearZero(entry.bill));
   let get = 0;
   let owe = 0;
@@ -132,8 +130,8 @@ export function canMerge(debt: Pick<PersonDebt, 'loan' | 'bill'>): boolean {
 }
 
 /** Số tiền được trừ khi gộp: nhỏ hơn giữa hai số dư (`nxMergeAmt`); 0 nếu không gộp được. */
-export function mergeAmount(debt: Pick<PersonDebt, 'loan' | 'bill'>): Nghin {
-  return canMerge(debt) ? r3(Math.min(Math.abs(debt.loan), Math.abs(debt.bill))) : 0;
+export function mergeAmount(debt: Pick<PersonDebt, 'loan' | 'bill'>): Vnd {
+  return canMerge(debt) ? roundVnd(Math.min(Math.abs(debt.loan), Math.abs(debt.bill))) : 0;
 }
 
 /** Bản ghi khoản trả chưa có `id`, `createdAt`, `date`, `note` (được thêm khi lưu bằng `finalizeNewPays`). */
@@ -141,7 +139,7 @@ export interface PayDraft {
   kind: string;
   from: string;
   to: string;
-  amt: Nghin;
+  amt: Vnd;
   led?: Ledger;
   /** Ghi chú riêng của khoản (ví dụ "Trả dư"); thiếu thì để trống. */
   note?: string;
@@ -170,11 +168,11 @@ export function mergeDrafts(debt: PersonDebt): PayDraft[] {
 
 /**
  * Khoản trả cho `name` ở sổ `ledger` (`nxPay`): "Thanh toán toàn bộ" hay "Một phần" đều dùng hàm này với `amount` khác nhau.
- * Số dư âm (tôi nợ) thì tôi trả họ; số dư dương thì họ trả tôi. `amount` làm tròn `r3`; null nếu số tiền không dương hoặc đã hết nợ.
+ * Số dư âm (tôi nợ) thì tôi trả họ; số dư dương thì họ trả tôi. `amount` làm tròn `roundVnd`; null nếu số tiền không dương hoặc đã hết nợ.
  * KHÔNG giới hạn số tiền theo số dư (như PWA: trả dư thì sổ đổi dấu).
  */
-export function paymentDraft(debt: PersonDebt, ledger: Ledger, amount: Nghin): PayDraft | null {
-  const amt = r3(amount);
+export function paymentDraft(debt: PersonDebt, ledger: Ledger, amount: Vnd): PayDraft | null {
+  const amt = roundVnd(amount);
   if (!(amt > 0)) return null;
   const balance = debt[ledger];
   if (isNearZero(balance)) return null;
@@ -184,11 +182,11 @@ export function paymentDraft(debt: PersonDebt, ledger: Ledger, amount: Nghin): P
 
 /** Câu thông báo sau khi ghi một khoản trả: "Đã ghi A → B 50.000 ₫". */
 export function paymentMessage(draft: Pick<PayDraft, 'from' | 'to' | 'amt'>): string {
-  return `Đã ghi ${draft.from} → ${draft.to} ${formatMoney(draft.amt)}`;
+  return `Đã ghi ${draft.from} → ${draft.to} ${formatVnd(draft.amt)}`;
 }
 
 /** Câu thông báo sau khi gộp nợ. */
-export const mergeMessage = (amount: Nghin): string => `Đã gộp nợ ${formatMoney(amount)}`;
+export const mergeMessage = (amount: Vnd): string => `Đã gộp nợ ${formatVnd(amount)}`;
 
 export interface NewPayContext {
   now: number;
@@ -200,7 +198,7 @@ export interface NewPayContext {
 
 /**
  * Biến các bản nháp thành khoản trả sẽ lưu (`ot`): mã mới, `createdAt` tăng dần từ `now`, ngày hôm nay (giờ máy),
- * ghi chú trống, số tiền làm tròn `r3`; khoản `bt` mang `grp`. Khoản có số tiền ≤ 0,0005 nghìn bị bỏ.
+ * ghi chú trống, số tiền làm tròn `roundVnd`; khoản `bt` mang `grp`. Khoản có số tiền dưới 1 đồng bị bỏ.
  */
 export function finalizeNewPays(drafts: readonly PayDraft[], context: NewPayContext): Pay[] {
   return drafts
@@ -211,7 +209,7 @@ export function finalizeNewPays(drafts: readonly PayDraft[], context: NewPayCont
         createdAt: context.now + index,
         date: context.today,
         note: draft.note ?? '',
-        amt: r3(draft.amt),
+        amt: roundVnd(draft.amt),
       };
       if (context.group && draft.kind === 'bt') pay.grp = context.group;
       return pay;
@@ -228,8 +226,8 @@ export interface MergeRecord {
   id: string;
   date: DateStr;
   createdAt: number;
-  loan: Nghin;
-  bill: Nghin;
+  loan: Vnd;
+  bill: Vnd;
 }
 
 /** Các lần gộp nợ với `name` (`nxHist`), mới nhất trước; hiển thị "Gộp nợ" với số lớn hơn giữa hai sổ. */
@@ -283,7 +281,7 @@ export function withoutMergeGroup(pays: readonly Pay[], group: string): Pay[] {
 
 export interface LedgerItem {
   d: DateStr;
-  v: Nghin;
+  v: Vnd;
   /** Tiêu đề dòng. */
   t: string;
   /** Dòng phụ. */
@@ -291,7 +289,7 @@ export interface LedgerItem {
 }
 
 /** Nhãn dòng trong sổ (`nxLbl`). `prev` là số dư ngay trước dòng này. */
-export function eventLabel(event: DebtEvent, prev: Nghin): string {
+export function eventLabel(event: DebtEvent, prev: Vnd): string {
   const who = event.who;
   if (event.k === 'bt') return 'Gộp nợ';
   if (event.k === 'bill') return event.bill?.title || 'Không tên';
@@ -316,7 +314,7 @@ export function ledgerItems(events: readonly DebtEvent[], categoryName?: (id: st
   let balance = 0;
   return events.map((event) => {
     const item = { d: event.d, v: event.v, t: eventLabel(event, balance), s: eventSubtitle(event, categoryName) };
-    balance = r3(balance + event.v);
+    balance = roundVnd(balance + event.v);
     return item;
   });
 }
@@ -326,13 +324,13 @@ export function ledgerItems(events: readonly DebtEvent[], categoryName?: (id: st
 export interface PairDebt {
   from: string;
   to: string;
-  amt: Nghin;
+  amt: Vnd;
   n: number;
 }
 
 /**
  * Nợ bill theo từng cặp người trong kỳ đang xem (`nxPairs`): cộng gợi ý chuyển tiền của bill và các khoản trả thuộc sổ bill
- * (kể cả giữa hai người khác "Tôi"). Chỉ giữ cặp còn lệch từ 0,05 nghìn; cặp có "Tôi" là người nhận lên trước, rồi "Tôi" là người trả.
+ * (kể cả giữa hai người khác "Tôi"). Chỉ giữ cặp còn lệch từ 50 đồng; cặp có "Tôi" là người nhận lên trước, rồi "Tôi" là người trả.
  */
 export function pairDebts(bills: readonly Bill[], pays: readonly Pay[], period: Period): PairDebt[] {
   const map = new Map<string, { a: string; b: string; v: number; n: number }>();
@@ -360,7 +358,7 @@ export function pairDebts(bills: readonly Bill[], pays: readonly Pay[], period: 
   const rank = (p: PairDebt) => (isMe(p.to) ? 0 : isMe(p.from) ? 1 : 2);
   return [...map.values()]
     .map((entry) => {
-      const value = r3(entry.v);
+      const value = roundVnd(entry.v);
       return value >= 0 ? { from: entry.a, to: entry.b, amt: value, n: entry.n } : { from: entry.b, to: entry.a, amt: -value, n: entry.n };
     })
     .filter((pair) => pair.amt > DEBT_ZERO)
@@ -371,17 +369,17 @@ export interface PairItem {
   d: DateStr;
   c: number;
   /** Dương: `x` nợ `z` thêm (theo chiều x → z). */
-  s: Nghin;
+  s: Vnd;
   t: string;
   x: string;
 }
 
 export interface PairNet {
   items: PairItem[];
-  net: Nghin;
+  net: Vnd;
   from: string;
   to: string;
-  amt: Nghin;
+  amt: Vnd;
 }
 
 /** Chi tiết nợ bill giữa hai người `x` và `z` trong kỳ (`nxPairItems` + `nxCtNet`). */
@@ -415,11 +413,11 @@ export function pairNet(
     items.push({ d: date, c: pay.createdAt || 0, s, t: merged ? 'Gộp nợ' : `${from} trả ${to}`, x: merged ? 'Trừ giữa nợ vay và nợ bill' : 'Thanh toán bill' });
   }
   items.sort((a, b) => a.d.localeCompare(b.d) || a.c - b.c);
-  const net = r3(items.reduce((sum, item) => sum + item.s, 0));
+  const net = roundVnd(items.reduce((sum, item) => sum + item.s, 0));
   return { items, net, from: net >= 0 ? x : z, to: net >= 0 ? z : x, amt: Math.abs(net) };
 }
 
-/** "Thanh toán toàn bộ" cho cả cặp (`nxCtPay`): null nếu chênh lệch dưới 0,05 nghìn. */
+/** "Thanh toán toàn bộ" cho cả cặp (`nxCtPay`): null nếu chênh lệch dưới 50 đồng. */
 export function pairPaymentDraft(net: Pick<PairNet, 'from' | 'to' | 'amt'>): PayDraft | null {
   if (net.amt < DEBT_ZERO) return null;
   return { kind: 'billpay', from: net.from, to: net.to, amt: net.amt };

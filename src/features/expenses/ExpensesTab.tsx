@@ -1,13 +1,16 @@
 import { router } from 'expo-router';
 import { useMemo } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { LockableScrollView } from '@/components/lockable-scroll-view';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { ChipRow, EmptyState, ScreenTitle, TitleAction } from '@/components/design';
+import { CardHead, ChipRow, EmptyState, ScreenTitle, TitleAction } from '@/components/design';
+import { PageLayout } from '@/constants/layout';
 import { AppRadius } from '@/constants/palette';
-import { categoriesInUse, dayHeading, filterByCategory, groupByDay, periodToParams, suggestedDateFor } from '@/domain/expenses';
+import { categoriesInUse, dayHeading, filterByCategory, groupByDay, periodTitle, periodToParams, suggestedDateFor } from '@/domain/expenses';
 import { expenseLinkLabel } from '@/domain/expenseTab';
+import { ExpenseCategoryOverview } from '@/features/expenses/ExpenseCategoryOverview';
 import { ExpenseRow } from '@/features/expenses/HistoryScreen';
 import { useExpenseSettings, useExpenses } from '@/features/expenses/hooks';
 import { useExpenseRowActions } from '@/features/expenses/useExpenseRowActions';
@@ -50,19 +53,19 @@ export default function ExpensesTab() {
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
       <ScreenTitle title="Chi tiêu" topInset={insets.top} right={<TitleAction label="Chi tiêu" onPress={addExpense} />} />
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 110 + insets.bottom }]} onScrollBeginDrag={() => setOpenId(null)} keyboardShouldPersistTaps="handled">
-        {/* Hàng nút lọc danh mục cuộn ngang. */}
+      <LockableScrollView contentContainerStyle={[styles.content, { paddingBottom: PageLayout.bottomClearance + insets.bottom }]} onScrollBeginDrag={() => setOpenId(null)} keyboardShouldPersistTaps="handled">
+        {/* Thẻ tổng quan: biểu đồ tròn phân bổ chi tiêu theo mục (kèm %), nằm trên cùng; chạm một mục để lọc lịch sử bên dưới. */}
         {!message && loaded && (
-          <View style={styles.chips}>
-            <ChipRow
-              options={catOptions}
-              value={activeCat}
-              onChange={(next) => {
-                setOpenId(null);
-                setCatChip(next);
-              }}
-            />
-          </View>
+          <ExpenseCategoryOverview
+            items={items}
+            settings={settings}
+            period={period}
+            activeCategory={activeCat}
+            onSelectCategory={(id) => {
+              setOpenId(null);
+              setCatChip(activeCat === id ? 'all' : id);
+            }}
+          />
         )}
 
         <View style={[styles.card, { backgroundColor: colors.surface, minHeight: Math.max(0, height - 400) }]}>
@@ -77,14 +80,19 @@ export default function ExpensesTab() {
           ) : (
             <>
               <View style={styles.listHead}>
-                <View style={styles.flex}>
-                  <AppText weight="semibold" style={styles.listTitle} numberOfLines={1}>
-                    {visibleCount} khoản chi
-                  </AppText>
-                  <AppText color={colors.muted} style={styles.listSub} numberOfLines={1}>
-                    {formatVnd(visibleTotal)}
-                  </AppText>
-                </View>
+                <CardHead title="Lịch sử chi tiêu" subtitle={periodTitle(period)} rightTop={`${visibleCount} khoản chi`} rightBottom={formatVnd(visibleTotal)} />
+              </View>
+
+              {/* Hàng nút lọc danh mục cuộn ngang, ngay dưới tiêu đề lịch sử. */}
+              <View style={styles.chips}>
+                <ChipRow
+                  options={catOptions}
+                  value={activeCat}
+                  onChange={(next) => {
+                    setOpenId(null);
+                    setCatChip(next);
+                  }}
+                />
               </View>
 
               {groups.length === 0 ? (
@@ -134,24 +142,21 @@ export default function ExpensesTab() {
             </>
           )}
         </View>
-      </ScrollView>
+      </LockableScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  content: { paddingHorizontal: 16, paddingTop: 4, gap: 12 },
+  content: { paddingHorizontal: PageLayout.paddingX, paddingTop: PageLayout.contentTop, gap: PageLayout.gap },
   flex: { flex: 1, minWidth: 0 },
-  /** Hàng chip tràn hết bề rộng màn hình (bù đệm ngang của nội dung). */
-  chips: { marginHorizontal: -16 },
+  chips: { paddingBottom: 4 },
   card: { borderRadius: AppRadius.card, overflow: 'hidden', paddingBottom: 12 },
   loading: { marginTop: 48 },
   notice: { margin: 12, padding: 16, borderRadius: 16 },
   noticeText: { fontSize: 15 },
-  listHead: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 6 },
-  listTitle: { fontSize: 15, lineHeight: 20 },
-  listSub: { fontSize: 12, lineHeight: 16 },
+  listHead: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 10 },
   day: { gap: 4, paddingHorizontal: 12, paddingTop: 8 },
   dayHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, paddingHorizontal: 2 },
   dayName: { flexShrink: 1, fontSize: 13, lineHeight: 18.85 },

@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View }
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
+import { MoneyTextInput } from '@/components/money-input';
 import { CategoryIcon } from '@/components/category-icon';
 import { SvgIcon } from '@/components/svg-icon';
 import { useToast } from '@/components/toast';
@@ -17,7 +18,6 @@ import {
   isBudgetMonthAllowed,
   isCustomCategory,
   monthHeading,
-  parseAmountInput,
   removeCustomCategory,
   setBudget,
   type BudgetNote,
@@ -31,7 +31,7 @@ import { useColors } from '@/hooks/use-colors';
 import type { MonthKey } from '@/types/expense';
 import { withAlpha } from '@/utils/color';
 import { addMonths, monthOf, todayStr } from '@/utils/date';
-import { formatGrouped, formatVnd } from '@/utils/format';
+import { formatVnd } from '@/utils/format';
 
 const shortMonth = (month: MonthKey) => `${Number(month.slice(5))}/${month.slice(0, 4)}`;
 
@@ -219,11 +219,10 @@ export default function SettingsScreen() {
                     </Pressable>
                   </View>
                   <View style={styles.inline}>
-                    <TextInput
+                    <MoneyTextInput
                       style={[...inputStyle, styles.grow]}
-                      value={budgetValue ? formatGrouped(budgetValue) : ''}
-                      onChangeText={(text) => setDraft({ month, value: parseAmountInput(text) })}
-                      keyboardType="number-pad"
+                      value={budgetValue}
+                      onChangeValue={(value) => setDraft({ month, value })}
                       placeholder="Để trống nếu không đặt"
                       placeholderTextColor={colors.muted}
                       accessibilityLabel="Ngân sách"

@@ -1,7 +1,7 @@
 import type { Pay } from '@/types/pay';
 
 import { buildPayHistory } from './payForm';
-import { countPayRows, expenseLinkLabel, filterPayDays, payLinkLabel, payLinkedExpenses, payRowType, payTypesInUse } from './expenseTab';
+import { countPayRows, expenseLinkLabel, filterPayDays, filterPayDaysByPerson, payLinkLabel, payLinkedExpenses, payRowType, payTypesInUse } from './expenseTab';
 
 // DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng. Khoản trả: NGHÌN đồng.
 const pay = (id: string, from: string, to: string, amt: number, over: Partial<Pay> = {}): Pay => ({ id, createdAt: 10, date: '2025-10-05', note: '', from, to, amt, kind: 'vay', ...over });
@@ -60,5 +60,26 @@ describe('liên kết', () => {
     expect(payLinkLabel(linked)).toBe('Đã tính vào chi tiêu');
     expect(payLinkedExpenses(plain)).toEqual([]);
     expect(payLinkLabel(plain)).toBeNull();
+  });
+});
+
+describe('filterPayDaysByPerson (đối tượng công nợ)', () => {
+  const pays = [
+    pay('a1', 'Tôi', 'An', 100),
+    pay('a2', 'An', 'Tôi', 40, { kind: 'billpay', date: '2025-10-06' }),
+    pay('b1', 'Tôi', 'Bình', 70),
+    pay('o1', 'An', 'Bình', 30, { kind: 'billpay' }), // giữa hai người khác Tôi
+  ];
+  const days = history(pays).days;
+
+  it('chỉ giữ khoản giữa Tôi và người đó (cả trả bill lẫn chuyển tiền), bỏ khoản của người khác', () => {
+    expect(filterPayDaysByPerson(days, 'An').flatMap((d) => d.rows).map((r) => r.id).sort()).toEqual(['a1', 'a2']);
+    expect(filterPayDaysByPerson(days, 'Bình').flatMap((d) => d.rows).map((r) => r.id)).toEqual(['b1']);
+    expect(filterPayDaysByPerson(days, 'Chi')).toEqual([]);
+  });
+
+  it('không chọn ai thì giữ nguyên toàn bộ và không đổi danh sách gốc', () => {
+    expect(filterPayDaysByPerson(days, '')).toEqual(days);
+    expect(countPayRows(days)).toBe(4);
   });
 });

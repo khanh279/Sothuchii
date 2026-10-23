@@ -2,10 +2,14 @@ import type { ReactNode } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { AppText } from '@/components/app-text';
+import { ModalPresence } from '@/components/modal-presence';
+import { KeyboardAvoid } from '@/components/keyboard-avoid';
 import { SvgIcon } from '@/components/svg-icon';
 import type { IconName } from '@/constants/icons';
+import { PageLayout } from '@/constants/layout';
 import { AppRadius } from '@/constants/palette';
 import { useColors } from '@/hooks/use-colors';
+import { formatNote } from '@/utils/note';
 
 /**
  * Bộ thành phần giao diện dùng chung (phong cách Minimal Finance): tiêu đề khu vực, thẻ số liệu (chỉ xem), ô lối vào (bấm để
@@ -26,11 +30,13 @@ export function useToneColor() {
 /** Tiêu đề lớn của một trang gốc (tab), kèm khoảng đệm theo vùng an toàn phía trên. */
 export function ScreenTitle({ title, topInset = 0, right }: { title: string; topInset?: number; right?: ReactNode }) {
   return (
-    <View style={[styles.screenTitleRow, { paddingTop: 8 + topInset }]}>
-      <AppText weight="display" style={styles.screenTitle} accessibilityRole="header">
-        {title}
-      </AppText>
-      {right}
+    <View style={[styles.screenTitleWrap, { paddingTop: PageLayout.titleTop + topInset }]}>
+      <View style={styles.screenTitleRow}>
+        <AppText weight="display" style={[styles.screenTitle, { flexShrink: 0 }]} numberOfLines={1} accessibilityRole="header">
+          {title}
+        </AppText>
+        {right}
+      </View>
     </View>
   );
 }
@@ -63,7 +69,8 @@ export function TitleAction({ label, onPress, disabled }: { label: string; onPre
       accessibilityState={{ disabled: !!disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => [styles.titleAction, { backgroundColor: colors.primary, opacity: disabled ? 0.45 : pressed ? 0.88 : 1 }]}>
+      style={({ pressed }) => [styles.titleAction, { backgroundColor: colors.primary, opacity: disabled ? 0.45 : pressed ? 0.88 : 1 }]}
+    >
       <SvgIcon name="plus" size={16} color={colors.primaryInk} strokeWidth={2.4} />
       <AppText weight="semibold" color={colors.primaryInk} style={styles.titleActionText} numberOfLines={1}>
         {label}
@@ -102,6 +109,96 @@ export function SectionHeader({ title, subtitle, actionLabel, onAction }: Sectio
             {actionLabel}
           </AppText>
         </Pressable>
+      )}
+    </View>
+  );
+}
+
+interface CardHeadProps extends SectionHeaderProps {
+  /** Bên phải, sát mép khung: dòng trên (ví dụ "7 khoản chi") và dòng dưới (ví dụ số tiền). */
+  rightTop?: string;
+  rightBottom?: string;
+}
+
+/**
+ * Đầu thẻ dùng chung cho mọi thẻ ở tab Chi tiêu, Chia bill, Công nợ: tiêu đề (cùng cỡ chữ) và bên dưới là thời gian đang xem; bên phải sát mép
+ * là thông tin tóm tắt (dòng trên số lượng, dòng dưới số tiền). Không có đệm riêng: thẻ chứa nó tự đặt lề.
+ */
+export function CardHead({ title, subtitle, actionLabel, onAction, rightTop, rightBottom }: CardHeadProps) {
+  const colors = useColors();
+  return (
+    <View style={styles.sectionHead}>
+      <View style={styles.flex}>
+        <AppText weight="bold" style={styles.cardHeadTitle} numberOfLines={1}>
+          {title}
+        </AppText>
+        {!!subtitle && (
+          <AppText color={colors.muted} style={styles.caption} numberOfLines={1}>
+            {subtitle}
+          </AppText>
+        )}
+      </View>
+      {(!!rightTop || !!rightBottom) && (
+        <View style={styles.cardHeadRight}>
+          {!!rightTop && (
+            <AppText weight="semibold" color={colors.muted} style={styles.cardHeadTop} numberOfLines={1}>
+              {rightTop}
+            </AppText>
+          )}
+          {!!rightBottom && (
+            <AppText color={colors.muted} style={styles.caption} numberOfLines={1}>
+              {rightBottom}
+            </AppText>
+          )}
+        </View>
+      )}
+      {!!actionLabel && !!onAction && (
+        <Pressable accessibilityRole="button" hitSlop={8} onPress={onAction}>
+          <AppText weight="semibold" color={colors.accent} style={styles.action}>
+            {actionLabel}
+          </AppText>
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
+interface SectionCardProps extends CardHeadProps {
+  children: ReactNode;
+}
+
+/** Thẻ có đầu thẻ (`CardHead`) NẰM TRONG khung, rồi tới nội dung: nền thẻ, bo góc, không viền, đệm 16. */
+export function SectionCard({ children, ...head }: SectionCardProps) {
+  const colors = useColors();
+  return (
+    <View style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
+      <CardHead {...head} />
+      {children}
+    </View>
+  );
+}
+
+interface HeroCardProps {
+  label: string;
+  amount: string;
+  caption?: string;
+}
+
+/** Thẻ tổng nền đậm của màn Chi tiết nợ: nhãn nhỏ, số tiền lớn, dòng chú thích. Dùng chung cho Chi tiết nợ và các trang Thanh toán. */
+export function HeroCard({ label, amount, caption }: HeroCardProps) {
+  const colors = useColors();
+  return (
+    <View style={[styles.hero, { backgroundColor: colors.heroBg }]}>
+      <AppText weight="medium" color={colors.heroSoft} style={styles.heroLabel}>
+        {label}
+      </AppText>
+      <AppText weight="display" color={colors.heroInk} style={styles.heroAmount} numberOfLines={1} adjustsFontSizeToFit>
+        {amount}
+      </AppText>
+      {!!caption && (
+        <AppText color={colors.heroSoft} style={styles.heroCaption}>
+          {caption}
+        </AppText>
       )}
     </View>
   );
@@ -169,7 +266,12 @@ export function NavTile({ icon, tint = 'teal', label, caption, onPress, style }:
   const colors = useColors();
   const tintColor = useTint(tint);
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [styles.card, styles.tile, { backgroundColor: colors.surface, borderColor: colors.line, opacity: pressed ? 0.85 : 1 }, style]}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={({ pressed }) => [styles.card, styles.tile, { backgroundColor: colors.surface, borderColor: colors.line, opacity: pressed ? 0.85 : 1 }, style]}
+    >
       <View style={styles.tileTop}>
         <View style={styles.cardHead}>
           <SvgIcon name={icon} size={18} color={tintColor} strokeWidth={2} />
@@ -268,7 +370,7 @@ interface TransactionRowProps {
 export type StatusTone = 'get' | 'owe' | 'warn' | 'info';
 
 /** Nhãn trạng thái nhỏ dạng viên thuốc, dùng chung (danh sách bill, chi tiết bill, nhãn liên kết). Chỉ nhãn đổi màu, không đổi cả thẻ. */
-export function StatusBadge({ label, tone = 'info' }: { label: string; tone?: StatusTone }) {
+export function StatusBadge({ label, tone = 'info', style }: { label: string; tone?: StatusTone; style?: StyleProp<ViewStyle> }) {
   const colors = useColors();
   const palette = {
     get: { bg: colors.successSoft, fg: colors.success },
@@ -277,7 +379,7 @@ export function StatusBadge({ label, tone = 'info' }: { label: string; tone?: St
     info: { bg: colors.primarySoft, fg: colors.primary },
   }[tone];
   return (
-    <View style={[styles.badge, { backgroundColor: palette.bg }]}>
+    <View style={[styles.badge, { backgroundColor: palette.bg }, style]}>
       <AppText weight="semibold" color={palette.fg} style={styles.badgeText} numberOfLines={1}>
         {label}
       </AppText>
@@ -297,16 +399,20 @@ export function TransactionRow({ icon, title, subtitle, amount, tone, meta, badg
           {title}
         </AppText>
         {!!subtitle && (
-          <AppText color={colors.muted} style={styles.caption} numberOfLines={2}>
-            {subtitle}
+          <AppText color={colors.muted} style={styles.caption} numberOfLines={4}>
+            {formatNote(subtitle)}
           </AppText>
         )}
-        {!!badge && <StatusBadge label={badge} tone={badgeTone} />}
       </View>
       <View style={styles.txRight}>
         <AppText weight="bold" color={toneColor(tone)} style={styles.rowAmount}>
           {amount}
         </AppText>
+        {!!badge && (
+          <View style={styles.txBadge}>
+            <StatusBadge label={badge} tone={badgeTone} />
+          </View>
+        )}
         {!!meta && (
           <AppText color={colors.muted} style={styles.caption} numberOfLines={1}>
             {meta}
@@ -339,7 +445,8 @@ export function SegmentedControl<T extends string>({ options, value, onChange }:
             accessibilityRole="tab"
             accessibilityState={{ selected }}
             onPress={() => onChange(option.value)}
-            style={[styles.segmentedItem, selected && { backgroundColor: colors.primary }]}>
+            style={[styles.segmentedItem, selected && { backgroundColor: colors.primary }]}
+          >
             <AppText weight="semibold" color={selected ? colors.primaryInk : colors.muted} style={styles.segmentedText} numberOfLines={1} adjustsFontSizeToFit>
               {option.label}
             </AppText>
@@ -363,7 +470,8 @@ export function ChipRow<T extends string>({ options, value, onChange }: { option
             accessibilityRole="button"
             accessibilityState={{ selected }}
             onPress={() => onChange(option.value)}
-            style={[styles.chip, selected ? { backgroundColor: colors.primary, borderColor: colors.primary } : { backgroundColor: colors.surface, borderColor: colors.line }]}>
+            style={[styles.chip, selected ? { backgroundColor: colors.primary, borderColor: colors.primary } : { backgroundColor: colors.surface, borderColor: colors.line }]}
+          >
             <AppText weight="medium" color={selected ? colors.primaryInk : colors.ink} style={styles.chipText} numberOfLines={1}>
               {option.label}
             </AppText>
@@ -407,7 +515,8 @@ export function PrimaryButton({ label, onPress, disabled, style }: ButtonProps) 
       accessibilityState={{ disabled: !!disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => [styles.button, { backgroundColor: colors.primary, opacity: disabled ? 0.45 : pressed ? 0.88 : 1 }, style]}>
+      style={({ pressed }) => [styles.button, { backgroundColor: colors.primary, opacity: disabled ? 0.45 : pressed ? 0.88 : 1 }, style]}
+    >
       <AppText weight="semibold" color={colors.primaryInk} style={styles.buttonText}>
         {label}
       </AppText>
@@ -424,7 +533,8 @@ export function SecondaryButton({ label, onPress, disabled, style }: ButtonProps
       accessibilityState={{ disabled: !!disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => [styles.button, { backgroundColor: colors.primarySoft, opacity: disabled ? 0.45 : pressed ? 0.8 : 1 }, style]}>
+      style={({ pressed }) => [styles.button, { backgroundColor: colors.primarySoft, opacity: disabled ? 0.45 : pressed ? 0.8 : 1 }, style]}
+    >
       <AppText weight="semibold" color={colors.primary} style={styles.buttonText}>
         {label}
       </AppText>
@@ -441,6 +551,8 @@ interface ConfirmDialogProps {
   /** Số tiền hiển thị lớn (đã định dạng). */
   amountText?: string;
   note?: string;
+  /** Cảnh báo nổi bật (nền đỏ nhạt, chữ đỏ) đặt ngay dưới tiêu đề. */
+  warning?: string;
   confirmLabel?: string;
   cancelLabel?: string;
   busy?: boolean;
@@ -449,15 +561,23 @@ interface ConfirmDialogProps {
 }
 
 /** Xác nhận một thao tác quan trọng (thanh toán, xoá…). Hiện đè lên toàn màn hình, nền mờ. */
-export function ConfirmDialog({ title, message, amountText, note, confirmLabel = 'Xác nhận', cancelLabel = 'Huỷ', busy, onConfirm, onCancel }: ConfirmDialogProps) {
+export function ConfirmDialog({ title, message, amountText, note, warning, confirmLabel = 'Xác nhận', cancelLabel = 'Huỷ', busy, onConfirm, onCancel }: ConfirmDialogProps) {
   const colors = useColors();
   return (
     <Modal transparent animationType="fade" visible statusBarTranslucent onRequestClose={() => !busy && onCancel()}>
-      <View style={[styles.scrim, { backgroundColor: colors.scrim }]}>
+      <ModalPresence />
+      <KeyboardAvoid style={[styles.scrim, { backgroundColor: colors.scrim }]}>
         <View style={[styles.dialog, { backgroundColor: colors.surface }]} accessibilityViewIsModal>
           <AppText weight="bold" style={styles.dialogTitle}>
             {title}
           </AppText>
+          {!!warning && (
+            <View style={[styles.dialogWarning, { backgroundColor: colors.dangerSoft }]} accessibilityRole="alert">
+              <AppText weight="semibold" color={colors.danger} style={styles.dialogWarningText}>
+                {warning}
+              </AppText>
+            </View>
+          )}
           {!!message && <AppText style={styles.dialogMessage}>{message}</AppText>}
           {!!amountText && (
             <AppText weight="display" style={styles.dialogAmount}>
@@ -474,14 +594,16 @@ export function ConfirmDialog({ title, message, amountText, note, confirmLabel =
             <PrimaryButton label={confirmLabel} disabled={busy} onPress={onConfirm} style={styles.flex} />
           </View>
         </View>
-      </View>
+      </KeyboardAvoid>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1, minWidth: 0 },
-  screenTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 8 },
+  screenTitleWrap: { paddingHorizontal: PageLayout.paddingX, paddingBottom: PageLayout.titleBottom },
+  /** Hàng cao cố định (bằng nút "+"), nên tiêu đề không nhảy dù tab có hay chưa có nút thao tác. */
+  screenTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: PageLayout.titleRowHeight },
   screenTitle: { fontSize: 26, lineHeight: 32, letterSpacing: -0.4 },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   modalTitle: { flex: 1, fontSize: 18, lineHeight: 26 },
@@ -490,6 +612,15 @@ const styles = StyleSheet.create({
   titleActionText: { fontSize: 14, flexShrink: 1 },
   sectionHeader: { flexDirection: 'row', alignItems: 'flex-end', gap: 12, paddingHorizontal: 4, marginBottom: 8 },
   sectionTitle: { fontSize: 17, lineHeight: 24 },
+  hero: { borderRadius: 22, padding: 20, gap: 4 },
+  heroLabel: { fontSize: 12.5 },
+  heroAmount: { fontSize: 34, lineHeight: 42, letterSpacing: -0.6 },
+  heroCaption: { fontSize: 13 },
+  sectionCard: { borderRadius: AppRadius.card, padding: 16, gap: 12 },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  cardHeadTitle: { fontSize: 18, lineHeight: 24 },
+  cardHeadRight: { alignItems: 'flex-end', flexShrink: 0 },
+  cardHeadTop: { fontSize: 13, lineHeight: 18 },
   caption: { fontSize: 12, lineHeight: 16 },
   action: { fontSize: 13.5 },
   card: { borderRadius: AppRadius.card, borderWidth: 1, padding: 14, gap: 6 },
@@ -503,7 +634,7 @@ const styles = StyleSheet.create({
   rowName: { fontSize: 15.5, lineHeight: 21 },
   rowAmount: { fontSize: 16, lineHeight: 22, textAlign: 'right' },
   badge: { alignSelf: 'flex-start', marginTop: 4, paddingHorizontal: 8, paddingVertical: 2, borderRadius: AppRadius.pill },
-  badgeText: { fontSize: 11, lineHeight: 15 },
+  badgeText: { fontSize: 11, lineHeight: 15, textAlign: 'right' },
   segmented: { flexDirection: 'row', padding: 4, borderRadius: AppRadius.pill, gap: 4 },
   segmentedItem: { flex: 1, height: 38, borderRadius: AppRadius.pill, alignItems: 'center', justifyContent: 'center' },
   segmentedText: { fontSize: 14 },
@@ -513,7 +644,9 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 13 },
   txRow: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
   txTitle: { fontSize: 15, lineHeight: 20 },
-  txRight: { alignItems: 'flex-end', maxWidth: '40%' },
+  txRight: { alignItems: 'flex-end', maxWidth: '52%', flexShrink: 0 },
+  /** Nhãn trạng thái nằm ngay dưới số tiền, căn phải. */
+  txBadge: { alignSelf: 'flex-end' },
   empty: { alignItems: 'center', gap: 8, paddingVertical: 28, paddingHorizontal: 16 },
   emptyText: { fontSize: 14, textAlign: 'center' },
   emptyAction: { alignSelf: 'stretch', marginTop: 8 },
@@ -523,6 +656,8 @@ const styles = StyleSheet.create({
   dialog: { width: '100%', maxWidth: 360, borderRadius: 20, padding: 20, gap: 8 },
   dialogTitle: { fontSize: 18, lineHeight: 24 },
   dialogMessage: { fontSize: 15.5 },
+  dialogWarning: { borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12 },
+  dialogWarningText: { fontSize: 14, lineHeight: 20 },
   dialogAmount: { fontSize: 30, lineHeight: 36 },
   dialogButtons: { flexDirection: 'row', gap: 10, marginTop: 10 },
 });

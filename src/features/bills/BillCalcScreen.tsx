@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View, type GestureResponderEvent } from 'react-native';
+import { Animated, Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
+import { MoneyTextInput } from '@/components/money-input';
+import { KeyboardAnchor, KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll';
 import { CalendarPanel } from '@/components/calendar-panel';
 import { CategoryIcon } from '@/components/category-icon';
 import { DateField } from '@/components/date-field';
@@ -18,9 +20,7 @@ import { MAX_BILL_PEOPLE, MIN_BILL_PEOPLE, canSaveBill, computeSplit, defaultPer
 import {
   applyMemberSelection,
   emptyPerson,
-  formatPaidText,
   initialPeople,
-  maskPaidInput,
   resizePeople,
   resetAfterSave,
   toSplitPeople,
@@ -30,13 +30,16 @@ import {
   type FormPerson,
 } from '@/domain/billForm';
 import { formFromBill } from '@/domain/billHistory';
+import { formatVndInput, parseVndInput } from '@/domain/money';
 import { allCategories } from '@/domain/expenses';
-import { swipeToggle } from '@/domain/swipe';
 import { describeStorageError, useExpenseSettings } from '@/features/expenses/hooks';
 import { MemberPicker } from '@/features/people/MemberPicker';
 import { SplitReceipt } from '@/features/bills/SplitReceipt';
+import { GestureDetector } from 'react-native-gesture-handler';
+
 import { useChromeScroll } from '@/hooks/use-chrome';
 import { useColors } from '@/hooks/use-colors';
+import { useSlideToggle } from '@/hooks/use-slide-toggle';
 import type { Bill } from '@/types/bill';
 import type { DateStr } from '@/types/expense';
 import { todayStr } from '@/utils/date';
@@ -46,7 +49,7 @@ const BILL_CATEGORY_IDS = ['food', 'fun', 'trip', 'move', 'bill', 'other'];
 
 /**
  * Màn tính chia bill (phần "Chia bill" của tab Giao dịch): nội dung, mục chi, ngày, số người 2–20, số tiền mỗi
- * người đã chi (NGHÌN đồng) và kết quả chia theo thời gian thực. Vuốt ô tiền sang trái để đặt hệ số hoặc mức
+ * người đã chi (đồng) và kết quả chia theo thời gian thực. Vuốt ô tiền sang trái để đặt hệ số hoặc mức
  * cố định. Có `existing` thì là chế độ SỬA bill đó (lưu xong gọi `onFinished`, không đặt lại form). Tạo mới mà có `onFinished`
  * (màn "Tạo bill" riêng) thì lưu xong cũng gọi `onFinished` để quay lại.
  */
@@ -132,7 +135,7 @@ export default function BillCalcScreen({ existing = null, onFinished }: { existi
   };
 
   return (
-    <ScrollView ref={scrollRef} {...scrollProps} contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
+    <KeyboardAwareScrollView ref={scrollRef} {...scrollProps} contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
       <View style={[styles.card, { backgroundColor: colors.surface }]}>
         <TextInput
           value={title}
@@ -202,17 +205,19 @@ export default function BillCalcScreen({ existing = null, onFinished }: { existi
         ))}
       </View>
 
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ disabled: !canSaveBill(split) || saving }}
-        disabled={!canSaveBill(split) || saving}
-        onPress={() => void save()}
-        style={[styles.saveButton, { backgroundColor: colors.primary, opacity: canSaveBill(split) && !saving ? 1 : 0.45 }]}>
-        <SvgIcon name="check" size={20} color={colors.primaryInk} strokeWidth={2.2} />
-        <AppText weight="semibold" color={colors.primaryInk} style={styles.saveText}>
-          Lưu
-        </AppText>
-      </Pressable>
+      <KeyboardAnchor>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !canSaveBill(split) || saving }}
+          disabled={!canSaveBill(split) || saving}
+          onPress={() => void save()}
+          style={[styles.saveButton, { backgroundColor: colors.primary, opacity: canSaveBill(split) && !saving ? 1 : 0.45 }]}>
+          <SvgIcon name="check" size={20} color={colors.primaryInk} strokeWidth={2.2} />
+          <AppText weight="semibold" color={colors.primaryInk} style={styles.saveText}>
+            Lưu
+          </AppText>
+        </Pressable>
+      </KeyboardAnchor>
       {!existing && (
         <Pressable accessibilityRole="button" onPress={() => router.push('/chia-bill/lich-su')} style={[styles.ghostButton, { borderColor: colors.line }]}>
           <AppText weight="semibold" color={colors.primary} style={styles.ghostText}>
@@ -278,7 +283,7 @@ export default function BillCalcScreen({ existing = null, onFinished }: { existi
           }}
         />
       )}
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 }
 
@@ -308,23 +313,14 @@ interface PersonRowProps {
 }
 
 /**
- * Một người: tên, ô số tiền đã chi và (khi vuốt sang trái) hai ô hệ số / mức cố định. Vuốt sang phải hoặc chạm
- * nút "×" để đóng. Tên mặc định theo thứ tự dòng hiển thị mờ; chọn người từ danh sách là bước 4D.
+ * Một người: hai lớp ô cùng kích thước xếp chồng trong một khung cắt cao 46. Lớp 1 là "Tên" + "Số tiền chi", lớp 2 là
+ * "Hệ số" hoặc "Số tiền cố định" (chữ "hoặc" ở giữa; đè đúng lên vị trí lớp 1). Kéo ngang theo ngón tay: lớp 1 trượt ra trái trong khi lớp 2 trượt vào từ phải
+ * (và ngược lại); thả tay thì chốt về phía gần hơn (hoặc theo vận tốc). Không có nút "⋯"; ở lớp 2 có nút "×" bên phải để quay lại.
+ * Cả hai lớp luôn được dựng nên dữ liệu đã nhập ở hai chế độ được giữ nguyên; chiều cao dòng cố định nên không nhảy.
  */
 function PersonRow({ index, row, open, caption, onOpen, onChange }: PersonRowProps) {
   const colors = useColors();
-  // Vuốt ngang trên ô tiền: ghi điểm chạm đầu, khi nhấc tay mới quyết định (không giành quyền cuộn của danh sách).
-  const touchStart = useRef<{ x: number; y: number } | null>(null);
-  const onTouchStart = (event: GestureResponderEvent) => {
-    touchStart.current = { x: event.nativeEvent.pageX, y: event.nativeEvent.pageY };
-  };
-  const onTouchEnd = (event: GestureResponderEvent) => {
-    const start = touchStart.current;
-    touchStart.current = null;
-    if (!start) return;
-    const action = swipeToggle(event.nativeEvent.pageX - start.x, event.nativeEvent.pageY - start.y, open);
-    if (action) onOpen(action === 'open');
-  };
+  const { nameX, slideInX, gesture, onLayout } = useSlideToggle(open, onOpen);
 
   const inputStyle = [styles.moneyInput, { backgroundColor: colors.bg, borderColor: colors.line, color: colors.ink, fontFamily: AppFonts.semibold }];
   const isMe = index === 0;
@@ -333,14 +329,30 @@ function PersonRow({ index, row, open, caption, onOpen, onChange }: PersonRowPro
   return (
     <View style={styles.person}>
       <View style={styles.personRow}>
-        <View style={[styles.nameBox, { backgroundColor: colors.bg, borderColor: colors.line }]}>
-          <AppText weight={isMe ? 'bold' : 'semibold'} color={isMe || row.name ? colors.ink : colors.muted} style={styles.nameText} numberOfLines={1}>
-            {name}
-          </AppText>
-        </View>
-        <View style={styles.moneyArea} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-          {open ? (
-            <View style={styles.overlay}>
+        <GestureDetector gesture={gesture}>
+        <View style={styles.slider} onLayout={onLayout}>
+          <Animated.View style={[styles.panel, { transform: [{ translateX: nameX }] }]} pointerEvents={open ? 'none' : 'auto'} accessibilityElementsHidden={open} importantForAccessibility={open ? 'no-hide-descendants' : 'auto'}>
+            <View style={[styles.slotLeft, styles.nameBox, { backgroundColor: colors.bg, borderColor: colors.line }]}>
+              <AppText weight={isMe ? 'bold' : 'semibold'} color={isMe || row.name ? colors.ink : colors.muted} style={styles.nameText} numberOfLines={1}>
+                {name}
+              </AppText>
+            </View>
+            <View style={styles.slotRight}>
+              <MoneyTextInput
+                value={parseVndInput(row.paidText)}
+                onChangeValue={(vnd) => onChange((r) => ({ ...r, paidText: formatVndInput(vnd) }))}
+                placeholder="0"
+                placeholderTextColor={colors.muted}
+                accessibilityLabel="Số tiền đã chi"
+                style={[inputStyle, styles.paidInput]}
+              />
+              <AppText color={colors.muted} style={styles.suffix} pointerEvents="none">
+                ₫
+              </AppText>
+            </View>
+          </Animated.View>
+          <Animated.View style={[styles.panel, { transform: [{ translateX: slideInX }] }]} pointerEvents={open ? 'auto' : 'none'} accessibilityElementsHidden={!open} importantForAccessibility={open ? 'auto' : 'no-hide-descendants'}>
+            <View style={styles.slotLeft}>
               <TextInput
                 value={row.weightText}
                 onChangeText={(text) => onChange((r) => withWeightText(r, text))}
@@ -351,55 +363,38 @@ function PersonRow({ index, row, open, caption, onOpen, onChange }: PersonRowPro
                 accessibilityLabel="Hệ số chia"
                 style={[inputStyle, styles.weightInput]}
               />
-              <AppText color={colors.muted} style={styles.or}>
-                hoặc
-              </AppText>
-              <View style={styles.fixedWrap}>
-                <TextInput
-                  value={row.fixedText}
-                  onChangeText={(text) => onChange((r) => withFixedText(r, text))}
-                  keyboardType="decimal-pad"
-                  placeholder="Số tiền cố định"
-                  placeholderTextColor={colors.muted}
-                  accessibilityLabel="Số tiền cố định, nghìn đồng"
-                  style={[inputStyle, styles.fixedInput]}
-                />
-                {!!row.fixedText && (
-                  <AppText color={colors.muted} style={styles.suffix} pointerEvents="none">
-                    .000 ₫
-                  </AppText>
-                )}
-              </View>
-              <Pressable accessibilityRole="button" accessibilityLabel="Đóng hệ số" onPress={() => onOpen(false)} hitSlop={8}>
-                <AppText weight="bold" color={colors.muted} style={styles.closeX}>
-                  ×
-                </AppText>
-              </Pressable>
             </View>
-          ) : (
-            <View style={styles.paidWrap}>
-              <TextInput
-                value={formatPaidText(row.paidText)}
-                onChangeText={(text) => onChange((r) => ({ ...r, paidText: maskPaidInput(text) }))}
-                keyboardType="number-pad"
-                placeholder="0"
+            <AppText color={colors.muted} style={styles.orText}>
+              hoặc
+            </AppText>
+            <View style={styles.slotRight}>
+              <MoneyTextInput
+                value={parseVndInput(row.fixedText)}
+                onChangeValue={(vnd) => onChange((r) => withFixedText(r, formatVndInput(vnd)))}
+                placeholder="Số tiền cố định"
                 placeholderTextColor={colors.muted}
-                accessibilityLabel="Số tiền đã chi, nghìn đồng"
-                style={[inputStyle, styles.paidInput]}
+                accessibilityLabel="Số tiền cố định"
+                style={[inputStyle, styles.fixedInput, !row.fixedText && styles.fixedEmpty]}
               />
-              <AppText color={colors.muted} style={styles.suffix} pointerEvents="none">
-                .000 ₫
-              </AppText>
+              {!!row.fixedText && (
+                <AppText color={colors.muted} style={styles.suffix} pointerEvents="none">
+                  ₫
+                </AppText>
+              )}
             </View>
+          </Animated.View>
+        </View>
+        </GestureDetector>
+        {/* Không còn nút "⋯": chuyển lớp bằng cách vuốt ngang; chỉ khi đang ở lớp Hệ số mới có nút × để quay lại (ngoài cách vuốt phải). */}
+        <View style={styles.moreButton}>
+          {open && (
+            <Pressable accessibilityRole="button" accessibilityLabel="Đóng hệ số" onPress={() => onOpen(false)} hitSlop={6} style={styles.moreButton}>
+              <AppText weight="bold" color={colors.muted} style={styles.closeX}>
+                ×
+              </AppText>
+            </Pressable>
           )}
         </View>
-        {!open && (
-          <Pressable accessibilityRole="button" accessibilityLabel="Hệ số hoặc số tiền cố định" onPress={() => onOpen(true)} hitSlop={6} style={styles.moreButton}>
-            <AppText weight="bold" color={colors.muted} style={styles.moreText}>
-              ⋯
-            </AppText>
-          </Pressable>
-        )}
       </View>
       {!!caption && (
         <AppText weight="semibold" color={colors.primary} style={styles.caption}>
@@ -435,17 +430,21 @@ const styles = StyleSheet.create({
   hint: { fontSize: 12.5, textAlign: 'center' },
   person: { gap: 2 },
   personRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  nameBox: { flexBasis: '27%', maxWidth: '27%', minHeight: 46, justifyContent: 'center', paddingHorizontal: 10, borderWidth: 1, borderRadius: 12 },
+  /** Khung cắt cao cố định 46: hai lớp ô trượt trong khung nên chiều cao dòng không đổi. */
+  // `touchAction: 'pan-y'` (web): vuốt ngang được giao cho ô trượt, trình duyệt chỉ tự cuộn khi vuốt dọc.
+  slider: { flex: 1, minWidth: 0, height: 46, overflow: 'hidden', touchAction: 'pan-y' },
+  panel: { ...StyleSheet.absoluteFill, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  slotLeft: { flexBasis: '30%', maxWidth: '30%', height: 46, justifyContent: 'center' },
+  slotRight: { flex: 1, minWidth: 0, height: 46, justifyContent: 'center' },
+  nameBox: { paddingHorizontal: 10, borderWidth: 1, borderRadius: 12 },
   nameText: { fontSize: 15 },
-  moneyArea: { flex: 1, minWidth: 0, minHeight: 46, justifyContent: 'center' },
-  paidWrap: { justifyContent: 'center' },
   moneyInput: { height: 46, borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, fontSize: 17 },
   paidInput: { paddingRight: 56, textAlign: 'right' },
   suffix: { position: 'absolute', right: 10, fontSize: 13 },
-  overlay: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  weightInput: { flexBasis: '28%', maxWidth: 96, textAlign: 'center', paddingHorizontal: 4, fontSize: 15 },
-  or: { fontSize: 12.5 },
-  fixedWrap: { flex: 1, minWidth: 0, justifyContent: 'center' },
+  weightInput: { textAlign: 'center', paddingHorizontal: 4, fontSize: 15 },
+  orText: { fontSize: 13 },
+  /** Ô còn trống chưa có hậu tố "₫" nên không chừa chỗ cho nó (để chữ gợi ý hiện đủ). */
+  fixedEmpty: { paddingRight: 10 },
   fixedInput: { textAlign: 'right', paddingRight: 58, fontSize: 15 },
   closeX: { fontSize: 20, paddingHorizontal: 2 },
   moreButton: { width: 28, height: 46, alignItems: 'center', justifyContent: 'center' },

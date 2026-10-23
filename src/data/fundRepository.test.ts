@@ -163,9 +163,11 @@ describe('lần đóng quỹ', () => {
   });
 });
 
+const FUNDED = { id: 'c0', fundId: 'f1', title: 'Đóng', date: '2025-10-01', people: [{ name: 'An', amount: 1_000_000 }] };
+
 describe('khoản chi của quỹ', () => {
   beforeEach(async () => {
-    await seed({ funds: [{ id: 'f1', name: 'A' }], contribs: [], expenses: [] });
+    await seed({ funds: [{ id: 'f1', name: 'A' }], contribs: [FUNDED], expenses: [] });
   });
 
   it('chi quỹ nhập thẳng ĐỒNG, không nhân 1000', async () => {
@@ -175,7 +177,7 @@ describe('khoản chi của quỹ', () => {
 
   it('số tiền ≤ 0 bị từ chối; sửa giữ trường lạ; xoá đúng khoản', async () => {
     await expect(saveFundExpense({ fundId: 'f1', title: 'x', date: '2025-10-06', amount: 0 })).rejects.toBeInstanceOf(FundInputError);
-    await seed({ funds: [{ id: 'f1', name: 'A' }], contribs: [], expenses: [{ id: 'e1', fundId: 'f1', title: 'a', date: '2025-10-01', amount: 5, la: 1 }] });
+    await seed({ funds: [{ id: 'f1', name: 'A' }], contribs: [FUNDED], expenses: [{ id: 'e1', fundId: 'f1', title: 'a', date: '2025-10-01', amount: 5, la: 1 }] });
     expect(await saveFundExpense({ id: 'e1', fundId: 'f1', title: 'b', date: '2025-10-02', amount: 7 })).toBe('e1');
     expect((await raw()).expenses).toEqual([{ id: 'e1', fundId: 'f1', title: 'b', date: '2025-10-02', amount: 7, la: 1 }]);
     expect(await deleteFundExpense('e1')).toBe(true);

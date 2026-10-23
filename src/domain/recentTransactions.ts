@@ -4,17 +4,16 @@
  * Chỉ coi là giao dịch tiền thực tế của TÔI:
  * - Khoản chi cá nhân (kể cả khoản tự ghi từ chia bill `src:'cb'` và phần đóng quỹ của tôi `src:'quy'`): tiền ra.
  * - Khoản trả / chuyển tiền có "Tôi" ở một đầu: tôi chuyển đi = tiền ra, người khác chuyển cho tôi = tiền vào.
- * KHÔNG tính: bản ghi bill, số dư công nợ, số dư quỹ, lần đóng / chi quỹ (dữ liệu quỹ), khoản gộp nợ (`bt`, chỉ là bù trừ sổ),
+ * KHÔNG tính: bản ghi bill, số dư công nợ, số dư quỹ, lần đóng / chi quỹ (dữ liệu quỹ; phần đóng quỹ của tôi đã có dạng khoản chi cá nhân), khoản gộp nợ (`bt`, chỉ là bù trừ sổ),
  * và khoản trả giữa hai người không phải tôi.
  *
  * Chống trùng: một khoản trả của tôi có thể đã sinh khoản chi cá nhân `cb` ("Trả An · bill 06/10", liên kết bằng `pay.exp`).
  * Khoản chi đó là bóng của khoản trả, nên chỉ hiện dòng khoản trả, bỏ các khoản chi được `pay.exp` trỏ tới.
- * Tiền: khoản chi lưu ĐỒNG, khoản trả lưu NGHÌN đồng (đổi sang đồng khi hiển thị).
+ * Tiền: khoản chi và khoản trả đều lưu ĐỒNG.
  */
 
 import { BILL_OWNER_NAME } from '@/domain/bills';
 import { payClass } from '@/domain/ledger';
-import { nghinToVnd } from '@/domain/money';
 import type { DateStr, ExpenseWithId } from '@/types/expense';
 import type { Vnd } from '@/types/money';
 import type { Pay } from '@/types/pay';
@@ -84,7 +83,7 @@ export function buildRecentTransactions({ expenses, pays, categoryName, limit }:
   }
 
   for (const pay of pays) {
-    const amount = nghinToVnd(+pay.amt || 0);
+    const amount = Math.round(+pay.amt || 0);
     if (!(amount > 0)) continue;
     const cls = payClass(pay);
     if (cls === 'bt') continue;

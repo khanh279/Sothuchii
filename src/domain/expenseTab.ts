@@ -4,6 +4,7 @@
  * khoản trả KHÔNG được cộng vào tổng, kể cả khi nó đã sinh một khoản chi `src:'cb'` (liên kết bằng `pay.exp`, khoản chi đó đã nằm trong tổng).
  */
 
+import { BILL_OWNER_NAME } from '@/domain/bills';
 import { payClass } from '@/domain/ledger';
 import type { PayDay, PayRow } from '@/domain/payForm';
 import type { ExpenseRef } from '@/types/expense';
@@ -54,4 +55,26 @@ export function expenseLinkLabel(expense: { src?: string }): string | null {
 /** Nhãn cho dòng khoản trả đã sinh khoản chi cá nhân (căn cứ `pay.exp`); `null` nếu không có. */
 export function payLinkLabel(row: Pick<PayRow, 'group' | 'pay'>): string | null {
   return payLinkedExpenses(row).length > 0 ? 'Đã tính vào chi tiêu' : null;
+}
+
+/**
+ * Giữ lại các dòng khoản trả giữa "Tôi" và MỘT người (lọc theo đối tượng công nợ đang chọn ở tab Công nợ): cả khoản trả bill lẫn chuyển tiền / nợ vay,
+ * vì công nợ với một người gồm cả hai sổ. Dòng giữa hai người khác "Tôi" (nhóm trả bill của người khác) không thuộc công nợ của tôi nên bị bỏ.
+ * `person` rỗng = không lọc. Chỉ lọc hiển thị.
+ */
+/** Tên những người có giao dịch với "Tôi" (theo thứ tự xuất hiện, không trùng) để làm nút lọc theo người. */
+export function payPeopleNames(days: readonly PayDay[]): string[] {
+  const names: string[] = [];
+  for (const day of days)
+    for (const row of day.rows) {
+      const other = row.from === BILL_OWNER_NAME ? row.to : row.to === BILL_OWNER_NAME ? row.from : '';
+      if (other && !names.includes(other)) names.push(other);
+    }
+  return names;
+}
+
+export function filterPayDaysByPerson(days: readonly PayDay[], person: string): PayDay[] {
+  if (!person) return [...days];
+  const involves = (row: PayRow) => (row.from === BILL_OWNER_NAME && row.to === person) || (row.to === BILL_OWNER_NAME && row.from === person);
+  return days.map((day) => ({ ...day, rows: day.rows.filter(involves) })).filter((day) => day.rows.length > 0);
 }

@@ -1,4 +1,6 @@
 import { useRef, useState } from 'react';
+import { ModalPresence } from '@/components/modal-presence';
+import { KeyboardAvoid } from '@/components/keyboard-avoid';
 import { Modal, Platform, Pressable, ScrollView, Share, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -127,7 +129,8 @@ export function DataSheet({ onClose, onDataChanged }: Props) {
   const noteStyle = [styles.note, { color: colors.muted }];
   return (
     <Modal transparent animationType="fade" visible onRequestClose={onClose}>
-      <View style={[styles.scrim, { backgroundColor: colors.scrim }]}>
+      <ModalPresence />
+      <KeyboardAvoid style={[styles.scrim, { backgroundColor: colors.scrim }]}>
         <Pressable style={styles.flex} onPress={onClose} accessibilityLabel="Đóng" />
         <View style={[styles.sheet, { backgroundColor: colors.surface, paddingBottom: 12 + insets.bottom }]}>
           <View style={styles.header}>
@@ -219,7 +222,7 @@ export function DataSheet({ onClose, onDataChanged }: Props) {
             </View>
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoid>
     </Modal>
   );
 }

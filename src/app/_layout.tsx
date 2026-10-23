@@ -2,7 +2,10 @@ import { useFonts } from 'expo-font';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
+import { StyleSheet } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { KeyboardAvoid } from '@/components/keyboard-avoid';
 import { ToastProvider } from '@/components/toast';
 import { FONT_ASSETS } from '@/constants/font-assets';
 import { SoTienColors } from '@/constants/palette';
@@ -42,31 +45,45 @@ export default function RootLayout() {
   if (!ready) return null;
 
   return (
+    <GestureHandlerRootView style={styles.root}>
     <ThemeProvider value={navigationTheme(scheme === 'dark' ? 'dark' : 'light')}>
       <ToastProvider>
         <ChromeProvider>
           {/* Màn con: không có thanh tiêu đề / nút Back; vuốt từ cạnh trái sang phải để quay lại (native stack của Expo Router, chỉ từ mép nên không vướng vuốt hàng Sửa/Xoá). */}
+          <KeyboardAvoid ignoreWhenModalOpen>
           <Stack screenOptions={{ headerShown: false, gestureEnabled: true }}>
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="chi-tieu/nhap" />
             <Stack.Screen name="chi-tieu/chi-tiet" />
             <Stack.Screen name="lich-su" />
+            <Stack.Screen name="giao-dich" />
             <Stack.Screen name="quy/lich-su" />
             <Stack.Screen name="quy/chi-tieu" />
-            <Stack.Screen name="quy/ung-truoc" />
+            <Stack.Screen name="quy/thu-quy" />
+            <Stack.Screen name="quy/chi-tiet" />
+            <Stack.Screen name="quy/sua" />
+            <Stack.Screen name="quy/ung-chi" />
+            <Stack.Screen name="quy/cong-no" />
             <Stack.Screen name="chia-bill/lich-su" />
             <Stack.Screen name="thiet-lap" />
             <Stack.Screen name="chia-bill/tao" />
             <Stack.Screen name="chia-bill/nguoi" />
             <Stack.Screen name="chia-bill/chi-tiet" />
+            <Stack.Screen name="chia-bill/thanh-toan" />
             <Stack.Screen name="chia-bill/sua" />
             <Stack.Screen name="cong-no/lich-su" />
             <Stack.Screen name="cong-no/ghi-nhan" />
             <Stack.Screen name="cong-no/sua" />
             <Stack.Screen name="cong-no/chi-tiet" />
+            <Stack.Screen name="cong-no/giao-dich" />
           </Stack>
+          </KeyboardAvoid>
         </ChromeProvider>
       </ToastProvider>
     </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }
+
+/** Gốc của react-native-gesture-handler: cần cho cử chỉ vuốt ngang chuyển lớp ở form Chia bill. */
+const styles = StyleSheet.create({ root: { flex: 1 } });

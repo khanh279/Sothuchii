@@ -1,9 +1,10 @@
-import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
+import { MoneyTextInput } from '@/components/money-input';
+import { KeyboardAnchor, KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll';
 import { CalendarPanel } from '@/components/calendar-panel';
 import { DateField } from '@/components/date-field';
 import { SvgIcon } from '@/components/svg-icon';
@@ -13,10 +14,10 @@ import { AppRadius } from '@/constants/palette';
 import { PayInputError } from '@/data/payRepository';
 import { addTransferSynced, updatePayGroupSynced, updateTransferSynced } from '@/data/payService';
 import { BILL_OWNER_NAME } from '@/domain/bills';
+import { formatVndInput, parseVndInput } from '@/domain/money';
 import {
   canRecordPay,
   formFromPay,
-  maskPayAmount,
   parsePayAmount,
   payKindFor,
   payNameOptions,
@@ -44,14 +45,14 @@ function representative(pays: readonly Pay[], ids: readonly string[]): { form: P
   const found = ids.map((id) => pays.find((pay) => pay.id === id)).filter((pay): pay is Pay => !!pay);
   if (!found.length) return null;
   const first = found[0];
-  const amt = found.length > 1 ? Math.round(found.reduce((sum, pay) => sum + (+pay.amt || 0), 0) * 1e3) / 1e3 : first.amt;
+  const amt = found.length > 1 ? Math.round(found.reduce((sum, pay) => sum + (+pay.amt || 0), 0)) : first.amt;
   const form = formFromPay(found.length > 1 ? { ...first, kind: 'bill', amt } : first);
   return { form, original: { date: first.date, from: first.from, to: first.to, amt }, locked: found.length > 1 };
 }
 
 /**
  * Form ghi nhận / sửa / xoá một khoản chuyển tiền hoặc trả bill (`#pay-form` của PWA): ngày, nội dung, người trả → người
- * nhận, loại (Trả bill / Chuyển tiền) và số tiền (NGHÌN đồng). Sửa (mở bằng vuốt dòng ở lịch sử): chỉ có nút "Lưu thay đổi"; xóa bằng vuốt dòng.
+ * nhận, loại (Trả bill / Chuyển tiền) và số tiền (đồng). Sửa (mở bằng vuốt dòng ở lịch sử): chỉ có nút "Lưu thay đổi"; xóa bằng vuốt dòng.
  */
 export default function PayFormScreen({ editIds, onFinished }: Props) {
   const colors = useColors();
@@ -153,7 +154,7 @@ function PayForm({ bills, pays, people, editIds, source, reload, onFinished }: F
   const inputStyle = [styles.input, { backgroundColor: colors.bg, borderColor: colors.line, color: colors.ink, fontFamily: AppFonts.semibold }];
 
   return (
-    <ScrollView ref={scrollRef} {...scrollProps} contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
+    <KeyboardAwareScrollView ref={scrollRef} {...scrollProps} contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
       <View style={[styles.card, { backgroundColor: colors.surface }]}>
         <View style={styles.row}>
           <View style={styles.dateBox}>
@@ -206,21 +207,20 @@ function PayForm({ bills, pays, people, editIds, source, reload, onFinished }: F
         </View>
 
         <View style={styles.amountBox}>
-          <TextInput
-            value={amountText}
-            onChangeText={(text) => setAmountText(maskPayAmount(text))}
-            keyboardType="decimal-pad"
+          <MoneyTextInput
+            value={parseVndInput(amountText)}
+            onChangeValue={(vnd) => setAmountText(formatVndInput(vnd))}
             placeholder="Số tiền"
             placeholderTextColor={colors.muted}
-            accessibilityLabel="Số tiền, nghìn đồng"
+            accessibilityLabel="Số tiền"
             style={[inputStyle, styles.amountInput]}
           />
           <AppText color={colors.muted} style={styles.amountSuffix} pointerEvents="none">
-            .000 ₫
+            ₫
           </AppText>
         </View>
 
-        <View style={styles.actions}>
+        <KeyboardAnchor style={styles.actions}>
           <Pressable
             accessibilityRole="button"
             accessibilityState={{ disabled: !canRecord || busy }}
@@ -229,19 +229,11 @@ function PayForm({ bills, pays, people, editIds, source, reload, onFinished }: F
             style={[styles.primary, { backgroundColor: colors.primary, opacity: canRecord && !busy ? 1 : 0.45 }]}>
             <SvgIcon name="check" size={20} color={colors.primaryInk} strokeWidth={2.2} />
             <AppText weight="semibold" color={colors.primaryInk} style={styles.primaryText}>
-              {editing ? 'Lưu thay đổi' : 'Ghi nhận'}
+              {editing ? 'Lưu thay đổi' : 'Lưu'}
             </AppText>
           </Pressable>
-        </View>
+        </KeyboardAnchor>
       </View>
-
-      {!editing && (
-        <Pressable accessibilityRole="button" onPress={() => router.push('/cong-no/lich-su')} style={[styles.history, { borderColor: colors.line }]}>
-          <AppText weight="semibold" color={colors.primary} style={styles.ghostText}>
-            Lịch sử giao dịch
-          </AppText>
-        </Pressable>
-      )}
 
       {picking && (
         <OptionPicker
@@ -273,12 +265,12 @@ function PayForm({ bills, pays, people, editIds, source, reload, onFinished }: F
           }}
         />
       )}
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 }
 
 // Số đo theo CSS `.mod-c` của PWA: thẻ bo 16 đệm 14; ô ngày rộng 150; ô chọn người cao 58; mũi tên 34; nút loại cao 38 bo 9;
-// ô số tiền lớn; "Ghi nhận" cao 50.
+// ô số tiền lớn; "Lưu" cao 50.
 const styles = StyleSheet.create({
   flex: { flex: 1, minWidth: 0 },
   content: { paddingHorizontal: 12, paddingTop: 4, gap: 12 },
@@ -302,7 +294,5 @@ const styles = StyleSheet.create({
   primary: { flex: 1, minHeight: 50, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   primaryText: { fontSize: 17 },
   ghost: { minHeight: 50, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  ghostText: { fontSize: 14.5 },
   delete: { alignSelf: 'flex-start', minHeight: 40, paddingHorizontal: 14, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  history: { minHeight: 44, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
 });

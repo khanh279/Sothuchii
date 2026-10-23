@@ -1,32 +1,32 @@
 /**
  * Lịch sử Chia bill (hàm thuần): lọc theo kỳ, gom theo ngày và dựng lại form từ một bill đã lưu để sửa.
- * Chuyển từ `ut()` và `Pn()` của `mod-c` trong PWA. Tiền là NGHÌN đồng.
+ * Chuyển từ `ut()` và `Pn()` của `mod-c` trong PWA. Tiền là ĐỒNG.
  */
 
 import { BILL_OWNER_NAME, DEFAULT_BILL_TITLE, computeSplit, fixedOf, weightOf } from '@/domain/bills';
 import { emptyPerson, type FormPerson } from '@/domain/billForm';
 import { isInPeriod, resolveCategory } from '@/domain/expenses';
-import { formatNghinInput, nghinToVnd } from '@/domain/money';
+import { formatVndInput } from '@/domain/money';
 import type { Bill } from '@/types/bill';
 import type { DateStr, ExpenseSettings, Period } from '@/types/expense';
-import type { Nghin } from '@/types/money';
+import type { Vnd } from '@/types/money';
 
 export interface BillDay {
   date: DateStr;
   bills: Bill[];
-  /** Tổng bill của ngày (nghìn đồng). */
-  total: Nghin;
+  /** Tổng bill của ngày (đồng). */
+  total: Vnd;
 }
 
 export interface BillHistory {
   days: BillDay[];
   count: number;
-  /** Tổng số tiền đã chi của mọi bill trong kỳ (nghìn đồng) — số trên tiêu đề "Chia bill". */
-  totalPaid: Nghin;
+  /** Tổng số tiền đã chi của mọi bill trong kỳ (đồng) — số trên tiêu đề "Chia bill". */
+  totalPaid: Vnd;
 }
 
 /** Tổng một bill = tổng số tiền mọi người đã chi. */
-export function billTotal(bill: Pick<Bill, 'people'>): Nghin {
+export function billTotal(bill: Pick<Bill, 'people'>): Vnd {
   return computeSplit(bill.people).total;
 }
 
@@ -58,6 +58,18 @@ export function filterBillsByCategory(bills: readonly Bill[], settings: ExpenseS
 }
 
 /** Bill trong kỳ dưới dạng một danh sách phẳng, cùng thứ tự với lịch sử (mới nhất trước); dùng cho mục "Chi tiết" ở Tổng quan. */
+/** Tên những người có trong các bill (theo thứ tự xuất hiện, không trùng) để làm nút lọc theo người. */
+export function billPeopleNames(bills: readonly Pick<Bill, 'people'>[]): string[] {
+  const names: string[] = [];
+  for (const bill of bills) for (const person of bill.people) if (person.name && !names.includes(person.name)) names.push(person.name);
+  return names;
+}
+
+/** Chỉ giữ các bill có người này tham gia; `person` rỗng = giữ nguyên. Chỉ lọc hiển thị. */
+export function filterBillsByPerson<T extends Pick<Bill, 'people'>>(bills: readonly T[], person: string): T[] {
+  return person ? bills.filter((bill) => bill.people.some((item) => item.name === person)) : [...bills];
+}
+
 export function billsInPeriod(bills: readonly Bill[], period: Period): Bill[] {
   return buildBillHistory(bills, period).days.flatMap((day) => day.bills);
 }
@@ -86,9 +98,9 @@ export function formFromBill(bill: Pick<Bill, 'title' | 'date' | 'cat' | 'people
     const weight = weightOf(person);
     return {
       name: String(person.name ?? ''),
-      paidText: +person.paid ? String(+person.paid) : '',
+      paidText: +person.paid ? formatVndInput(+person.paid) : '',
       weightText: fixed === null && weight !== 1 ? String(weight).replace('.', ',') : '',
-      fixedText: fixed === null ? '' : formatNghinInput(nghinToVnd(fixed)),
+      fixedText: fixed === null ? '' : formatVndInput(fixed),
     };
   });
   const meIndex = rows.findIndex((row) => row.name === BILL_OWNER_NAME);
@@ -104,16 +116,16 @@ export const OVERVIEW_BILL_PEOPLE_LIMIT = 3;
 
 export interface BillSpenderRow {
   name: string;
-  /** Tổng số tiền người này đã chi trong kỳ (nghìn đồng). */
-  amount: Nghin;
+  /** Tổng số tiền người này đã chi trong kỳ (đồng). */
+  amount: Vnd;
   /** Độ dài thanh so với người chi nhiều nhất, từ 2 đến 100 (%), làm tròn 1 chữ số thập phân. */
   percent: number;
 }
 
 export interface BillOverviewCard {
   count: number;
-  /** Tổng bill trong kỳ (nghìn đồng). */
-  total: Nghin;
+  /** Tổng bill trong kỳ (đồng). */
+  total: Vnd;
   rows: BillSpenderRow[];
   /** Số người chưa hiện (nút "Xem thêm N người"). */
   hidden: number;

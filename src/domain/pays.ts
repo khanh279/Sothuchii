@@ -92,7 +92,7 @@ export function dedupePays(pays: readonly Pay[], locked: ReadonlySet<string> = n
     const key = locked.has(pay.id) ? `${payDedupeKey(pay)}|#locked:${pay.id}` : payDedupeKey(pay);
     const kept = first.get(key);
     if (kept) {
-      kept.amt = Math.round(((+kept.amt || 0) + (+pay.amt || 0)) * 1e3) / 1e3;
+      kept.amt = Math.round((+kept.amt || 0) + (+pay.amt || 0));
       removed.push(pay);
     } else {
       const copy = { ...pay };

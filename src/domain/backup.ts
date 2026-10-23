@@ -1,10 +1,12 @@
 /**
  * Sao lưu / khôi phục / xoá dữ liệu (hàm thuần). Chuyển từ `Jt`, `We`, `ue` của phần Thiết lập trong PWA.
  *
- * Định dạng file sao lưu GIỮ NGUYÊN của PWA để hai bên dùng chung được:
- *   { app: 'so-tien', v: 2, at, people, chiTieu: { settings, months: {'YYYY-MM': {...}} }, quyNhom, chiaBill: { v: 6, unit: 'k', bills, pays, names } }
+ * Định dạng file sao lưu (khung của PWA): { app: 'so-tien', v: 2, at, people, chiTieu: { settings, months: {'YYYY-MM': {...}} }, quyNhom, chiaBill: { v: 7, unit: 'd', bills, pays, names } }
+ * `chiaBill.unit`: 'd' = tiền ĐỒNG (bản hiện tại ghi); thiếu hoặc 'k' = NGHÌN đồng (file của PWA / bản cũ) — khi khôi phục được đổi sang đồng (xem `moneyMigration`).
  * Việc đọc / ghi bộ nhớ nằm ở tầng `data`; file này chỉ dựng và kiểm tra dữ liệu.
  */
+
+import { billsNghinToVnd, paysNghinToVnd } from '@/domain/moneyMigration';
 
 export const BACKUP_APP = 'so-tien';
 export const BACKUP_VERSION = 2;
@@ -42,7 +44,7 @@ export interface BackupDocument {
   people: string[];
   chiTieu: { settings: unknown; months: Record<string, unknown> };
   quyNhom: unknown;
-  chiaBill: { v: 6; unit: 'k'; bills: unknown[]; pays: unknown[]; names: unknown[] };
+  chiaBill: { v: 7; unit: 'd'; bills: unknown[]; pays: unknown[]; names: unknown[] };
 }
 
 /** Dựng nội dung file sao lưu. `at` là mốc thời gian ISO (UTC) chỉ để ghi chú, không dùng làm ngày lịch. */
@@ -58,7 +60,7 @@ export function buildBackup(snapshot: BackupSnapshot, now: number): BackupDocume
     people: [...snapshot.people],
     chiTieu: { settings: isRecord(snapshot.settings) ? snapshot.settings : {}, months },
     quyNhom: snapshot.fund ?? null,
-    chiaBill: { v: 6, unit: 'k', bills: [...snapshot.bills], pays: [...snapshot.pays], names: [...snapshot.names] },
+    chiaBill: { v: 7, unit: 'd', bills: [...snapshot.bills], pays: [...snapshot.pays], names: [...snapshot.names] },
   };
 }
 
@@ -119,9 +121,13 @@ export function parseBackup(text: string): ParseResult {
       plan.sections.push('quy-nhom');
     }
     if (isRecord(data.chiaBill) && Array.isArray(data.chiaBill.bills)) {
+      // `unit: 'd'` = đồng; mọi giá trị khác (thiếu, 'k') là file cũ lưu NGHÌN đồng nên đổi sang đồng ngay khi lập kế hoạch.
+      const inVnd = data.chiaBill.unit === 'd';
+      const bills = data.chiaBill.bills;
+      const pays = Array.isArray(data.chiaBill.pays) ? data.chiaBill.pays : [];
       plan.chiaBill = {
-        bills: data.chiaBill.bills,
-        pays: Array.isArray(data.chiaBill.pays) ? data.chiaBill.pays : [],
+        bills: inVnd ? bills : billsNghinToVnd(bills),
+        pays: inVnd ? pays : paysNghinToVnd(pays),
         names: Array.isArray(data.chiaBill.names) ? data.chiaBill.names : [],
       };
       plan.sections.push('chia-bill');

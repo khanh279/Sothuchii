@@ -1,23 +1,23 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
-import { ChipRow, EmptyState } from '@/components/design';
+import { CardHead, ChipRow, EmptyState } from '@/components/design';
 import { TOAST_BOTTOM_HISTORY, useToast } from '@/components/toast';
 import { AppRadius } from '@/constants/palette';
 import { deletePaySynced } from '@/data/payService';
 import { dayHeading, periodTitle } from '@/domain/expenses';
-import { PAY_FILTER_LABEL, countPayRows, filterPayDays, payLinkLabel, payTypesInUse, type PayFilter } from '@/domain/expenseTab';
+import { countPayRows, filterPayDaysByPerson, payLinkLabel, payPeopleNames } from '@/domain/expenseTab';
 import { buildPayHistory, type PayRow } from '@/domain/payForm';
 import { PayRowView } from '@/features/debts/PayHistoryScreen';
 import { describeDebtError } from '@/features/debts/hooks';
 import { useColors } from '@/hooks/use-colors';
-import { usePersistedState } from '@/hooks/use-persisted-state';
 import { useSharedPeriod } from '@/hooks/use-shared-period';
 import { useSingleOpenRow } from '@/hooks/use-single-open-row';
 import type { Bill } from '@/types/bill';
 import type { Pay } from '@/types/pay';
 import { formatVnDate, todayStr } from '@/utils/date';
+import { formatVnd } from '@/utils/format';
 
 interface Props {
   bills: readonly Bill[];
@@ -35,14 +35,16 @@ export function PayTransactions({ bills, pays, reload }: Props) {
   const today = todayStr();
   const toast = useToast();
   const { period } = useSharedPeriod();
-  const [payChip, setPayChip] = usePersistedState<PayFilter>('tab:cong-no:payChip', () => 'all');
   const { closeAll, rowProps } = useSingleOpenRow();
 
+  // Lọc theo tên người: chỉ giao dịch giữa "Tôi" và người này. Tên lấy từ giao dịch của kỳ; nút "Tất cả" ở đầu để bỏ lọc.
+  const [personPick, setPersonPick] = useState('');
   const history = useMemo(() => buildPayHistory(pays, bills, period), [pays, bills, period]);
-  const types = useMemo(() => payTypesInUse(history.days), [history.days]);
-  const active: PayFilter = payChip === 'all' || types.includes(payChip) ? payChip : 'all';
-  const days = useMemo(() => filterPayDays(history.days, active), [history.days, active]);
-  const options = useMemo(() => [{ value: 'all' as PayFilter, label: PAY_FILTER_LABEL.all }, ...types.map((type) => ({ value: type as PayFilter, label: PAY_FILTER_LABEL[type] }))], [types]);
+  const names = useMemo(() => payPeopleNames(history.days), [history.days]);
+  const person = names.includes(personPick) ? personPick : '';
+  const days = useMemo(() => filterPayDaysByPerson(history.days, person), [history.days, person]);
+
+  const totalAmount = useMemo(() => days.reduce((sum, day) => sum + day.rows.reduce((inner, row) => inner + row.amt, 0), 0), [days]);
 
   async function remove(row: PayRow) {
     try {
@@ -57,29 +59,24 @@ export function PayTransactions({ bills, pays, reload }: Props) {
 
   return (
     <>
-      {history.count > 0 && (
-        <View style={styles.chips}>
-          <ChipRow
-            options={options}
-            value={active}
-            onChange={(next) => {
-              closeAll();
-              setPayChip(next);
-            }}
-          />
-        </View>
-      )}
       <View style={[styles.card, { backgroundColor: colors.surface }]}>
         <View style={styles.head}>
-          <AppText weight="semibold" style={styles.title} numberOfLines={1}>
-            {countPayRows(days)} giao dịch
-          </AppText>
-          <AppText color={colors.muted} style={styles.sub} numberOfLines={1}>
-            {periodTitle(period)}
-          </AppText>
+          <CardHead title={person ? `Lịch sử giao dịch với ${person}` : 'Lịch sử giao dịch'} subtitle={periodTitle(period)} rightTop={`${countPayRows(days)} giao dịch`} rightBottom={formatVnd(totalAmount)} />
         </View>
+        {names.length > 0 && (
+          <View style={styles.chips}>
+            <ChipRow
+              options={[{ value: '', label: 'Tất cả' }, ...names.map((name) => ({ value: name, label: name }))]}
+              value={person}
+              onChange={(name) => {
+                closeAll();
+                setPersonPick(name);
+              }}
+            />
+          </View>
+        )}
         {days.length === 0 ? (
-          <EmptyState text={history.count === 0 ? 'Chưa có giao dịch nào trong kỳ này' : 'Không có giao dịch nào thuộc loại này trong kỳ'} icon="check" />
+          <EmptyState text={history.count === 0 ? 'Chưa có giao dịch nào trong kỳ này' : person ? `Không có giao dịch nào với ${person} trong kỳ` : 'Không có giao dịch nào thuộc loại này trong kỳ'} icon="check" />
         ) : (
           days.map((day) => (
             <View key={day.date} style={styles.day}>
@@ -108,12 +105,9 @@ export function PayTransactions({ bills, pays, reload }: Props) {
 }
 
 const styles = StyleSheet.create({
-  /** Hàng chip tràn hết bề rộng màn hình (bù đệm ngang của nội dung). */
-  chips: { marginHorizontal: -16 },
+  chips: { paddingBottom: 4 },
   card: { borderRadius: AppRadius.card, overflow: 'hidden', paddingBottom: 12 },
-  head: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 6 },
-  title: { fontSize: 15, lineHeight: 20 },
-  sub: { fontSize: 12, lineHeight: 16 },
+  head: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 10 },
   day: { gap: 4, paddingHorizontal: 12, paddingTop: 8 },
   dayHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, paddingHorizontal: 2 },
   dayName: { flexShrink: 1, fontSize: 13, lineHeight: 18.85 },

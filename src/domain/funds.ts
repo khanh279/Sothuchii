@@ -89,6 +89,8 @@ export function normalizeFundData(raw: unknown, context: NormalizeContext = {}):
     if (item.mode === 'personal' || item.mode === 'advance') expense.mode = item.mode;
     if (typeof item.payer === 'string' && item.payer) expense.payer = item.payer;
     if (typeof item.advanceId === 'string' && item.advanceId) expense.advanceId = item.advanceId;
+    const fundPart = Math.round(Number(item.fundPart) || 0);
+    if (expense.mode === 'personal' && fundPart > 0 && fundPart < expense.amount) expense.fundPart = fundPart;
     expenses.push(expense);
   }
 
@@ -145,6 +147,23 @@ export function fundTotals(data: Pick<FundData, 'contribs' | 'expenses'>, fundId
 }
 
 /** Số dư của một quỹ. */
+/**
+ * Những người thuộc MỘT quỹ: người đã đóng quỹ, người từng nhận tiền ứng và người từng ứng tiền chi cho quỹ đó (không trùng, theo thứ tự xuất hiện; "Tôi" đứng đầu nếu có).
+ * Dùng để chọn "Người chi" / "Người nhận ứng" chỉ trong số người của quỹ.
+ */
+export function fundMembers(data: Pick<FundData, 'contribs' | 'expenses' | 'advances'>, fundId: string): string[] {
+  const seen = new Set<string>();
+  const add = (name: string | undefined) => {
+    const clean = (name ?? '').trim();
+    if (clean) seen.add(clean);
+  };
+  for (const contrib of data.contribs) if (contrib.fundId === fundId) for (const person of contrib.people) add(person.name);
+  for (const advance of data.advances ?? []) if (advance.fundId === fundId) add(advance.person);
+  for (const expense of data.expenses) if (expense.fundId === fundId) add(expense.payer);
+  const names = [...seen];
+  return names.includes(FUND_OWNER_NAME) ? [FUND_OWNER_NAME, ...names.filter((name) => name !== FUND_OWNER_NAME)] : names;
+}
+
 export function fundBalance(data: Pick<FundData, 'contribs' | 'expenses'>, fundId: string | 'all'): Vnd {
   return fundTotals(data, fundId).bal;
 }

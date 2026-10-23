@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Animated, Easing, Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Animated, Easing, Platform, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AppText } from '@/components/app-text';
+import { OptionSheet, type SheetOption } from '@/components/option-sheet';
 import { SvgIcon } from '@/components/svg-icon';
-import type { IconName } from '@/constants/icons';
-import { AppRadius } from '@/constants/palette';
 import { useChrome } from '@/hooks/use-chrome';
 import { useColors } from '@/hooks/use-colors';
 
@@ -22,9 +20,6 @@ interface Props {
 }
 
 const USE_NATIVE = Platform.OS !== 'web';
-const SHEET_OFFSET = 440;
-const OPEN_MS = 260;
-const CLOSE_MS = 200;
 
 /**
  * Nút nổi "+" ở Tổng quan. Bấm thì mở bottom sheet bốn lựa chọn: Chi tiêu, Chi tiêu quỹ, Giao dịch, Tạo bill — mỗi lựa
@@ -36,7 +31,6 @@ export function AddExpenseFab({ onAddPersonal, onAddFund, onTransfer, onCreateBi
   const { hidden } = useChrome();
   const [open, setOpen] = useState(false);
   const [y] = useState(() => new Animated.Value(0));
-  const [progress] = useState(() => new Animated.Value(0));
 
   // Cuộn xuống nhanh thì nút trượt xuống khỏi màn hình cùng thanh tab dưới.
   useEffect(() => {
@@ -49,23 +43,12 @@ export function AddExpenseFab({ onAddPersonal, onAddFund, onTransfer, onCreateBi
   }, [hidden, insets.bottom, y]);
 
   function show() {
-    progress.setValue(0);
     setOpen(true);
-    Animated.timing(progress, { toValue: 1, duration: OPEN_MS, easing: Easing.out(Easing.cubic), useNativeDriver: USE_NATIVE }).start();
   }
 
-  /** Đóng sheet (trượt xuống, nền sáng lại) rồi mới gỡ khỏi màn hình; `after` chạy sau khi đã đóng (hẹn giờ, không phụ thuộc khung hình). */
-  function hide(after?: () => void) {
-    Animated.timing(progress, { toValue: 0, duration: CLOSE_MS, easing: Easing.in(Easing.cubic), useNativeDriver: USE_NATIVE }).start();
-    setTimeout(() => {
-      setOpen(false);
-      after?.();
-    }, CLOSE_MS + 20);
-  }
-
-  const options: { icon: IconName; label: string; hint: string; disabled?: boolean; onPress: () => void }[] = [
+  const options: SheetOption[] = [
     { icon: 'person', label: 'Chi tiêu', hint: 'Ghi một khoản chi của bạn', onPress: onAddPersonal },
-    { icon: 'people', label: 'Chi tiêu quỹ', hint: hasFunds ? 'Ghi khoản chi từ một quỹ' : 'Chưa có quỹ — tạo quỹ ở tab Quỹ nhóm', disabled: !hasFunds, onPress: onAddFund },
+    { icon: 'people', label: 'Chi tiêu quỹ', hint: hasFunds ? 'Ghi khoản chi từ một quỹ' : 'Chưa có quỹ — tạo quỹ ở tab Quỹ nhóm', disabled: !hasFunds, opensSheet: true, onPress: onAddFund },
     { icon: 'tabTransactions', label: 'Giao dịch', hint: 'Ghi nhận chuyển tiền hoặc trả nợ giữa hai người', onPress: onTransfer },
     { icon: 'receipt', label: 'Tạo bill', hint: 'Tạo bill và chia tiền cho mọi người', onPress: onCreateBill },
   ];
@@ -80,48 +63,7 @@ export function AddExpenseFab({ onAddPersonal, onAddFund, onTransfer, onCreateBi
         </Animated.View>
       )}
 
-      {open && (
-        <Modal transparent animationType="none" visible statusBarTranslucent onRequestClose={() => hide()}>
-          <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: colors.scrim, opacity: progress }]}>
-            <Pressable style={StyleSheet.absoluteFill} accessibilityLabel="Đóng" onPress={() => hide()} />
-          </Animated.View>
-          <View style={styles.sheetHost} pointerEvents="box-none">
-            <Animated.View
-              accessibilityViewIsModal
-              style={[
-                styles.sheet,
-                { backgroundColor: colors.surface, paddingBottom: 16 + insets.bottom, transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [SHEET_OFFSET, 0] }) }] },
-              ]}>
-              <View style={[styles.handle, { backgroundColor: colors.line }]} />
-              <AppText weight="bold" style={styles.sheetTitle}>
-                Chọn loại giao dịch
-              </AppText>
-              {options.map((option, index) => (
-                <Pressable
-                  key={option.label}
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: !!option.disabled }}
-                  disabled={option.disabled}
-                  onPress={() => hide(option.onPress)}
-                  style={({ pressed }) => [styles.option, index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line }, { opacity: option.disabled ? 0.45 : pressed ? 0.7 : 1 }]}>
-                  <View style={[styles.optionIcon, { backgroundColor: colors.primarySoft }]}>
-                    <SvgIcon name={option.icon} size={22} color={colors.primary} strokeWidth={1.9} />
-                  </View>
-                  <View style={styles.optionText}>
-                    <AppText weight="semibold" style={styles.optionLabel}>
-                      {option.label}
-                    </AppText>
-                    <AppText color={colors.muted} style={styles.optionHint}>
-                      {option.hint}
-                    </AppText>
-                  </View>
-                  <SvgIcon name="chevronRight" size={16} color={colors.muted} strokeWidth={2} />
-                </Pressable>
-              ))}
-            </Animated.View>
-          </View>
-        </Modal>
-      )}
+      {open && <OptionSheet title="Chọn loại giao dịch" options={options} onClose={() => setOpen(false)} />}
     </>
   );
 }
@@ -140,13 +82,4 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 5,
   },
-  sheetHost: { flex: 1, justifyContent: 'flex-end' },
-  sheet: { borderTopLeftRadius: AppRadius.hero, borderTopRightRadius: AppRadius.hero, paddingHorizontal: 16, paddingTop: 10 },
-  handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, marginBottom: 12 },
-  sheetTitle: { fontSize: 17, lineHeight: 24, marginBottom: 4 },
-  option: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
-  optionIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  optionText: { flex: 1, minWidth: 0 },
-  optionLabel: { fontSize: 15.5, lineHeight: 21 },
-  optionHint: { fontSize: 12.5, lineHeight: 17 },
 });

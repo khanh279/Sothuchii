@@ -3,7 +3,7 @@
  *
  * Chỉ tính khi tôi THỰC SỰ trả bill hoặc gộp nợ làm giảm nợ bill của tôi: số tiền đó được trừ dần (theo thứ tự thời gian,
  * bill cũ trước) vào các bill mà tôi còn nợ người đó, mỗi phần thành một khoản chi cá nhân `src:'cb'` theo mục chi của bill.
- * Chỉ LẬP KẾ HOẠCH; việc ghi nằm ở tầng `data` (bước 5B). Tiền của sổ là NGHÌN đồng, của khoản chi là ĐỒNG.
+ * Chỉ LẬP KẾ HOẠCH; việc ghi nằm ở tầng `data` (bước 5B). Tiền của sổ và của khoản chi đều là ĐỒNG.
  */
 
 import { DETAIL_MAX, MEMO_MAX } from '@/constants/categories';
@@ -15,7 +15,7 @@ import type { Bill } from '@/types/bill';
 import type { DateStr, ExpenseRef } from '@/types/expense';
 import type { Pay, PayAllocation } from '@/types/pay';
 
-const EPS = 1e-6;
+const EPS = 1e-3;
 
 /** Ngày dd/mm từ 'YYYY-MM-DD' (`O(date).slice(0,5)`). */
 function dayMonth(date: string): string {
@@ -55,7 +55,7 @@ export function allocatePayments(bills: readonly Bill[], pays: readonly Pay[]): 
         const take = Math.min(item.left, amount);
         item.left -= take;
         amount -= take;
-        out.push({ a: Math.round(take * 1e3), c: item.cat, n: item.title, d: String(pay.date), i: `${label}${event.who} · bill ${item.day}` });
+        out.push({ a: Math.round(take), c: item.cat, n: item.title, d: String(pay.date), i: `${label}${event.who} · bill ${item.day}` });
       }
     }
     const kept = out.filter((x) => x.a > 0);

@@ -1,23 +1,23 @@
 /**
  * Trạng thái và ô nhập của màn tính chia bill (hàm thuần). Chuyển từ `S`, `Cn`, `Xn`, `An` và các bộ lọc ô nhập
- * của `mod-c` trong PWA. Tiền ở đây là NGHÌN đồng (số nguyên ở ô "Đã chi"; có thể lẻ ở ô mức cố định).
+ * của `mod-c` trong PWA. Tiền ở đây là ĐỒNG (số nguyên).
  */
 
 import { BILL_OWNER_NAME, MAX_BILL_PEOPLE, MIN_BILL_PEOPLE, defaultPersonName, fixedOf, weightOf } from '@/domain/bills';
-import { maskNghinInput, nghinToVnd } from '@/domain/money';
+import { maskVndInput, parseVndInput } from '@/domain/money';
 import type { BillPerson, SplitRow } from '@/types/bill';
-import type { Nghin } from '@/types/money';
+import type { Vnd } from '@/types/money';
 import { formatVnd } from '@/utils/format';
 
 /** Một dòng người trong form; giữ CHỮ người dùng gõ ở ba ô (đã chuẩn hoá). */
 export interface FormPerson {
   /** Tên đã chọn; trống = dùng tên mặc định theo thứ tự dòng. */
   name: string;
-  /** Chỉ chữ số (nghìn đồng), tối đa 9 chữ số. */
+  /** Số tiền đã chi (ĐỒNG), chỉ gồm chữ số ("120000"); trống = chưa chi. */
   paidText: string;
   /** Hệ số, ví dụ "2" hoặc "1,5"; trống = 1. */
   weightText: string;
-  /** Mức cố định theo kiểu ô nghìn đồng, ví dụ "30" hoặc "1.234,5"; trống = không cố định. */
+  /** Mức cố định (ĐỒNG), chỉ gồm chữ số ("30000"); trống = không cố định. */
   fixedText: string;
 }
 
@@ -46,16 +46,15 @@ export function parseWeightText(text: string): number {
   return Number.isFinite(value) ? value : 1;
 }
 
-/** Ô mức cố định: kiểu ô nghìn đồng, phần nguyên tối đa 7 chữ số, phần thập phân tối đa 3. */
+/** Ô mức cố định: chỉ chữ số (ĐỒNG), tối đa 9 chữ số. */
 export function maskFixedInput(text: string): string {
-  return maskNghinInput(text, 7);
+  return maskVndInput(text, 9);
 }
 
-/** Mức cố định (nghìn đồng) từ chữ đã mask; trống thì không cố định (`undefined`). */
-export function parseFixedText(text: string): Nghin | undefined {
+/** Số tiền (ĐỒNG) từ chữ đã mask (dùng cho cả ô "Đã chi" và ô mức cố định); trống thì `undefined` (không cố định). */
+export function parseFixedText(text: string): Vnd | undefined {
   if (!text) return undefined;
-  const value = parseFloat(text.replace(/\./g, '').replace(',', '.'));
-  return Number.isFinite(value) ? value : 0;
+  return parseVndInput(text);
 }
 
 /**
@@ -76,7 +75,7 @@ export function toSplitPeople(rows: readonly FormPerson[]): BillPerson[] {
   return rows.map((row, index) => {
     const person: BillPerson = {
       name: index === 0 ? BILL_OWNER_NAME : row.name.trim() || defaultPersonName(index),
-      paid: +row.paidText || 0,
+      paid: parseFixedText(row.paidText) ?? 0,
       w: row.fixedText ? 1 : parseWeightText(row.weightText),
     };
     const fixed = parseFixedText(row.fixedText);
@@ -115,14 +114,9 @@ export function initialPeople(rememberedNames: readonly string[], knownPeople: r
 /** Chú thích dưới ô tiền: "Cố định …" hoặc "Hệ số …" (hàm `An`); trống nếu chia đều. */
 export function weightCaption(person: Pick<BillPerson, 'w' | 'fix'>): string {
   const fixed = fixedOf(person);
-  if (fixed !== null) return `Cố định ${formatMoney(fixed)}`;
+  if (fixed !== null) return `Cố định ${formatVnd(fixed)}`;
   const w = weightOf(person);
   return w !== 1 ? `Hệ số ${String(w).replace('.', ',')}` : '';
-}
-
-/** Nghìn đồng → "50.000 ₫". */
-export function formatMoney(nghin: Nghin): string {
-  return formatVnd(nghinToVnd(nghin));
 }
 
 export interface RowStatus {
@@ -133,14 +127,14 @@ export interface RowStatus {
 
 /** Trạng thái cuối của một người: nhận lại, còn thiếu hoặc đã đủ (hàm `Un`, làm tròn đến đồng). */
 export function rowStatus(row: Pick<SplitRow, 'net'>): RowStatus {
-  const vnd = Math.round(row.net * 1e3);
+  const vnd = Math.round(row.net);
   return vnd > 0 ? { kind: 'get', amount: vnd } : vnd < 0 ? { kind: 'owe', amount: -vnd } : { kind: 'even', amount: 0 };
 }
 
 /** Dòng mô tả: "Chi … · Phần …" kèm "Cố định" hoặc "Hệ số …" (hàm `zn`). */
 export function rowMeta(row: Pick<SplitRow, 'paid' | 'share' | 'fixed' | 'w'>): string {
   const extra = row.fixed ? ' · Cố định' : row.w !== 1 ? ` · Hệ số ${String(row.w).replace('.', ',')}` : '';
-  return `Chi ${formatMoney(row.paid)} · Phần ${formatMoney(row.share)}${extra}`;
+  return `Chi ${formatVnd(row.paid)} · Phần ${formatVnd(row.share)}${extra}`;
 }
 
 /**

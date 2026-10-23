@@ -2,7 +2,8 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 
 import { addPersonToList, loadPeople, removePersonFromList } from '@/data/peopleRepository';
-import { StorageCorruptError } from '@/data/storage';
+import { StorageCorruptError, StorageKeys } from '@/data/storage';
+import { useReloadOnWrite } from '@/hooks/use-reload-on-write';
 import type { AddPersonResult } from '@/domain/people';
 
 /** Danh sách người dùng chung; tự đọc lại mỗi khi màn hình được mở lại. */
@@ -22,6 +23,9 @@ export function usePeople() {
       );
     }
   }, []);
+
+  // Có ai ghi danh sách người (kể cả từ màn hình khác) thì tải lại ngay.
+  useReloadOnWrite([StorageKeys.people], reload);
 
   useFocusEffect(
     useCallback(() => {

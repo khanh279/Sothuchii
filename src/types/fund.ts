@@ -3,7 +3,7 @@ import type { Vnd } from '@/types/money';
 
 /**
  * Dữ liệu Quỹ nhóm, đúng định dạng PWA lưu ở khóa `quy_nhom_v1`.
- * Mọi số tiền lưu bằng ĐỒNG (Vnd). Ô nhập "đóng quỹ" tính theo nghìn đồng nhưng được đổi sang đồng khi lưu;
+ * Mọi số tiền lưu bằng ĐỒNG (Vnd). Ô nhập tiền nhập thẳng bằng đồng;
  * ô nhập "chi quỹ" nhập thẳng đồng.
  */
 
@@ -51,6 +51,11 @@ export interface FundExpense {
   mode?: FundExpenseMode;
   /** Hồ sơ ứng trước mà khoản chi này thuộc về (hình thức 'advance'). */
   advanceId?: string;
+  /**
+   * Chỉ với hình thức 'personal': phần của `amount` do QUỸ chi trực tiếp (tiền thực tế quỹ, ĐỒNG, 0 < phần < amount) khi quỹ không đủ tiền cho cả khoản.
+   * Phần còn lại `amount − fundPart` là cá nhân (`payer`) ứng và quỹ còn nợ họ. Một bản ghi duy nhất nên tổng chi chỉ tính một lần; thiếu = không chia.
+   */
+  fundPart?: Vnd;
 }
 
 /**

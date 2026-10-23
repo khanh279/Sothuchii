@@ -8,6 +8,7 @@
 import { loadBills, newBillId } from '@/data/billRepository';
 import { syncBillExpenses } from '@/data/billSync';
 import { PayInputError, appendPays, deletePayGroup, deletePays, loadPays, replacePayGroup, setPayNotes, updatePay, type PayPatch } from '@/data/payRepository';
+import { billPairKey, buildBillPairs } from '@/domain/billPairs';
 import { checkPairPayment, pairAmountDraft, personBillRows } from '@/domain/billPerson';
 import { debtPaymentMessage, planDebtPayment, type DebtPayOption } from '@/domain/debtPay';
 import {
@@ -27,7 +28,7 @@ import {
 } from '@/domain/ledger';
 import type { Ledger, Pay } from '@/types/pay';
 import type { Period } from '@/types/expense';
-import type { Nghin } from '@/types/money';
+import type { Vnd } from '@/types/money';
 import { todayStr } from '@/utils/date';
 
 export interface SyncedPayChange<T> {
@@ -61,7 +62,7 @@ export interface RecordResult {
 const NOTHING: RecordResult = { recorded: false, message: '' };
 
 /** "Thanh toán toàn bộ" / "Một phần" với `name` ở sổ `ledger`. Không ghi gì nếu số tiền ≤ 0 hoặc sổ đã hết nợ. */
-export async function recordPaymentSynced(name: string, ledger: Ledger, amount: Nghin): Promise<SyncedPayChange<RecordResult>> {
+export async function recordPaymentSynced(name: string, ledger: Ledger, amount: Vnd): Promise<SyncedPayChange<RecordResult>> {
   const [bills, pays] = await Promise.all([loadBills(), loadPays()]);
   const draft = paymentDraft(personLedger(debtEvents(bills, pays), name), ledger, amount);
   if (!draft) return { value: NOTHING, syncFailed: false };
@@ -74,7 +75,7 @@ export async function recordPaymentSynced(name: string, ledger: Ledger, amount: 
  * Mọi khoản của một lần thanh toán được ghi trong MỘT lần lưu rồi mới đồng bộ. Không ghi gì nếu không có gì để trả
  * (ví dụ hai sổ trái dấu, số tiền ≤ 0).
  */
-export async function recordDebtPaymentSynced(name: string, option: DebtPayOption, amount?: Nghin): Promise<SyncedPayChange<RecordResult>> {
+export async function recordDebtPaymentSynced(name: string, option: DebtPayOption, amount?: Vnd): Promise<SyncedPayChange<RecordResult>> {
   const [bills, pays] = await Promise.all([loadBills(), loadPays()]);
   const drafts = planDebtPayment(personLedger(debtEvents(bills, pays), name), option, amount);
   if (!drafts.length) return { value: NOTHING, syncFailed: false };
@@ -108,12 +109,30 @@ export async function undoMergeSynced(group: string): Promise<SyncedPayChange<nu
  * Thanh toán MỘT PHẦN (hoặc nhập số) nợ bill giữa "Tôi" và `person` trong kỳ: số tiền phải > 0 và không vượt số còn phải thanh toán
  * (tính lại từ dữ liệu hiện có ngay lúc ghi, theo các bill trong kỳ). Không hợp lệ thì ném `PayInputError` và không ghi gì.
  */
-export async function recordPersonBillPaymentSynced(person: string, period: Period, amount: Nghin): Promise<SyncedPayChange<RecordResult>> {
+export async function recordPersonBillPaymentSynced(person: string, period: Period, amount: Vnd): Promise<SyncedPayChange<RecordResult>> {
   const [bills, pays] = await Promise.all([loadBills(), loadPays()]);
   const net = personBillRows(bills, pays, person, period);
   const check = checkPairPayment(net.remaining, amount);
   if (!check.ok) throw new PayInputError(check.message);
   const draft = pairAmountDraft(net, check.amount);
+  if (!draft) return { value: NOTHING, syncFailed: false };
+  await recordDrafts([draft]);
+  return thenSync({ recorded: true, message: paymentMessage(draft) });
+}
+
+/**
+ * Thanh toán một phần hoặc toàn bộ cho MỘT cặp người của các bill trong kỳ (màn Chia bill): `from` trả `to`. Số còn phải thanh toán của cặp được
+ * tính lại từ dữ liệu hiện có ngay lúc ghi (`buildBillPairs`, cùng quy tắc phân bổ cũ → mới); cặp không còn nợ, đã đổi chiều hoặc số tiền không hợp lệ
+ * thì ném `PayInputError` và không ghi gì. Chỉ ghi ĐÚNG MỘT khoản trả sổ bill giữa hai người đó, không đụng tới nợ vay hay cặp khác.
+ */
+export async function recordBillPairPaymentSynced(from: string, to: string, period: Period, amount: Vnd): Promise<SyncedPayChange<RecordResult>> {
+  const [bills, pays] = await Promise.all([loadBills(), loadPays()]);
+  const pair = buildBillPairs(bills, pays, period).find((item) => item.key === billPairKey(from, to));
+  if (!pair) throw new PayInputError('Không còn khoản nào phải thanh toán giữa hai người này.');
+  if (pair.from !== from || pair.to !== to) throw new PayInputError('Khoản cần thanh toán đã thay đổi, hãy mở lại bảng thanh toán.');
+  const check = checkPairPayment(pair.remaining, amount);
+  if (!check.ok) throw new PayInputError(check.message);
+  const draft = pairAmountDraft(pair, check.amount);
   if (!draft) return { value: NOTHING, syncFailed: false };
   await recordDrafts([draft]);
   return thenSync({ recorded: true, message: paymentMessage(draft) });
@@ -133,7 +152,7 @@ export interface TransferInput {
   note: string;
   from: string;
   to: string;
-  amt: Nghin;
+  amt: Vnd;
   /** 'vay' (Chuyển tiền) | 'billpay' (Trả bill). */
   kind: 'vay' | 'billpay';
 }
@@ -153,10 +172,10 @@ export async function updateTransferSynced(id: string, patch: PayPatch): Promise
 /** Sửa một nhóm khoản trả bill hiển thị chung: chỉ đổi ghi chú nếu không đổi gì khác, ngược lại thay cả nhóm bằng một khoản. */
 export async function updatePayGroupSynced(
   ids: readonly string[],
-  original: { date: string; from: string; to: string; amt: Nghin },
-  patch: { date: string; note: string; from: string; to: string; amt: Nghin },
+  original: { date: string; from: string; to: string; amt: Vnd },
+  patch: { date: string; note: string; from: string; to: string; amt: Vnd },
 ): Promise<SyncedPayChange<boolean>> {
-  const unchanged = Math.abs(patch.amt - original.amt) < 5e-4 && patch.from === original.from && patch.to === original.to && patch.date === original.date;
+  const unchanged = Math.abs(patch.amt - original.amt) < 0.5 && patch.from === original.from && patch.to === original.to && patch.date === original.date;
   if (unchanged) return thenSync((await setPayNotes(ids, patch.note.trim())) > 0);
   const pays = await loadPays();
   const billIds = [...new Set(pays.filter((pay) => ids.includes(pay.id)).flatMap((pay) => pay.bills ?? (pay.bill ? [pay.bill] : [])))];

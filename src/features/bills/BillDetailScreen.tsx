@@ -1,29 +1,36 @@
 import { Stack, useLocalSearchParams } from 'expo-router';
-import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { CategoryIcon } from '@/components/category-icon';
-import { Panel, PersonAmountRow, ScreenTitle, SectionHeader, StatusBadge, type StatusTone } from '@/components/design';
+import { PersonAmountRow, ScreenTitle, StatusBadge, type StatusTone } from '@/components/design';
+import { SvgIcon } from '@/components/svg-icon';
+import { useToast } from '@/components/toast';
+import type { IconName } from '@/constants/icons';
 import { AppRadius } from '@/constants/palette';
 import { computeSplit, describeSplitProblem } from '@/domain/bills';
-import { formatMoney, rowStatus } from '@/domain/billForm';
+import { rowStatus } from '@/domain/billForm';
 import { TRANSFER_STATE_LABEL, billTransferStatuses, type BillTransferStatus, type TransferPayState } from '@/domain/billPayment';
 import { findBillById } from '@/domain/billHistory';
 import { resolveCategory } from '@/domain/expenses';
+import { saveBillImage, shareBillImage, type ExportResult } from '@/features/bills/billImageExport';
 import { useDebtData } from '@/features/debts/hooks';
 import { useExpenseSettings } from '@/features/expenses/hooks';
 import { useColors } from '@/hooks/use-colors';
 import { formatVnDate } from '@/utils/date';
+import { formatVnd } from '@/utils/format';
 
 /** Màu nhãn theo trạng thái khoản chuyển: đã thanh toán xanh lá, chưa thanh toán đỏ, một phần vàng cam. */
 const STATE_TONE: Record<TransferPayState, StatusTone> = { paid: 'get', unpaid: 'owe', partial: 'warn' };
 
 /**
- * Chi tiết MỘT bill đã chia (tham số route `id` = mã bill, không dùng tên/ngày/số tiền). Chỉ xem, dùng cùng nền trang, thẻ trắng viền mảnh
- * và bo góc với danh sách bill: thông tin bill (tên, ngày dd/mm/yyyy, số người, tổng tiền), tổng hợp từng người (đã chi, phải chịu,
- * còn thiếu / nhận lại) và các khoản cần chuyển, mỗi khoản kèm trạng thái thanh toán của chính nó. Số tiền do `computeSplit` tính; trạng thái
- * đọc từ khoản trả thực tế qua `billTransferStatuses` (không ghi nhận hay đổi giao dịch nào khi mở màn hình).
+ * Chi tiết MỘT bill đã chia (tham số route `id` = mã bill, không dùng tên/ngày/số tiền). Chỉ xem, MỘT khung gồm ba phần cách nhau bằng đường kẻ:
+ * thông tin bill (tên, ngày, số người, tổng tiền), tổng hợp từng người (đã chi, phải chịu, chênh lệch) và các khoản cần chuyển, mỗi khoản kèm trạng thái
+ * thanh toán của chính nó (đã thanh toán thì gạch ngang). Số tiền do `computeSplit` tính; trạng thái đọc từ khoản trả thực tế qua
+ * `billTransferStatuses` (không ghi nhận hay đổi giao dịch nào khi mở màn hình).
+ * Hai biểu tượng Lưu ảnh / Chia sẻ nằm dưới khung và chụp CHÍNH khung đang hiển thị nên ảnh xuất giống hệt bill trên màn hình.
  */
 export default function BillDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -32,87 +39,118 @@ export default function BillDetailScreen() {
   const { settings } = useExpenseSettings();
   const { bills, pays, loaded, error } = useDebtData();
 
+  const toast = useToast();
+  const shotRef = useRef<View>(null);
+  const [exporting, setExporting] = useState<'save' | 'share' | null>(null);
+
   const bill = findBillById(bills, id);
   const category = bill ? resolveCategory(settings, bill.cat) : null;
+  const split = bill ? computeSplit(bill.people) : null;
+  const statuses = bill ? (billTransferStatuses(bills, pays).get(bill.id) ?? []) : [];
+  /** Chỉ xuất ảnh khi bill hợp lệ và chia được (bill lỗi mức cố định chỉ hiện cảnh báo). */
+  const canExport = loaded && !error && !!bill && !!category && !!split && !split.bad;
+
+  async function runExport(kind: 'save' | 'share') {
+    if (exporting) return;
+    setExporting(kind);
+    let result: ExportResult;
+    try {
+      result = await (kind === 'save' ? saveBillImage(shotRef.current) : shareBillImage(shotRef.current));
+    } finally {
+      setExporting(null);
+    }
+    if (result.message) toast.show(result.message);
+  }
 
   let body;
   if (error) body = <Notice text={error} />;
   else if (!loaded) body = <ActivityIndicator style={styles.loading} color={colors.primary} />;
   else if (!bill || !category) body = <Notice text="Không tìm thấy bill này. Có thể nó đã bị xoá." />;
+  else if (!split) body = null;
   else {
-    const split = computeSplit(bill.people);
-    const statuses = billTransferStatuses(bills, pays).get(bill.id) ?? [];
     body = (
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]}>
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.line }]}>
-          <View style={styles.infoTop}>
-            <CategoryIcon category={category} />
-            <View style={styles.flex}>
-              <AppText weight="semibold" style={styles.title} numberOfLines={2}>
-                {bill.title || 'Không tên'}
-              </AppText>
-              <AppText color={colors.muted} style={styles.sub}>
-                {formatVnDate(bill.date)} · {category.name} · {bill.people.length} người
-              </AppText>
-            </View>
-          </View>
-          <View style={styles.totalRow}>
-            <View style={styles.flex}>
-              <AppText weight="medium" color={colors.muted} style={styles.label}>
-                Tổng tiền bill
-              </AppText>
-              <AppText weight="display" style={styles.total} numberOfLines={1} adjustsFontSizeToFit>
-                {formatMoney(split.total)}
-              </AppText>
-            </View>
-            {split.total > 0 && !split.bad && (
-              <View style={styles.shareCol}>
-                <AppText weight="medium" color={colors.muted} style={styles.label}>
-                  {split.even ? 'Mỗi người' : 'Mỗi phần'}
-                </AppText>
-                <AppText weight="bold" style={styles.share}>
-                  {formatMoney(split.share)}
-                </AppText>
+        {/* Khung được chụp khi Lưu ảnh / Chia sẻ: nền trang ở góc bo để ảnh không có góc trong suốt. */}
+        <View ref={shotRef} collapsable={false} style={{ backgroundColor: colors.bg }}>
+          <View style={[styles.card, { backgroundColor: colors.surface }]}>
+            <View style={styles.part}>
+              <View style={styles.infoTop}>
+                <CategoryIcon category={category} />
+                <View style={styles.flex}>
+                  <AppText weight="semibold" style={styles.title} numberOfLines={2}>
+                    {bill.title || 'Không tên'}
+                  </AppText>
+                  <AppText color={colors.muted} style={styles.sub}>
+                    {formatVnDate(bill.date)} · {bill.people.length} người
+                  </AppText>
+                </View>
               </View>
+              <View style={styles.totalRow}>
+                <View style={styles.flex}>
+                  <AppText weight="medium" color={colors.muted} style={styles.label}>
+                    Tổng tiền bill
+                  </AppText>
+                  <AppText weight="display" style={styles.total} numberOfLines={1} adjustsFontSizeToFit>
+                    {formatVnd(split.total)}
+                  </AppText>
+                </View>
+                {split.total > 0 && !split.bad && (
+                  <View style={styles.shareCol}>
+                    <AppText weight="medium" color={colors.muted} style={styles.label}>
+                      {split.even ? 'Mỗi người' : 'Mỗi phần'}
+                    </AppText>
+                    <AppText weight="bold" style={styles.share}>
+                      {formatVnd(split.share)}
+                    </AppText>
+                  </View>
+                )}
+              </View>
+            </View>
+
+            {split.bad ? (
+              <>
+                <Band />
+                <View style={styles.part}>
+                  <Notice text={describeSplitProblem(split)} />
+                </View>
+              </>
+            ) : (
+              <>
+                <Band />
+                <View style={styles.part}>
+                  <AppText weight="bold" style={styles.sectionTitle}>
+                    Tổng hợp từng người
+                  </AppText>
+                  {split.rows.map((row, index) => {
+                    const status = rowStatus(row);
+                    const tone = status.kind === 'get' ? 'get' : status.kind === 'owe' ? 'owe' : 'mid';
+                    const amount = status.kind === 'even' ? 'Đã đủ' : `${status.kind === 'get' ? '+' : '−'}${formatVnd(status.amount)}`;
+                    return <PersonAmountRow key={row.index} first={index === 0} name={row.name} caption={`Đã chi: ${formatVnd(row.paid)}\nPhải chịu: ${formatVnd(row.share)}`} amount={amount} tone={tone} />;
+                  })}
+                </View>
+                {statuses.length > 0 && (
+                  <>
+                    <Band />
+                    <View style={styles.part}>
+                      <AppText weight="bold" style={styles.sectionTitle}>
+                        Cần chuyển
+                      </AppText>
+                      {statuses.map((transfer, index) => (
+                        <TransferRow key={`${transfer.from}>${transfer.to}>${index}`} first={index === 0} transfer={transfer} />
+                      ))}
+                    </View>
+                  </>
+                )}
+              </>
             )}
           </View>
         </View>
 
-        {split.bad ? (
-          <Notice text={describeSplitProblem(split)} />
-        ) : (
-          <>
-            <View>
-              <SectionHeader title="Tổng hợp từng người" subtitle="Đã chi, phải chịu và chênh lệch" />
-              <Panel>
-                {split.rows.map((row, index) => {
-                  const status = rowStatus(row);
-                  const tone = status.kind === 'get' ? 'get' : status.kind === 'owe' ? 'owe' : 'mid';
-                  const amount = status.kind === 'even' ? 'Đã đủ' : `${status.kind === 'get' ? '+' : '−'}${formatMoney(status.amount / 1e3)}`;
-                  return (
-                    <PersonAmountRow
-                      key={row.index}
-                      first={index === 0}
-                      name={row.name}
-                      caption={`Đã chi ${formatMoney(row.paid)} · Phải chịu ${formatMoney(row.share)}${status.kind === 'even' ? '' : status.kind === 'get' ? ' · Nhận lại' : ' · Còn thiếu'}`}
-                      amount={amount}
-                      tone={tone}
-                    />
-                  );
-                })}
-              </Panel>
-            </View>
-            {statuses.length > 0 && (
-              <View>
-                <SectionHeader title="Cần chuyển" subtitle="Người trả → người nhận và trạng thái thanh toán" />
-                <Panel>
-                  {statuses.map((transfer, index) => (
-                    <TransferRow key={`${transfer.from}>${transfer.to}>${index}`} first={index === 0} transfer={transfer} />
-                  ))}
-                </Panel>
-              </View>
-            )}
-          </>
+        {canExport && (
+          <View style={styles.actions}>
+            <ExportIcon icon="download" label="Lưu ảnh" busy={exporting === 'save'} disabled={!!exporting} onPress={() => void runExport('save')} />
+            <ExportIcon icon="share" label="Chia sẻ" busy={exporting === 'share'} disabled={!!exporting} onPress={() => void runExport('share')} />
+          </View>
         )}
       </ScrollView>
     );
@@ -127,27 +165,51 @@ export default function BillDetailScreen() {
   );
 }
 
+/** Đường kẻ liền giữa hai phần của khung (các phần nằm sát nhau trong cùng một khung). */
+function Band() {
+  const colors = useColors();
+  return <View style={[styles.band, { backgroundColor: colors.line }]} />;
+}
+
+/** Nút biểu tượng tròn (Lưu ảnh / Chia sẻ) dưới bill; có nhãn cho trình đọc màn hình. */
+function ExportIcon({ icon, label, busy, disabled, onPress }: { icon: IconName; label: string; busy: boolean; disabled: boolean; onPress: () => void }) {
+  const colors = useColors();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled, busy }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [styles.exportButton, { backgroundColor: colors.primarySoft, opacity: disabled && !busy ? 0.5 : pressed ? 0.8 : 1 }]}>
+      {busy ? <ActivityIndicator size="small" color={colors.primary} /> : <SvgIcon name={icon} size={22} color={colors.primary} strokeWidth={2} />}
+    </Pressable>
+  );
+}
+
 /** Một khoản chuyển: người trả → người nhận, tổng số tiền, và ngay trong cụm đó là trạng thái (kèm đã trả / còn thiếu nếu một phần). */
 function TransferRow({ transfer, first }: { transfer: BillTransferStatus; first: boolean }) {
   const colors = useColors();
+  /** Đã thanh toán đủ: gạch ngang tên và số tiền để thấy khoản đã hoàn thành. */
+  const done = transfer.state === 'paid';
   return (
     <View
       style={[styles.transfer, !first && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line }]}
       accessible
-      accessibilityLabel={`${transfer.from} trả ${transfer.to} ${formatMoney(transfer.amount)}, ${TRANSFER_STATE_LABEL[transfer.state]}`}>
+      accessibilityLabel={`${transfer.from} trả ${transfer.to} ${formatVnd(transfer.amount)}, ${TRANSFER_STATE_LABEL[transfer.state]}`}>
       <View style={styles.transferTop}>
-        <AppText weight="semibold" style={styles.transferName} numberOfLines={2}>
+        <AppText weight="semibold" color={done ? colors.muted : undefined} style={[styles.transferName, done && styles.done]} numberOfLines={2}>
           {transfer.from} → {transfer.to}
         </AppText>
-        <AppText weight="bold" style={styles.transferAmount}>
-          {formatMoney(transfer.amount)}
+        <AppText weight="bold" color={done ? colors.muted : undefined} style={[styles.transferAmount, done && styles.done]}>
+          {formatVnd(transfer.amount)}
         </AppText>
       </View>
       <View style={styles.transferBottom}>
         <StatusBadge label={TRANSFER_STATE_LABEL[transfer.state]} tone={STATE_TONE[transfer.state]} />
         {transfer.state === 'partial' && (
           <AppText color={colors.muted} style={styles.transferNote}>
-            Đã trả {formatMoney(transfer.paid)} · Còn thiếu {formatMoney(transfer.remaining)}
+            Đã trả {formatVnd(transfer.paid)} · Còn thiếu {formatVnd(transfer.remaining)}
           </AppText>
         )}
       </View>
@@ -171,13 +233,18 @@ const styles = StyleSheet.create({
   flex: { flex: 1, minWidth: 0 },
   content: { paddingHorizontal: 16, paddingTop: 4, gap: 16 },
   loading: { marginTop: 48 },
-  notice: { marginHorizontal: 16, padding: 16, borderRadius: 16 },
+  actions: { flexDirection: 'row', justifyContent: 'center', gap: 36 },
+  exportButton: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  notice: { borderRadius: 16, padding: 16 },
   noticeText: { fontSize: 15 },
-  card: { borderRadius: AppRadius.card, borderWidth: 1, padding: 16, gap: 14 },
+  card: { borderRadius: AppRadius.card, overflow: 'hidden' },
+  part: { padding: 16, gap: 8 },
+  band: { height: 1 },
+  sectionTitle: { fontSize: 16, lineHeight: 22 },
   infoTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   title: { fontSize: 18, lineHeight: 24 },
   sub: { fontSize: 12.5, lineHeight: 17 },
-  totalRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 12 },
+  totalRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 12, marginTop: 6 },
   label: { fontSize: 12.5, lineHeight: 17 },
   total: { fontSize: 30, lineHeight: 38, letterSpacing: -0.5 },
   shareCol: { alignItems: 'flex-end' },
@@ -188,4 +255,5 @@ const styles = StyleSheet.create({
   transferAmount: { fontSize: 16, lineHeight: 22 },
   transferBottom: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
   transferNote: { fontSize: 12.5, lineHeight: 17, flexShrink: 1 },
+  done: { textDecorationLine: 'line-through' },
 });

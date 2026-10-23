@@ -3,9 +3,10 @@ import { StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/app-text';
 import { AppRadius } from '@/constants/palette';
 import { describeSplitProblem } from '@/domain/bills';
-import { formatMoney, rowMeta, rowStatus } from '@/domain/billForm';
+import { rowMeta, rowStatus } from '@/domain/billForm';
 import { useColors } from '@/hooks/use-colors';
 import type { BillSplit } from '@/types/bill';
+import { formatVnd } from '@/utils/format';
 
 /** Màu nhận lại / còn thiếu (`--in`, `--out` của PWA). */
 
@@ -46,7 +47,7 @@ export function SplitReceipt({ split, showTotal, framed = true }: Props) {
               Tổng bill
             </AppText>
             <AppText weight="display" style={styles.total} numberOfLines={1}>
-              {formatMoney(split.total)}
+              {formatVnd(split.total)}
             </AppText>
           </View>
         )}
@@ -55,7 +56,7 @@ export function SplitReceipt({ split, showTotal, framed = true }: Props) {
             {split.even ? 'Mỗi người' : 'Mỗi phần'}
           </AppText>
           <AppText weight="display" style={styles.each} numberOfLines={1}>
-            {formatMoney(split.share)}
+            {formatVnd(split.share)}
           </AppText>
         </View>
       </View>
@@ -83,7 +84,7 @@ export function SplitReceipt({ split, showTotal, framed = true }: Props) {
                 </AppText>
                 <AppText weight="bold" color={status.kind === 'get' ? colors.success : colors.danger} style={styles.statusAmount}>
                   {status.kind === 'get' ? '+' : '−'}
-                  {formatMoney(status.amount / 1e3)}
+                  {formatVnd(status.amount)}
                 </AppText>
               </View>
             )}
@@ -102,7 +103,7 @@ export function SplitReceipt({ split, showTotal, framed = true }: Props) {
                 {transfer.from} → {transfer.to}
               </AppText>
               <AppText weight="bold" style={styles.statusAmount}>
-                {formatMoney(transfer.amt)}
+                {formatVnd(transfer.amt)}
               </AppText>
             </View>
           ))}

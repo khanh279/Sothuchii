@@ -3,7 +3,8 @@ import { useCallback, useState } from 'react';
 
 import { loadFundData } from '@/data/fundRepository';
 import { syncFundExpenses } from '@/data/fundSync';
-import { StorageCorruptError } from '@/data/storage';
+import { StorageCorruptError, StorageKeys } from '@/data/storage';
+import { useReloadOnWrite } from '@/hooks/use-reload-on-write';
 import type { FundData } from '@/types/fund';
 
 const EMPTY: FundData = { funds: [], contribs: [], expenses: [], cur: '' };
@@ -37,6 +38,9 @@ export function useFundData() {
       setState((prev) => ({ ...prev, loaded: true, error: describeFundError(error) }));
     }
   }, []);
+
+  // Có ai ghi dữ liệu quỹ (kể cả từ màn hình khác) thì tải lại ngay, không đợi quay lại màn hình này.
+  useReloadOnWrite([StorageKeys.fund], reload);
 
   useFocusEffect(
     useCallback(() => {

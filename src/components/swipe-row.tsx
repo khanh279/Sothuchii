@@ -2,8 +2,9 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Animated, Easing, PanResponder, Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
-import { SWIPE_ACTIONS_WIDTH, swipeIntent, swipeOffset, swipeSettle } from '@/domain/swipe';
+import { ROW_SWIPE, SWIPE_ACTIONS_WIDTH, swipeIntent, swipeOffset, swipeSettle } from '@/domain/swipe';
 import { useColors } from '@/hooks/use-colors';
+import { setSwipeLock } from '@/hooks/use-swipe-lock';
 
 /** Nút Xoá dùng màu `danger`; khi đã bấm một lần (`arm`) đậm hơn (không có token riêng cho trạng thái này). */
 const DELETE_ARMED_COLOR = '#B42318';
@@ -38,6 +39,8 @@ export function SwipeRow({ open, onOpen, onClose, onEdit, onDelete, onPressRow, 
   const startOffset = useRef(0);
   /** Vừa vuốt xong: trên web trình duyệt còn bắn "click" sau khi nhả chuột, không được coi là chạm vào dòng. */
   const justPanned = useRef(false);
+  /** Dòng này đang giữ khoá cuộn (đang vuốt). */
+  const holdsLock = useRef(false);
   const live = useRef({ open, onOpen, onClose, locked });
   const [armed, setArmed] = useState(false);
   const useNative = Platform.OS !== 'web';
@@ -52,6 +55,14 @@ export function SwipeRow({ open, onOpen, onClose, onEdit, onDelete, onPressRow, 
     });
     return () => x.removeListener(id);
   }, [x]);
+
+  // Đang vuốt mà dòng bị gỡ khỏi màn hình thì nhả khoá cuộn, kẻo danh sách bị kẹt không cuộn được.
+  useEffect(
+    () => () => {
+      if (holdsLock.current) setSwipeLock(false);
+    },
+    [],
+  );
 
   // Dòng khác được mở (hoặc cha đóng dòng này): trượt về đúng vị trí.
   useEffect(() => {
@@ -72,20 +83,26 @@ export function SwipeRow({ open, onOpen, onClose, onEdit, onDelete, onPressRow, 
     PanResponder.create({
       // Giai đoạn capture: giành quyền trước nút bấm bên trong khi cử chỉ rõ ràng là vuốt ngang.
       onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponderCapture: (_, g) => !live.current.locked && swipeIntent(g.dx, g.dy, live.current.open) === 'horizontal',
+      onMoveShouldSetPanResponderCapture: (_, g) => !live.current.locked && swipeIntent(g.dx, g.dy, live.current.open, ROW_SWIPE) === 'horizontal',
       onPanResponderGrant: () => {
         x.stopAnimation();
+        holdsLock.current = true;
+        setSwipeLock(true); // vuốt ngang: tạm tắt cuộn dọc của danh sách cho tới khi thả tay
         justPanned.current = true;
         startOffset.current = live.current.open ? -SWIPE_ACTIONS_WIDTH : 0;
       },
       onPanResponderMove: (_, g) => x.setValue(swipeOffset(startOffset.current, g.dx)),
       onPanResponderTerminationRequest: () => false,
+      // Đã giành cử chỉ thì không cho thành phần gốc (danh sách cuộn) lấy lại.
+      onShouldBlockNativeResponder: () => true,
       onPanResponderRelease: (_, g) => finish(swipeOffset(startOffset.current, g.dx)),
       onPanResponderTerminate: (_, g) => finish(swipeOffset(startOffset.current, g.dx)),
     }),
   ).current;
 
   function finish(finalOffset: number) {
+    holdsLock.current = false;
+    setSwipeLock(false);
     setTimeout(() => {
       justPanned.current = false;
     }, 400);
@@ -163,5 +180,6 @@ const styles = StyleSheet.create({
   actions: { position: 'absolute', top: 0, right: 0, bottom: 0, width: SWIPE_ACTIONS_WIDTH, flexDirection: 'row' },
   action: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   actionText: { fontSize: 14.5 },
-  noSelect: { userSelect: 'none' },
+  // `touchAction: 'pan-y'` (web): trình duyệt chỉ tự cuộn khi vuốt DỌC, vuốt ngang được giao cho dòng nên trang không bị lướt theo.
+  noSelect: { userSelect: 'none', touchAction: 'pan-y' },
 });

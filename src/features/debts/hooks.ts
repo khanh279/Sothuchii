@@ -5,7 +5,8 @@ import { loadBills } from '@/data/billRepository';
 import { syncBillExpenses } from '@/data/billSync';
 import { loadPays } from '@/data/payRepository';
 import { loadPeople } from '@/data/peopleRepository';
-import { StorageCorruptError } from '@/data/storage';
+import { StorageCorruptError, StorageKeys } from '@/data/storage';
+import { useReloadOnWrite } from '@/hooks/use-reload-on-write';
 import type { Bill } from '@/types/bill';
 import type { Pay } from '@/types/pay';
 
@@ -40,6 +41,9 @@ export function useDebtData() {
       setState((prev) => ({ ...prev, loaded: true, error: describeDebtError(error) }));
     }
   }, []);
+
+  // Có ai ghi bill / khoản trả / danh sách người (kể cả từ màn hình khác) thì tải lại ngay, không đợi quay lại màn hình này.
+  useReloadOnWrite([StorageKeys.bills, StorageKeys.pays, StorageKeys.people], reload);
 
   useFocusEffect(
     useCallback(() => {

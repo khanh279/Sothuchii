@@ -1,34 +1,22 @@
 /**
  * Mô hình hiển thị màn "Chi tiết nợ" (hàm thuần): chi tiết với MỘT người (hai ngăn Nợ vay / Nợ bill, thanh toán, gộp nợ,
  * lịch sử gộp) và chi tiết một CẶP người trong kỳ. Chuyển từ `Q()`, `nxCt()`, `nxGroupBill()`, `nxDays()` của `mod-c` trong PWA.
- * Tiền là NGHÌN đồng.
+ * Tiền là ĐỒNG.
  */
 
 import { BILL_OWNER_NAME } from '@/domain/bills';
 import { isInPeriod } from '@/domain/expenses';
-import {
-  DEBT_ZERO,
-  canMerge,
-  debtEvents,
-  isNearZero,
-  ledgerItems,
-  mergeAmount,
-  mergeHistory,
-  pairNet,
-  personLedger,
-  r3,
-  type LedgerItem,
-  type MergeRecord,
-} from '@/domain/ledger';
+import { DEBT_ZERO, canMerge, debtEvents, isNearZero, ledgerItems, mergeAmount, mergeHistory, pairNet, personLedger, type LedgerItem, type MergeRecord } from '@/domain/ledger';
 import type { Bill } from '@/types/bill';
 import type { DateStr, Period } from '@/types/expense';
-import type { Nghin } from '@/types/money';
+import type { Vnd } from '@/types/money';
 import type { Ledger, Pay } from '@/types/pay';
+import { roundVnd } from '@/domain/money';
 
 export type Tone = 'get' | 'owe' | 'mid';
 
 /** Màu theo dấu (`nxCl`): dương = nhận (xanh), âm = trả (đỏ), gần 0 = trung tính. */
-export const toneOf = (value: number): Tone => (value > 5e-4 ? 'get' : value < -5e-4 ? 'owe' : 'mid');
+export const toneOf = (value: number): Tone => (value > 0.5 ? 'get' : value < -0.5 ? 'owe' : 'mid');
 
 const isMe = (name: unknown): boolean => String(name || '') === BILL_OWNER_NAME;
 
@@ -38,7 +26,7 @@ export interface DebtRow extends LedgerItem {
 
 export interface DayGroup {
   date: DateStr;
-  net: Nghin;
+  net: Vnd;
   tone: Tone;
   rows: DebtRow[];
 }
@@ -46,7 +34,7 @@ export interface DayGroup {
 export interface MonthGroup {
   /** 'YYYY-MM'. */
   month: string;
-  net: Nghin;
+  net: Vnd;
   tone: Tone;
   count: number;
   days: DayGroup[];
@@ -72,7 +60,7 @@ export function groupByDay(rows: readonly DebtRow[], fixedTone = false): DayGrou
   }
   return order.map((date) => {
     const list = map.get(date) ?? [];
-    const net = r3(list.reduce((sum, row) => sum + row.v, 0));
+    const net = roundVnd(list.reduce((sum, row) => sum + row.v, 0));
     return { date, net, tone: fixedTone ? (list[0].tone === 'mid' ? 'mid' : toneOf(net)) : toneOf(net), rows: list };
   });
 }
@@ -91,13 +79,13 @@ export function groupByMonth(rows: readonly DebtRow[], fixedTone = false): Month
   }
   return order.map((month) => {
     const list = map.get(month) ?? [];
-    const net = r3(list.reduce((sum, row) => sum + row.v, 0));
+    const net = roundVnd(list.reduce((sum, row) => sum + row.v, 0));
     return { month, net, tone: fixedTone && list.some((row) => row.tone === 'mid') ? 'mid' : toneOf(net), count: list.length, days: groupByDay(list, fixedTone) };
   });
 }
 
 /** Dòng phụ dưới tên ngăn (`nxSubOf`). */
-export function ledgerSubtitle(balance: Nghin, name: string): string {
+export function ledgerSubtitle(balance: Vnd, name: string): string {
   return isNearZero(balance) ? 'Đã thanh toán xong' : balance > 0 ? `${name} nợ tôi` : `Tôi nợ ${name}`;
 }
 
@@ -105,23 +93,23 @@ export interface PayAction {
   ledger: Ledger;
   /** "Nợ vay" / "Nợ bill". */
   label: string;
-  balance: Nghin;
+  balance: Vnd;
   /** Dòng chữ: "<họ> nợ tôi" hoặc "Tôi nợ <họ>". */
   owes: string;
 }
 
 export interface DebtDetail {
   name: string;
-  loan: Nghin;
-  bill: Nghin;
-  /** Ngăn Nợ vay chỉ hiện khi số dư còn nợ (từ 0,05 nghìn); sổ về 0 bị ẩn nhưng lịch sử vẫn nằm trong dữ liệu. Liệt kê MỌI dòng (không theo kỳ). */
+  loan: Vnd;
+  bill: Vnd;
+  /** Ngăn Nợ vay chỉ hiện khi số dư còn nợ (từ 50 đồng); sổ về 0 bị ẩn nhưng lịch sử vẫn nằm trong dữ liệu. Liệt kê MỌI dòng (không theo kỳ). */
   hasLoan: boolean;
   loanSubtitle: string;
   loanRows: DebtRow[];
   hasBill: boolean;
   billSubtitle: string;
   /** Tổng nợ bill trong kỳ; null khi kỳ là "Tất cả" (không hiện dòng tổng). */
-  billPeriodTotal: Nghin | null;
+  billPeriodTotal: Vnd | null;
   /** Bill trong kỳ: theo ngày (chế độ tháng) hoặc theo tháng. */
   monthMode: boolean;
   billDays: DayGroup[];
@@ -131,7 +119,7 @@ export interface DebtDetail {
   settled: boolean;
   /** Hai sổ trái dấu (kể cả khi tổng bằng 0) → chỉ có "Gộp nợ", chưa có "Thanh toán". */
   canMerge: boolean;
-  mergeAmount: Nghin;
+  mergeAmount: Vnd;
   /** Hai sổ cùng dấu, hoặc chỉ một sổ còn nợ → có "Thanh toán". */
   canPay: boolean;
   /** Sổ còn nợ để thanh toán; rỗng khi hai sổ trái dấu (phải gộp nợ trước, không tự bù trừ). */
@@ -171,7 +159,7 @@ export function buildDebtDetail(
     loanRows: toRows(loanItems),
     hasBill: !isNearZero(ledger.bill),
     billSubtitle: ledgerSubtitle(ledger.bill, who),
-    billPeriodTotal: period.mode === 'all' ? null : r3(inPeriod.reduce((sum, item) => sum + item.v, 0)),
+    billPeriodTotal: period.mode === 'all' ? null : roundVnd(inPeriod.reduce((sum, item) => sum + item.v, 0)),
     monthMode,
     billDays: monthMode ? groupByDay(rows) : [],
     billMonths: monthMode ? [] : groupByMonth(rows),
@@ -192,16 +180,16 @@ export interface PairDetail {
   label: string;
   tone: Tone;
   /** Số tiền chênh lệch (luôn ≥ 0). */
-  amount: Nghin;
+  amount: Vnd;
   monthMode: boolean;
   days: DayGroup[];
   months: MonthGroup[];
-  /** Có nút "Thanh toán toàn bộ" (chênh lệch từ 0,05 nghìn). */
+  /** Có nút "Thanh toán toàn bộ" (chênh lệch từ 50 đồng). */
   canPay: boolean;
   /** Người còn lại khi một bên là "Tôi" (để gộp nợ); null nếu không liên quan đến tôi. */
   other: string | null;
   canMerge: boolean;
-  mergeAmount: Nghin;
+  mergeAmount: Vnd;
 }
 
 /** Chi tiết bill giữa hai người `x` và `z` trong kỳ (`nxCt`). */

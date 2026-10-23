@@ -681,3 +681,9 @@ export function periodViewFromPeriod(period: Period, today: DateStr): PeriodView
       return { ...base, mode: 'custom', from: period.from, to: period.to };
   }
 }
+
+/** Tỷ lệ % của một mục trên tổng, làm tròn 1 chữ số thập phân (ví dụ 37,5 → 37.5); tổng ≤ 0 thì 0. */
+export function categoryPercent(sum: Vnd, total: Vnd): number {
+  if (!(total > 0) || !(sum > 0)) return 0;
+  return Math.round((sum / total) * 1000) / 10;
+}

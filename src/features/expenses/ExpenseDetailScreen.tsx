@@ -14,6 +14,7 @@ import { useColors } from '@/hooks/use-colors';
 import type { ExpenseWithId } from '@/types/expense';
 import { formatVnDate } from '@/utils/date';
 import { formatVnd } from '@/utils/format';
+import { formatNote } from '@/utils/note';
 
 type Loaded = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready'; expense: ExpenseWithId | null };
 
@@ -94,7 +95,7 @@ function Field({ label, value, icon, last }: { label: string; value: string; ico
       <View style={styles.fieldValueWrap}>
         {icon}
         <AppText weight="semibold" style={styles.fieldValue}>
-          {value}
+          {formatNote(value)}
         </AppText>
       </View>
     </View>

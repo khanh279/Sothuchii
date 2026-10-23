@@ -9,17 +9,18 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   jest.requireActual('@react-native-async-storage/async-storage/jest/async-storage-mock'),
 );
 
-// DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng. Tiền của bill là NGHÌN đồng.
+// DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng. Tiền của bill là ĐỒNG.
 const KEY = 'chiabill:v2:bills';
 const json = async (key: string) => JSON.parse((await AsyncStorage.getItem(key)) as string);
 const p = (name: string, paid: number, extra: { w?: number; fix?: number } = {}) => ({ name, paid, ...extra });
-const three = [p('Tôi', 150), p('B', 0), p('C', 0)];
+const three = [p('Tôi', 150_000), p('B', 0), p('C', 0)];
 const userExp = { a: 99_000, c: 'food', n: 'Phở', d: '2025-10-05', t: 1 };
 const month = async (m: string) => Object.entries((await json(`sct:m:${m}`)) ?? {}) as [string, Record<string, unknown>][];
 const linked = async (m: string) => (await month(m)).map(([, v]) => v).filter((v) => v.src === 'cb');
 
 beforeEach(async () => {
   await AsyncStorage.clear();
+  await AsyncStorage.setItem('chiabill:unit', 'vnd'); // dữ liệu mẫu đã ở đơn vị đồng
 });
 
 describe('syncBillExpenses', () => {
@@ -36,7 +37,7 @@ describe('syncBillExpenses', () => {
     expect(await month('2025-10')).toHaveLength(1);
   });
 
-  it('thêm bill: 150 nghìn của "Tôi" chia 3 → khoản chi cá nhân 50.000 ĐỒNG, ghi exp, lần hai không làm gì', async () => {
+  it('thêm bill: 150.000 đ của "Tôi" chia 3 → khoản chi cá nhân 50.000 ĐỒNG, ghi exp, lần hai không làm gì', async () => {
     const saved = await saveBillSynced({ title: 'Ăn trưa', date: '2025-10-05', cat: 'food', people: three });
     expect(saved.syncFailed).toBe(false);
     const [expense] = await linked('2025-10');
@@ -52,26 +53,26 @@ describe('syncBillExpenses', () => {
   });
 
   it('bill không có "Tôi" → không tạo khoản chi', async () => {
-    await saveBillSynced({ title: 'x', date: '2025-10-05', people: [p('A', 100), p('B', 0)] });
+    await saveBillSynced({ title: 'x', date: '2025-10-05', people: [p('A', 100_000), p('B', 0)] });
     expect(await AsyncStorage.getItem('sct:m:2025-10')).toBeNull();
   });
 
   it('sửa số tiền và đổi sang tháng khác → khoản cũ biến mất, khoản mới ở tháng mới', async () => {
     const id = (await saveBillSynced({ title: 'T', date: '2025-10-05', people: three })).value as string;
-    await saveBillSynced({ id, title: 'T', date: '2025-11-02', people: [p('Tôi', 90), p('B', 0)] });
+    await saveBillSynced({ id, title: 'T', date: '2025-11-02', people: [p('Tôi', 90_000), p('B', 0)] });
     expect(await linked('2025-10')).toHaveLength(0);
     expect(await linked('2025-11')).toMatchObject([{ a: 45_000, d: '2025-11-02', i: 'Chia bill 02/11 · 2 người' }]);
     expect((await loadBills())[0].exp?.m).toBe('2025-11');
   });
 
   it('"Tôi" trả ít hơn phần mình → ghi số đã trả kèm "Trả trước"', async () => {
-    await saveBillSynced({ title: 'T', date: '2025-10-05', people: [p('Tôi', 20), p('B', 70)] });
+    await saveBillSynced({ title: 'T', date: '2025-10-05', people: [p('Tôi', 20_000), p('B', 70_000)] });
     expect(await linked('2025-10')).toMatchObject([{ a: 20_000, i: 'Chia bill 05/10 · 2 người\nTrả trước 20.000 ₫' }]);
   });
 
   it('bỏ "Tôi" khỏi bill → xoá khoản chi cá nhân và bỏ liên kết', async () => {
     const id = (await saveBillSynced({ title: 'T', date: '2025-10-05', people: three })).value as string;
-    await saveBillSynced({ id, title: 'T', date: '2025-10-05', people: [p('A', 150), p('B', 0)] });
+    await saveBillSynced({ id, title: 'T', date: '2025-10-05', people: [p('A', 150_000), p('B', 0)] });
     expect(await linked('2025-10')).toHaveLength(0);
     expect((await loadBills())[0].exp).toBeUndefined();
   });
@@ -87,7 +88,7 @@ describe('syncBillExpenses', () => {
     await createExpense('mine', userExp);
     await createExpense('fund', { a: 20_000, c: 'fund', n: 'Quỹ', d: '2025-10-05', t: 1, src: 'quy', i: 'Đóng quỹ · A' });
     const id = (await saveBillSynced({ title: 'T', date: '2025-10-05', people: three })).value as string;
-    await saveBillSynced({ id, title: 'T', date: '2025-10-05', people: [p('Tôi', 300), p('B', 0)] });
+    await saveBillSynced({ id, title: 'T', date: '2025-10-05', people: [p('Tôi', 300_000), p('B', 0)] });
     await deleteBillSynced(id);
     const entries = Object.fromEntries(await month('2025-10'));
     expect(entries.mine).toEqual(userExp);
@@ -107,14 +108,14 @@ describe('syncBillExpenses', () => {
   });
 
   it('khoản chi của khoản trả nợ (đúng phân bổ) KHÔNG bị xoá; khoản mồ côi thật thì bị xoá', async () => {
-    // Tôi nợ An 30 nghìn (bill), đã trả 30 nghìn: khoản chi cá nhân cần có là 30.000 đồng theo bill "Ăn".
+    // Tôi nợ An 30.000 đ (bill), đã trả 30.000 đ: khoản chi cá nhân cần có là 30.000 đồng theo bill "Ăn".
     await createExpense('pay', { a: 30_000, c: 'food', n: 'Ăn', i: 'Trả An · bill 01/10', d: '2025-10-05', t: 1, src: 'cb' });
     await createExpense('orphan', { a: 1000, c: 'food', n: 'Mồ côi', d: '2025-10-05', t: 1, src: 'cb' });
     await AsyncStorage.setItem(
       KEY,
-      JSON.stringify([{ id: 'b1', title: 'Ăn', date: '2025-10-01', cat: 'food', createdAt: 1, people: [p('Tôi', 0), p('An', 60)] }]),
+      JSON.stringify([{ id: 'b1', title: 'Ăn', date: '2025-10-01', cat: 'food', createdAt: 1, people: [p('Tôi', 0), p('An', 60_000)] }]),
     );
-    await AsyncStorage.setItem('chiabill:v2:pays', JSON.stringify([{ id: 'p1', createdAt: 2, date: '2025-10-05', note: '', from: 'Tôi', to: 'An', amt: 30, kind: 'billpay', exp: [{ m: '2025-10', id: 'pay' }] }]));
+    await AsyncStorage.setItem('chiabill:v2:pays', JSON.stringify([{ id: 'p1', createdAt: 2, date: '2025-10-05', note: '', from: 'Tôi', to: 'An', amt: 30_000, kind: 'billpay', exp: [{ m: '2025-10', id: 'pay' }] }]));
     expect(await syncBillExpenses()).toMatchObject({ orphansRemoved: 1, paysReplaced: 0 });
     const entries = Object.fromEntries(await month('2025-10'));
     expect(Object.keys(entries)).toEqual(['pay']);

@@ -16,10 +16,14 @@ import {
   saveContribution,
   saveFundExpense,
   saveFundTxn,
+  updateAdvance,
+  updateFundTxn,
   type AdvanceInput,
   type ContributionInput,
+  type AdvanceUpdate,
   type FundExpenseInput,
   type FundTxnInput,
+  type FundTxnUpdate,
 } from '@/data/fundRepository';
 import { syncFundExpenses } from '@/data/fundSync';
 import type { Fund } from '@/types/fund';
@@ -76,6 +80,11 @@ export async function createAdvanceSynced(input: AdvanceInput): Promise<SyncedCh
   return thenSync(await createAdvance(input));
 }
 
+/** Sửa hồ sơ giao tiền ứng (nội dung, ngày, số tiền giao). */
+export async function updateAdvanceSynced(id: string, input: AdvanceUpdate): Promise<SyncedChange<boolean>> {
+  return thenSync(await updateAdvance(id, input));
+}
+
 export async function deleteAdvanceSynced(id: string): Promise<SyncedChange<boolean>> {
   return thenSync(await deleteAdvance(id));
 }
@@ -83,6 +92,11 @@ export async function deleteAdvanceSynced(id: string): Promise<SyncedChange<bool
 /** Hoàn tiền ứng / thanh toán cho cá nhân (chỉ dòng tiền và công nợ, không có chi phí mới). */
 export async function saveFundTxnSynced(input: FundTxnInput): Promise<SyncedChange<string>> {
   return thenSync(await saveFundTxn(input));
+}
+
+/** Sửa số tiền / ngày của giao dịch hoàn tiền ứng hoặc thanh toán cho cá nhân. */
+export async function updateFundTxnSynced(id: string, input: FundTxnUpdate): Promise<SyncedChange<boolean>> {
+  return thenSync(await updateFundTxn(id, input));
 }
 
 export async function deleteFundTxnSynced(id: string): Promise<SyncedChange<boolean>> {

@@ -1,9 +1,9 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AppText } from '@/components/app-text';
+import { ScreenTitle } from '@/components/design';
 import { PeriodFilter } from '@/components/period-filter';
-import { SvgIcon } from '@/components/svg-icon';
+import { PageLayout } from '@/constants/layout';
 import { type PeriodView } from '@/domain/expenses';
 import { useColors } from '@/hooks/use-colors';
 import type { DateStr } from '@/types/expense';
@@ -11,7 +11,7 @@ import type { DateStr } from '@/types/expense';
 interface Props {
   /** Tiêu đề màn hình hiện phía trên bộ chọn (ví dụ "Tổng quan"). */
   title?: string;
-  /** Có giá trị thì hiện biểu tượng bánh răng ở góc phải tiêu đề (mở Cài đặt). */
+  /** Có giá trị thì thêm bánh răng (mở Cài đặt) vào ngay trong ô chọn thời gian ở bên phải tiêu đề. */
   onSettings?: () => void;
   view: PeriodView;
   onChange: (view: PeriodView) => void;
@@ -19,35 +19,27 @@ interface Props {
 }
 
 /**
- * Đầu trang của các tab có lọc theo kỳ (Tổng quan, Chi tiêu, Chia bill): tiêu đề (và bánh răng nếu có) và bộ lọc thời gian dùng chung
- * `PeriodFilter` (một dòng thu gọn, bấm để mở bảng chọn). Nền trang xám nhạt, được đặt làm phần tử dính ở đầu trang cuộn.
+ * Đầu trang của các tab có lọc theo kỳ: tiêu đề bên trái và, cùng hàng, bên phải là ô chọn thời gian dùng chung `PeriodFilter` dạng gọn
+ * (bấm để mở bảng chọn; bánh răng Cài đặt nằm trong cùng ô). Không có tiêu đề thì ô chọn nằm một dòng riêng. Nền trang xám nhạt, được đặt làm phần tử dính ở đầu trang cuộn.
  */
 export function PeriodBar({ title, onSettings, view, onChange, today }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.wrap, { backgroundColor: colors.bg, paddingTop: 8 + insets.top }]}>
+    <View style={{ backgroundColor: colors.bg }}>
       {!!title && (
-        <View style={styles.titleRow}>
-          <AppText weight="display" style={styles.title} accessibilityRole="header">
-            {title}
-          </AppText>
-          {onSettings && (
-            <Pressable accessibilityRole="button" accessibilityLabel="Cài đặt" hitSlop={6} onPress={onSettings} style={[styles.gear, { backgroundColor: colors.surface }]}>
-              <SvgIcon name="gear" size={20} color={colors.primary} strokeWidth={1.9} />
-            </Pressable>
-          )}
+        <ScreenTitle title={title} topInset={insets.top} right={<PeriodFilter compact view={view} onChange={onChange} today={today} onSettings={onSettings} />} />
+      )}
+      {!title && (
+        <View style={styles.filter}>
+          <PeriodFilter view={view} onChange={onChange} today={today} />
         </View>
       )}
-      <PeriodFilter view={view} onChange={onChange} today={today} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { paddingHorizontal: 16, paddingBottom: 10, gap: 10 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  title: { fontSize: 26, lineHeight: 32, letterSpacing: -0.4 },
-  gear: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  filter: { paddingHorizontal: PageLayout.paddingX, paddingTop: PageLayout.contentTop, paddingBottom: 10 },
 });

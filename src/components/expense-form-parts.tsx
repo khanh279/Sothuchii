@@ -4,7 +4,6 @@ import type { ReactNode } from 'react';
 import { AmountInput } from '@/components/amount-input';
 import { AppText } from '@/components/app-text';
 import { AppRadius } from '@/constants/palette';
-import { addToAmount } from '@/domain/expenses';
 import { useColors } from '@/hooks/use-colors';
 
 /**
@@ -58,19 +57,13 @@ interface AmountFieldProps {
   label?: string;
 }
 
-/** Ô "Số tiền" + hàng nút nhập nhanh (+5k … +500k, ".000") + câu báo lỗi. */
+/** Ô "Số tiền" (gõ số thì gợi ý gấp 1.000 / 10.000 / 100.000 lần ngay trên bàn phím) + câu báo lỗi. */
 export function AmountField({ value, onChange, invalid = false, errorText, label = 'Số tiền' }: AmountFieldProps) {
   const colors = useColors();
   return (
     <View style={formStyles.field}>
       <FormLabel>{label}</FormLabel>
       <AmountInput value={value} invalid={invalid} onChangeValue={(next) => onChange(next)} />
-      <View style={formStyles.quickRow}>
-        {QUICK_ADDS.map((item) => (
-          <QuickButton key={item.label} label={item.label} onPress={() => onChange((previous) => addToAmount(previous, item.add))} />
-        ))}
-        <QuickButton label=".000" accessibilityLabel="Thêm ba số không" onPress={() => onChange((previous) => addToAmount(0, previous * 1000))} />
-      </View>
       {invalid && !!errorText && (
         <AppText color={colors.danger} style={formStyles.error}>
           {errorText}

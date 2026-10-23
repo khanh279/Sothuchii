@@ -12,6 +12,8 @@ interface Props {
   title: string;
   /** Tên đang có trong ô (được đánh dấu; nếu chưa có trong danh sách vẫn hiện để không mất). */
   selected: string | null;
+  /** Có giá trị = chỉ liệt kê các tên này (ví dụ người của một quỹ) thay vì danh sách người ở Thiết lập. */
+  names?: readonly string[];
   onPick: (name: string) => void;
   onClose: () => void;
 }
@@ -20,7 +22,7 @@ interface Props {
  * Bảng chọn MỘT người (`pickPeople` với `single` của PWA): "Tôi" đứng đầu, rồi danh sách người ở Thiết lập.
  * Chạm một tên là chọn và đóng. Tên vẫn có thể gõ tự do trong ô; bảng chỉ để chọn nhanh.
  */
-export function PersonPicker({ title, selected, onPick, onClose }: Props) {
+export function PersonPicker({ title, selected, names, onPick, onClose }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const [people, setPeople] = useState<string[] | null>(null);
@@ -35,8 +37,8 @@ export function PersonPicker({ title, selected, onPick, onClose }: Props) {
     };
   }, []);
 
-  const options = pickerOptions(people ?? [], selected);
-  const empty = people !== null && people.length === 0;
+  const options = names ? [...names] : pickerOptions(people ?? [], selected);
+  const empty = names ? names.length === 0 : people !== null && people.length === 0;
 
   return (
     <Modal transparent animationType="fade" visible onRequestClose={onClose}>

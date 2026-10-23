@@ -16,14 +16,14 @@ import {
   whoOptions,
 } from './payForm';
 
-// DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng. Tiền là NGHÌN đồng.
+// DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng. Tiền là ĐỒNG.
 const p = (name: string, paid: number) => ({ name, paid, w: 1 });
-const bill = (id: string, title: string, date = '2025-10-01', people = [p('Tôi', 10), p('An', 0)]): Bill => ({ id, title, date, createdAt: 1, cat: 'food', people });
-const pay = (id: string, over: Partial<Pay> = {}): Pay => ({ id, createdAt: 1, date: '2025-10-05', note: '', from: 'Tôi', to: 'An', amt: 10, kind: 'vay', ...over });
+const bill = (id: string, title: string, date = '2025-10-01', people = [p('Tôi', 10_000), p('An', 0)]): Bill => ({ id, title, date, createdAt: 1, cat: 'food', people });
+const pay = (id: string, over: Partial<Pay> = {}): Pay => ({ id, createdAt: 1, date: '2025-10-05', note: '', from: 'Tôi', to: 'An', amt: 10_000, kind: 'vay', ...over });
 
 describe('lựa chọn người', () => {
   it('"Tôi" đứng đầu, rồi tên từ bill, khoản trả và Danh sách người; bỏ trùng, bỏ khoảng trắng, xếp theo chữ', () => {
-    const bills = [bill('b', 'x', '2025-10-01', [p('Tôi', 1), p('Bình ', 0), p('An', 0)])];
+    const bills = [bill('b', 'x', '2025-10-01', [p('Tôi', 1000), p('Bình ', 0), p('An', 0)])];
     const pays = [pay('a', { from: 'Chi', to: 'Tôi' }), pay('b', { from: ' An ', to: 'Dũng' })];
     expect(payNameOptions(bills, pays, ['Bình', 'Em', '', 'tôi'])).toEqual(['Tôi', 'An', 'Bình', 'Chi', 'Dũng', 'Em', 'tôi']);
     expect(payNameOptions([], [], [])).toEqual(['Tôi']);
@@ -36,25 +36,26 @@ describe('lựa chọn người', () => {
 });
 
 describe('nhập liệu', () => {
-  it('số tiền kiểu nghìn đồng: chấm hàng nghìn, phẩy thập phân tối đa 3, phần nguyên tối đa 9 chữ số', () => {
-    expect(maskPayAmount('1234567')).toBe('1.234.567');
-    expect(maskPayAmount('12,3456')).toBe('12,345');
-    expect(maskPayAmount('1234567890')).toBe('123.456.789');
-    expect(parsePayAmount('1.234,5')).toBe(1234.5);
+  it('số tiền theo đồng: chỉ chữ số, tối đa 9 chữ số', () => {
+    expect(maskPayAmount('1234567')).toBe('1234567');
+    expect(maskPayAmount('1.234.567')).toBe('1234567');
+    expect(maskPayAmount('12,3456')).toBe('123456');
+    expect(maskPayAmount('1234567890')).toBe('123456789');
+    expect(parsePayAmount('1.234.500')).toBe(1_234_500);
     expect(parsePayAmount('')).toBe(0);
     expect(parsePayAmount('abc')).toBe(0);
   });
 
   it('đi và về giữa số và chữ', () => {
-    for (const amount of [5, 12.5, 1234.567, 100000]) expect(parsePayAmount(formatPayAmount(amount))).toBe(amount);
-    expect(formatPayAmount(12.5)).toBe('12,5');
+    for (const amount of [5000, 12_500, 1_234_567, 100_000]) expect(parsePayAmount(formatPayAmount(amount))).toBe(amount);
+    expect(formatPayAmount(12_500)).toBe('12500');
   });
 
   it('ghi nhận chỉ khi đã chọn người nhận và số tiền > 0', () => {
-    expect(canRecordPay('An', 1)).toBe(true);
+    expect(canRecordPay('An', 1000)).toBe(true);
     expect(canRecordPay('', 1)).toBe(false);
     expect(canRecordPay('An', 0)).toBe(false);
-    expect(canRecordPay('An', -3)).toBe(false);
+    expect(canRecordPay('An', -3000)).toBe(false);
   });
 
   it('loại: trả bill ↔ billpay, chuyển tiền ↔ vay; khoản đã lưu được phân loại theo sổ', () => {
@@ -68,7 +69,7 @@ describe('nhập liệu', () => {
   });
 
   it('dựng form từ khoản đã lưu', () => {
-    expect(formFromPay(pay('a', { amt: 12.5, note: 'ăn', kind: 'billpay' }))).toEqual({ date: '2025-10-05', note: 'ăn', from: 'Tôi', to: 'An', amountText: '12,5', type: 'bill' });
+    expect(formFromPay(pay('a', { amt: 12_500, note: 'ăn', kind: 'billpay' }))).toEqual({ date: '2025-10-05', note: 'ăn', from: 'Tôi', to: 'An', amountText: '12500', type: 'bill' });
   });
 });
 
@@ -90,14 +91,14 @@ describe('buildPayHistory', () => {
 
   it('bỏ gộp nợ, mới nhất trước, gom theo ngày; tổng vào / ra không tính gộp nợ', () => {
     const pays = [
-      pay('a', { date: '2025-10-05', createdAt: 1, amt: 10 }),
-      pay('b', { date: '2025-10-05', createdAt: 2, from: 'An', to: 'Tôi', amt: 4 }),
-      pay('c', { date: '2025-10-06', kind: 'bt', amt: 99 }),
-      pay('d', { date: '2025-09-01', amt: 7 }),
+      pay('a', { date: '2025-10-05', createdAt: 1, amt: 10_000 }),
+      pay('b', { date: '2025-10-05', createdAt: 2, from: 'An', to: 'Tôi', amt: 4000 }),
+      pay('c', { date: '2025-10-06', kind: 'bt', amt: 99_000 }),
+      pay('d', { date: '2025-09-01', amt: 7000 }),
     ];
     const h = buildPayHistory(pays, bills, { mode: 'all' });
     expect(h.days.map((d) => [d.date, d.rows.map((r) => r.id)])).toEqual([['2025-10-05', ['b', 'a']], ['2025-09-01', ['d']]]);
-    expect(h).toMatchObject({ count: 3, totalIn: 4, totalOut: 17 });
+    expect(h).toMatchObject({ count: 3, totalIn: 4000, totalOut: 17_000 });
     expect(h.days[0].rows.map((r) => r.tone)).toEqual(['get', 'owe']);
   });
 
@@ -109,13 +110,13 @@ describe('buildPayHistory', () => {
 
   it('khoản trả bill giữa hai người khác "Tôi" cùng cặp trong ngày gom thành một dòng, cộng tiền, gộp tên bill; nhóm một khoản hiện như khoản đơn', () => {
     const pays = [
-      pay('g1', { from: 'An', to: 'Bình', amt: 10, kind: 'billpay', bill: 'b1', createdAt: 1 }),
-      pay('g2', { from: 'An', to: 'Bình', amt: 5.5, kind: 'billpay', bill: 'b2', createdAt: 2 }),
-      pay('s', { from: 'Chi', to: 'Bình', amt: 3, kind: 'billpay', bill: 'b1', createdAt: 3 }),
-      pay('x', { from: 'Tôi', to: 'An', amt: 1, kind: 'billpay', createdAt: 4 }),
+      pay('g1', { from: 'An', to: 'Bình', amt: 10_000, kind: 'billpay', bill: 'b1', createdAt: 1 }),
+      pay('g2', { from: 'An', to: 'Bình', amt: 5500, kind: 'billpay', bill: 'b2', createdAt: 2 }),
+      pay('s', { from: 'Chi', to: 'Bình', amt: 3000, kind: 'billpay', bill: 'b1', createdAt: 3 }),
+      pay('x', { from: 'Tôi', to: 'An', amt: 1000, kind: 'billpay', createdAt: 4 }),
     ];
     const rows = buildPayHistory(pays, bills, { mode: 'all' }).days[0].rows;
-    expect(rows.map((r) => [r.ids, r.amt, r.group])).toEqual([[['x'], 1, false], [['s'], 3, false], [['g2', 'g1'], 15.5, true]]);
+    expect(rows.map((r) => [r.ids, r.amt, r.group])).toEqual([[['x'], 1000, false], [['s'], 3000, false], [['g2', 'g1'], 15_500, true]]);
     const group = rows[2];
     expect(group.title).toBe('Thanh toán bill');
     expect(group.detail).toBe('Ăn, Phim'); // thứ tự đảo như PWA (bản ghi mới trước → đảo lại)
