@@ -5,7 +5,7 @@ import { LockableScrollView } from '@/components/lockable-scroll-view';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { CardHead, EmptyState, ScreenTitle, SectionCard, type StatusTone } from '@/components/design';
+import { CardHead, ChipRow, EmptyState, ScreenTitle, SectionCard, type StatusTone } from '@/components/design';
 import { HistoryCard } from '@/components/history-card';
 import { PeriodFilter } from '@/components/period-filter';
 import { SelectableCard } from '@/components/selectable-card';
@@ -25,9 +25,8 @@ import {
   personalDebtLabel,
   type PayState,
 } from '@/domain/fundAdvance';
-import { buildFundHistory, filterCashMovementDays, filterDaysByPerson, historyMembers, mergePayoutEntries, type FundHistoryEntry } from '@/domain/fundHistory';
+import { FUND_HISTORY_CATEGORIES, buildFundHistory, filterCashMovementDays, filterDaysByCategory, mergePayoutEntries, type FundHistoryCategory, type FundHistoryEntry } from '@/domain/fundHistory';
 import { FundEntryIcon } from '@/features/funds/FundEntryIcon';
-import { ALL_MEMBERS, MemberFilterChips } from '@/features/funds/MemberFilterChips';
 import { describeFundError, useFundData } from '@/features/funds/hooks';
 import { useColors } from '@/hooks/use-colors';
 import { useSharedPeriod } from '@/hooks/use-shared-period';
@@ -54,8 +53,8 @@ export default function FundHistoryScreen() {
 
   const { data, loaded, error, reload } = useFundData();
   const [openId, setOpenId] = useState<string | null>(null);
-  /** Thành viên đang lọc; ALL_MEMBERS = Tất cả (mặc định). */
-  const [member, setMember] = useState(ALL_MEMBERS);
+  /** Loại khoản đang lọc; 'all' = Tất cả (mặc định). */
+  const [category, setCategory] = useState<FundHistoryCategory | 'all'>('all');
 
   const history = useMemo(() => buildFundHistory(data, params.fund || 'all', period), [data, params.fund, period]);
   const single = history.filter !== 'all' ? history.funds[0] : null;
@@ -65,7 +64,7 @@ export default function FundHistoryScreen() {
     try {
       if (entry.kind === 'contribution') await deleteContributionSynced(entry.id);
       else if (entry.kind === 'expense') for (const id of entry.mergedIds ?? [entry.id]) await deleteFundExpenseSynced(id);
-      else if (entry.kind === 'advance') await deleteAdvanceSynced(entry.id);
+      else if (entry.kind === 'advance') for (const id of entry.mergedIds ?? [entry.id]) await deleteAdvanceSynced(id);
       else for (const id of entry.mergedIds ?? [entry.id]) await deleteFundTxnSynced(id);
       setOpenId(null);
       toast.show(entry.kind === 'contribution' ? 'Đã xóa lần đóng quỹ' : entry.kind === 'expense' ? 'Đã xóa khoản chi' : 'Đã xóa', { bottom: TOAST_BOTTOM_HISTORY });
@@ -82,13 +81,11 @@ export default function FundHistoryScreen() {
     ...(item.owed > 0 ? [{ person: item.person, kind: 'owed' as const, amount: item.owed }] : []),
     ...(item.held > 0 ? [{ person: item.person, kind: 'held' as const, amount: item.held }] : []),
   ]);
-  // Lịch sử chỉ gồm khoản làm đổi số dư thực tế của quỹ; lọc theo thành viên có thật trong danh sách đang xem (không còn thì về "Tất cả").
+  // Lịch sử chỉ gồm khoản làm đổi số dư thực tế của quỹ; lọc theo loại khoản (thu quỹ, quỹ chi trực tiếp, cá nhân ứng chi, giao tiền ứng trước).
   const cashDays = useMemo(() => filterCashMovementDays(history.days, data), [history.days, data]);
   const cashCount = cashDays.reduce((total, day) => total + day.entries.length, 0);
-  const members = historyMembers(cashDays);
-  const activeMember = member !== ALL_MEMBERS && members.includes(member) ? member : ALL_MEMBERS;
   // Trong cùng một ngày, các lần quỹ trả cho cùng một khoản A ứng chi (cùng người, cùng nội dung) gộp thành một dòng.
-  const shownDays = useMemo(() => mergePayoutEntries(filterDaysByPerson(cashDays, activeMember)), [cashDays, activeMember]);
+  const shownDays = useMemo(() => mergePayoutEntries(filterDaysByCategory(cashDays, category === 'all' ? null : category)), [cashDays, category]);
 
   /** Nhãn trạng thái của một dòng: khoản cá nhân ứng → trạng thái thanh toán; dòng thuộc hồ sơ ứng trước → trạng thái quyết toán. */
   function statusOf(entry: FundHistoryEntry): { label: string; tone: StatusTone } | null {
@@ -110,17 +107,22 @@ export default function FundHistoryScreen() {
           return expense?.mode === 'personal' && personalDebt(data, expense).state === 'paid';
         });
       if (paid) return { label: 'Đã quyết toán', tone: 'get' };
-      if (ids.length > 0) return { label: 'Một phần', tone: 'warn' };
+      if (ids.length > 0) return { label: 'Quyết toán một phần', tone: 'warn' };
     }
     // Dòng giao tiền ứng: trạng thái CHI của lần giao (chi hết xanh / chi một phần cam / chưa chi đỏ).
+    // Dòng đã gộp (nhiều lần giao cùng ngày): tính trên TỔNG; vì tiền chi vào lần giao cũ nhất trước nên lần cũ "chi hết", lần mới "một phần" gộp thành "Chi một phần".
     if (entry.kind === 'advance' && entry.advanceId) {
-      const advance = advanceById(data, entry.advanceId);
-      if (advance) {
-        const spent = advanceSummary(data, advance).spent;
-        if (advance.amount > 0 && spent >= advance.amount) return { label: 'Đã chi hết', tone: 'get' };
+      const advances = (entry.mergedIds ?? [entry.advanceId]).map((id) => advanceById(data, id)).filter((advance): advance is NonNullable<typeof advance> => !!advance);
+      if (advances.length) {
+        const given = advances.reduce((sum, advance) => sum + advance.amount, 0);
+        const spent = advances.reduce((sum, advance) => sum + advanceSummary(data, advance).spent, 0);
+        if (given > 0 && spent >= given) return { label: 'Đã chi hết', tone: 'get' };
+        // Theo số đã chi THỰC TẾ của lần giao tại thời điểm hiện tại (sau phân bổ lại): chưa chi đồng nào = "Chưa chi".
         return spent > 0 ? { label: 'Chi một phần', tone: 'warn' } : { label: 'Chưa chi', tone: 'owe' };
       }
     }
+    // Khoản chi từ tiền ứng ("Quỹ giao A ứng chi"): chỉ là dòng chi để xem, như ô lịch sử ở trang Nợ quỹ, không nhãn trạng thái.
+    if (entry.kind === 'expense' && entry.spendFromAdvance) return null;
     if (entry.advanceId && entry.kind === 'expense') {
       const advance = advanceById(data, entry.advanceId);
       if (advance) {
@@ -206,20 +208,18 @@ export default function FundHistoryScreen() {
               <CardHead title="Lịch sử quỹ" subtitle={periodTitle(period)} rightTop={`${cashCount} khoản`} />
             </View>
             <View style={styles.body}>
-              {members.length > 0 && (
-                <MemberFilterChips
-                  members={members}
-                  value={activeMember}
-                  onChange={(next) => {
-                    setOpenId(null);
-                    setMember(next);
-                  }}
-                />
-              )}
+              <ChipRow
+                options={[{ value: 'all' as const, label: 'Tất cả' }, ...FUND_HISTORY_CATEGORIES]}
+                value={category}
+                onChange={(next) => {
+                  setOpenId(null);
+                  setCategory(next);
+                }}
+              />
 
               {shownDays.length === 0 ? (
                 <EmptyState
-                  text={activeMember !== ALL_MEMBERS ? `Không có dòng nào của ${activeMember} trong khoảng này` : 'Không có khoản nào làm đổi số dư quỹ trong khoảng này'}
+                  text={category !== 'all' ? 'Không có khoản nào thuộc loại này trong khoảng này' : 'Không có khoản nào làm đổi số dư quỹ trong khoảng này'}
                   icon="check"
                 />
               ) : (
@@ -250,7 +250,16 @@ export default function FundHistoryScreen() {
                             onClose={() => setOpenId((current) => (current === entry.id ? null : current))}
                             onPressRow={() => {
                               setOpenId(null);
-                              router.push({ pathname: '/quy/chi-tiet', params: { kind: entry.kind, id: entry.id } });
+                              router.push({
+                                pathname: '/quy/chi-tiet',
+                                params: {
+                                  kind: entry.kind,
+                                  id: entry.id,
+                                  ...((entry.kind === 'advance' || entry.kind === 'payout' || entry.spendFromAdvance) && (entry.mergedIds?.length ?? 0) > 1
+                                    ? { ids: entry.mergedIds!.join(',') }
+                                    : {}),
+                                },
+                              });
                             }}
                             onEdit={() => {
                               setOpenId(null);

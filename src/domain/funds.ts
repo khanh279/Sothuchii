@@ -75,6 +75,7 @@ export function normalizeFundData(raw: unknown, context: NormalizeContext = {}):
       }),
     };
     if (exp) contribution.exp = exp;
+    if (item.bulk === true) contribution.bulk = true;
     contribs.push(contribution);
   }
 
@@ -160,7 +161,8 @@ export function fundMembers(data: Pick<FundData, 'contribs' | 'expenses' | 'adva
     const clean = (name ?? '').trim();
     if (clean) seen.add(clean);
   };
-  for (const contrib of data.contribs) if (contrib.fundId === fundId) for (const person of contrib.people) add(person.name);
+  // Người của khoản thu "Thêm nhiều thành viên" (cờ `bulk`) không phải thành viên được tạo sẵn nên không vào danh sách chọn người.
+  for (const contrib of data.contribs) if (contrib.fundId === fundId && !contrib.bulk) for (const person of contrib.people) add(person.name);
   for (const advance of data.advances ?? []) if (advance.fundId === fundId) add(advance.person);
   for (const expense of data.expenses) if (expense.fundId === fundId) add(expense.payer);
   const names = [...seen];

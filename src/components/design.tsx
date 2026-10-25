@@ -117,14 +117,17 @@ export function SectionHeader({ title, subtitle, actionLabel, onAction }: Sectio
 interface CardHeadProps extends SectionHeaderProps {
   /** Bên phải, sát mép khung: dòng trên (ví dụ "7 khoản chi") và dòng dưới (ví dụ số tiền). */
   rightTop?: string;
-  rightBottom?: string;
+  rightBottom?: ReactNode;
+  /** true: dòng phụ bên trái và dòng dưới bên phải luôn trên MỘT dòng, hết chỗ thì thu nhỏ chữ thay vì cắt bằng "…". */
+  fit?: boolean;
 }
 
 /**
  * Đầu thẻ dùng chung cho mọi thẻ ở tab Chi tiêu, Chia bill, Công nợ: tiêu đề (cùng cỡ chữ) và bên dưới là thời gian đang xem; bên phải sát mép
  * là thông tin tóm tắt (dòng trên số lượng, dòng dưới số tiền). Không có đệm riêng: thẻ chứa nó tự đặt lề.
  */
-export function CardHead({ title, subtitle, actionLabel, onAction, rightTop, rightBottom }: CardHeadProps) {
+export function CardHead({ title, subtitle, actionLabel, onAction, rightTop, rightBottom, fit }: CardHeadProps) {
+  const fitProps = fit ? ({ adjustsFontSizeToFit: true, minimumFontScale: 0.7 } as const) : {};
   const colors = useColors();
   return (
     <View style={styles.sectionHead}>
@@ -133,7 +136,7 @@ export function CardHead({ title, subtitle, actionLabel, onAction, rightTop, rig
           {title}
         </AppText>
         {!!subtitle && (
-          <AppText color={colors.muted} style={styles.caption} numberOfLines={1}>
+          <AppText color={colors.muted} style={styles.caption} numberOfLines={1} {...fitProps}>
             {subtitle}
           </AppText>
         )}
@@ -145,11 +148,14 @@ export function CardHead({ title, subtitle, actionLabel, onAction, rightTop, rig
               {rightTop}
             </AppText>
           )}
-          {!!rightBottom && (
-            <AppText color={colors.muted} style={styles.caption} numberOfLines={1}>
-              {rightBottom}
-            </AppText>
-          )}
+          {!!rightBottom &&
+            (typeof rightBottom === 'string' ? (
+              <AppText color={colors.muted} style={styles.caption} numberOfLines={1} {...fitProps}>
+                {rightBottom}
+              </AppText>
+            ) : (
+              rightBottom
+            ))}
         </View>
       )}
       {!!actionLabel && !!onAction && (
@@ -360,6 +366,8 @@ interface TransactionRowProps {
   badge?: string;
   badgeTone?: StatusTone;
   first?: boolean;
+  /** true: tiêu đề chỉ một dòng, dài quá thì cắt bằng "…" (mặc định tối đa 2 dòng). */
+  singleLineTitle?: boolean;
   onPress?: () => void;
   accessibilityLabel?: string;
   /** Không vẽ đường phân cách và đệm ngang (khi đặt trong `SwipeRow` đã có khung riêng). */
@@ -388,14 +396,14 @@ export function StatusBadge({ label, tone = 'info', style }: { label: string; to
 }
 
 /** Dòng giao dịch: biểu tượng, nội dung + thông tin phụ bên trái, số tiền căn phải kèm nhãn nhỏ. */
-export function TransactionRow({ icon, title, subtitle, amount, tone, meta, badge, badgeTone, first, onPress, accessibilityLabel, bare }: TransactionRowProps) {
+export function TransactionRow({ icon, title, subtitle, amount, tone, meta, badge, badgeTone, first, singleLineTitle, onPress, accessibilityLabel, bare }: TransactionRowProps) {
   const colors = useColors();
   const toneColor = useToneColor();
   const content = (
     <>
       {icon}
       <View style={styles.flex}>
-        <AppText weight="semibold" style={styles.txTitle} numberOfLines={2}>
+        <AppText weight="semibold" style={styles.txTitle} numberOfLines={singleLineTitle ? 1 : 2} ellipsizeMode="tail">
           {title}
         </AppText>
         {!!subtitle && (

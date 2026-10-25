@@ -18,8 +18,8 @@ export default function RecordTransferRoute() {
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
-      <Stack.Screen options={{ title: 'Ghi nhận chuyển tiền', headerShown: false }} />
-      <ScreenTitle title="Ghi nhận chuyển tiền" topInset={insets.top} />
+      <Stack.Screen options={{ title: 'Thêm giao dịch', headerShown: false }} />
+      <ScreenTitle title="Thêm giao dịch" topInset={insets.top} />
       <PayFormScreen onFinished={leave} />
     </View>
   );

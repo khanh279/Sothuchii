@@ -72,7 +72,8 @@ export function buildRecentTransactions({ expenses, pays, categoryName, limit }:
       date: item.d,
       order: item.t || 0,
       title: item.n || name,
-      subtitle: item.i || name,
+      // Ghi chú của khoản chi từ chia bill có dạng "Chia bill dd/mm · N người ...": bỏ phần số người cho gọn.
+      subtitle: (item.src === 'cb' ? (item.i ?? '').replace(/s*·s*d+ người/, '') : item.i) || name,
       typeLabel: (item.src && SOURCE_LABEL[item.src]) || 'Chi tiêu',
       amount: item.a,
       flow: 'out',

@@ -49,9 +49,14 @@ export default function FundExpenseScreen({ mode = 'chi' }: { mode?: 'chi' | 'th
   } else {
     body = (
       <KeyboardAwareScrollView style={styles.screen} contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
-        <View style={[styles.card, { backgroundColor: colors.surface }]}>
+        {mode === 'thu' ? (
+          // Thu quỹ tự có hai thẻ riêng (như trang tạo bill), nên không bọc thêm thẻ ngoài.
           <FundExpensePanel data={data} mode={mode} initialFundId={fund} onChanged={leave} />
-        </View>
+        ) : (
+          <View style={[styles.card, { backgroundColor: colors.surface }]}>
+            <FundExpensePanel data={data} mode={mode} initialFundId={fund} onChanged={leave} />
+          </View>
+        )}
       </KeyboardAwareScrollView>
     );
   }

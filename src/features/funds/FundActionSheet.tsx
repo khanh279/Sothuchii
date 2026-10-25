@@ -12,9 +12,9 @@ import { TopFormModal } from '@/components/top-form-modal';
 import { useToast } from '@/components/toast';
 import { AppFonts } from '@/constants/fonts';
 import { FundInputError } from '@/data/fundRepository';
-import { saveFundExpenseSynced, saveFundTxnSynced, updateFundTxnSynced } from '@/data/fundService';
+import { refundAdvancesForPersonSynced, saveFundExpenseSynced, saveFundTxnSynced, updateFundTxnSynced } from '@/data/fundService';
 import { newExpenseId } from '@/domain/expenses';
-import { checkPayout, checkRefund, planAdvanceSpend } from '@/domain/fundAdvance';
+import { checkPayout, checkRefund, planAdvanceRefund, planAdvanceSpend } from '@/domain/fundAdvance';
 import { FUND_TITLE_MAX } from '@/domain/fundForms';
 import { describeFundError } from '@/features/funds/hooks';
 import { useColors } from '@/hooks/use-colors';
@@ -30,7 +30,8 @@ import { todayStr } from '@/utils/date';
  */
 export type FundActionTarget =
   | { mode: 'expense'; person: string; fundId: string }
-  | { mode: 'refund'; advanceId: string; max: number }
+  // Hoàn theo MỘT hồ sơ (sửa giao dịch đã ghi) hoặc theo NGƯỜI (`person`, `fundId`; `max` = tổng còn giữ): hoàn trừ vào lần giao mới nhất trước.
+  | { mode: 'refund'; advanceId?: string; person?: string; fundId?: string; max: number }
   | { mode: 'payout'; expenseId?: string; advanceId?: string; person: string; max: number };
 
 interface Props {
@@ -47,6 +48,15 @@ interface Props {
   asPage?: boolean;
 }
 
+/** Kiểm tra hoàn tiền theo NGƯỜI: > 0 và không vượt tổng tiền ứng còn giữ của người đó. */
+function checkPersonRefund(data: Props['data'], fundId: string, person: string, amount: number) {
+  const parts = planAdvanceRefund(data, fundId, person, amount);
+  const total = parts.reduce((sum, part) => sum + part.amount, 0);
+  if (!(amount > 0)) return { ok: false as const, message: 'Nhập số tiền lớn hơn 0.' };
+  if (Math.round(amount) > total) return { ok: false as const, message: total > 0 ? 'Số tiền hoàn vượt số tiền ứng còn giữ.' : 'Không còn tiền ứng để hoàn.' };
+  return { ok: true as const, amount: Math.round(amount) };
+}
+
 export function FundActionSheet({ target, data, existing, onClose, onDone, asPage = false }: Props) {
   const colors = useColors();
   const toast = useToast();
@@ -60,7 +70,7 @@ export function FundActionSheet({ target, data, existing, onClose, onDone, asPag
   const [clientId] = useState(() => newExpenseId(Date.now()));
 
   /** Người nhận ứng của hồ sơ (cho tiêu đề "Chi từ A ứng" / "A hoàn tiền ứng"). */
-  const advancePerson = target.mode === 'payout' || target.mode === 'expense' ? target.person : (data.advances?.find((item) => item.id === target.advanceId)?.person ?? '');
+  const advancePerson = target.mode === 'payout' || target.mode === 'expense' ? target.person : (target.person ?? data.advances?.find((item) => item.id === target.advanceId)?.person ?? '');
   const heading =
     target.mode === 'expense'
       ? `Chi từ ${advancePerson} ứng`
@@ -81,7 +91,9 @@ export function FundActionSheet({ target, data, existing, onClose, onDone, asPag
     } else {
       const check =
         target.mode === 'refund'
-          ? checkRefund(data, target.advanceId, amount)
+          ? target.advanceId
+            ? checkRefund(data, target.advanceId, amount)
+            : checkPersonRefund(data, target.fundId ?? 'all', target.person ?? '', amount)
           : checkPayout(data, target.expenseId ? { expenseId: target.expenseId } : { advanceId: target.advanceId! }, amount);
       if (!check.ok) return setError(check.message);
     }
@@ -108,7 +120,9 @@ export function FundActionSheet({ target, data, existing, onClose, onDone, asPag
         if (!result.value) return setError('Không tìm thấy giao dịch này. Có thể nó đã bị xoá.');
         toast.show('Đã lưu thay đổi');
       } else if (target.mode === 'refund') {
-        await saveFundTxnSynced({ clientId, kind: 'refund', advanceId: target.advanceId, amount, date });
+        // Hoàn theo người: trừ vào lần giao mới nhất còn giữ tiền trước; lần giao chưa chi mà hoàn hết thì xoá luôn (một lần ghi nguyên tử).
+        if (target.advanceId) await saveFundTxnSynced({ clientId, kind: 'refund', advanceId: target.advanceId, amount, date });
+        else await refundAdvancesForPersonSynced({ clientId, fundId: target.fundId ?? 'all', person: target.person ?? '', amount, date });
         toast.show('Đã ghi nhận hoàn tiền');
       } else {
         await saveFundTxnSynced({ clientId, kind: 'payout', expenseId: target.expenseId, advanceId: target.expenseId ? undefined : target.advanceId, amount, date });

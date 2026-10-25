@@ -1,16 +1,17 @@
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { MoneyTextInput } from '@/components/money-input';
+import { AmountField, FormLabel, formStyles } from '@/components/expense-form-parts';
+import { InlineSelect } from '@/components/inline-select';
 import { KeyboardAnchor, KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll';
 import { CalendarPanel } from '@/components/calendar-panel';
 import { DateField } from '@/components/date-field';
 import { SvgIcon } from '@/components/svg-icon';
 import { useToast } from '@/components/toast';
 import { AppFonts } from '@/constants/fonts';
-import { AppRadius } from '@/constants/palette';
 import { PayInputError } from '@/data/payRepository';
 import { addTransferSynced, updatePayGroupSynced, updateTransferSynced } from '@/data/payService';
 import { BILL_OWNER_NAME } from '@/domain/bills';
@@ -26,7 +27,6 @@ import {
   type PayType,
 } from '@/domain/payForm';
 import { describeDebtError, useDebtData } from '@/features/debts/hooks';
-import { OptionPicker } from '@/features/debts/OptionPicker';
 import { useChromeScroll } from '@/hooks/use-chrome';
 import { useColors } from '@/hooks/use-colors';
 import type { Bill } from '@/types/bill';
@@ -109,7 +109,6 @@ function PayForm({ bills, pays, people, editIds, source, reload, onFinished }: F
   const [type, setType] = useState<PayType>(source?.form.type ?? 'vay');
   const [typeChosen, setTypeChosen] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
-  const [picking, setPicking] = useState<'from' | 'to' | null>(null);
   const [busy, setBusy] = useState(false);
 
   const options = useMemo(() => payNameOptions(bills, pays, people), [bills, pays, people]);
@@ -120,7 +119,11 @@ function PayForm({ bills, pays, people, editIds, source, reload, onFinished }: F
   const canRecord = canRecordPay(effectiveTo, amount);
 
   async function save() {
-    if (busy || !canRecord) return;
+    if (busy) return;
+    if (!canRecord) {
+      toast.show(effectiveTo ? 'Nhập số tiền lớn hơn 0.' : 'Chọn người nhận.');
+      return;
+    }
     setBusy(true);
     try {
       if (!editing) {
@@ -151,148 +154,124 @@ function PayForm({ bills, pays, people, editIds, source, reload, onFinished }: F
     }
   }
 
-  const inputStyle = [styles.input, { backgroundColor: colors.bg, borderColor: colors.line, color: colors.ink, fontFamily: AppFonts.semibold }];
+  const badge = (name: 'receipt' | 'tabTransactions' | 'person') => (
+    <View style={[styles.badge, { backgroundColor: colors.primarySoft }]}>
+      <SvgIcon name={name} size={16} color={colors.primary} strokeWidth={2} />
+    </View>
+  );
+  const typeOptions = [
+    { key: 'bill', name: 'Trả bill', icon: badge('receipt') },
+    { key: 'vay', name: 'Chuyển tiền', icon: badge('tabTransactions') },
+  ];
+  const personOptions = (names: readonly string[]) => names.map((name) => ({ key: name, name, icon: badge('person') }));
 
   return (
     <KeyboardAwareScrollView ref={scrollRef} {...scrollProps} contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
-      <View style={[styles.card, { backgroundColor: colors.surface }]}>
-        <View style={styles.row}>
-          <View style={styles.dateBox}>
-            <DateField value={date} onPress={() => setCalendarOpen(true)} accessibilityLabel="Thời gian" />
-          </View>
-          <TextInput value={note} onChangeText={setNote} placeholder="Nội dung" placeholderTextColor={colors.muted} accessibilityLabel="Nội dung" style={[inputStyle, styles.flex]} />
-        </View>
-
-        <View style={styles.row}>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Người trả: ${from}`} onPress={() => setPicking('from')} style={[styles.select, { backgroundColor: colors.bg, borderColor: colors.line }]}>
-            <AppText weight="semibold" style={styles.selectText} numberOfLines={1}>
-              {from}
-            </AppText>
-            <View style={{ transform: [{ rotate: '90deg' }] }}>
-              <SvgIcon name="chevronRight" size={16} color={colors.muted} />
-            </View>
-          </Pressable>
-          <AppText weight="semibold" style={styles.arrow} accessibilityLabel="đưa tiền cho">
-            →
-          </AppText>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Người nhận: ${effectiveTo || 'chưa có'}`} onPress={() => setPicking('to')} style={[styles.select, { backgroundColor: colors.bg, borderColor: colors.line }]}>
-            <AppText weight="semibold" color={effectiveTo ? colors.ink : colors.muted} style={styles.selectText} numberOfLines={1}>
-              {effectiveTo || 'Chưa có người'}
-            </AppText>
-            <View style={{ transform: [{ rotate: '90deg' }] }}>
-              <SvgIcon name="chevronRight" size={16} color={colors.muted} />
-            </View>
-          </Pressable>
-        </View>
-
-        <View style={[styles.types, { backgroundColor: colors.bg }]} accessibilityRole="radiogroup">
-          {(['bill', 'vay'] as const).map((id) => {
-            const selected = type === id;
-            return (
-              <Pressable
-                key={id}
-                accessibilityRole="radio"
-                accessibilityState={{ checked: selected }}
-                onPress={() => {
-                  setType(id);
-                  setTypeChosen(true);
-                }}
-                style={[styles.typeButton, selected && { backgroundColor: colors.surface }]}>
-                <AppText weight="semibold" color={selected ? colors.primary : colors.muted} style={styles.typeText}>
-                  {id === 'bill' ? 'Trả bill' : 'Chuyển tiền'}
-                </AppText>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        <View style={styles.amountBox}>
-          <MoneyTextInput
-            value={parseVndInput(amountText)}
-            onChangeValue={(vnd) => setAmountText(formatVndInput(vnd))}
-            placeholder="Số tiền"
-            placeholderTextColor={colors.muted}
-            accessibilityLabel="Số tiền"
-            style={[inputStyle, styles.amountInput]}
+      <View style={[formStyles.card, { backgroundColor: colors.surface }]}>
+        <View style={formStyles.field}>
+          <FormLabel>Hình thức</FormLabel>
+          <InlineSelect
+            accessibilityLabel="Hình thức"
+            selectedKey={type}
+            onSelect={(key) => {
+              setType(key as PayType);
+              setTypeChosen(true);
+            }}
+            options={typeOptions}
           />
-          <AppText color={colors.muted} style={styles.amountSuffix} pointerEvents="none">
-            ₫
-          </AppText>
         </View>
 
-        <KeyboardAnchor style={styles.actions}>
+        <View style={styles.whoRow}>
+          <View style={[formStyles.field, styles.whoCol]}>
+            <FormLabel>Người gửi</FormLabel>
+            <InlineSelect
+              accessibilityLabel="Người gửi"
+              selectedKey={from}
+              onSelect={(name) => {
+                setFrom(name);
+                if (name === to) setTo('');
+                if (!typeChosen && !editing) setType('vay'); // như PWA: đổi người thì loại về mặc định nếu chưa tự chọn
+              }}
+              options={personOptions(options)}
+            />
+          </View>
+          {/* Mũi tên khối (thân chữ nhật + đầu tam giác, tô đặc) chỉ chiều chuyển tiền: từ người trả sang người nhận. */}
+          <Svg width={22} height={22} viewBox="0 0 24 24" style={styles.arrow} accessibilityLabel="đưa tiền cho">
+            <Path d="M2 9h11V4.5L22 12l-9 7.5V15H2z" fill={colors.muted} fillOpacity={0.6} />
+          </Svg>
+          <View style={[formStyles.field, styles.whoCol]}>
+            <FormLabel>Người nhận</FormLabel>
+            <InlineSelect
+              accessibilityLabel="Người nhận"
+              selectedKey={effectiveTo}
+              placeholder="Chưa có người"
+              placeholderIcon={badge('person')}
+              onSelect={(name) => {
+                setTo(name);
+                if (!typeChosen && !editing) setType('vay');
+              }}
+              options={personOptions(toOptions)}
+            />
+          </View>
+        </View>
+
+        <AmountField label="Số tiền" value={parseVndInput(amountText)} onChange={(value) => setAmountText(formatVndInput(typeof value === 'function' ? value(parseVndInput(amountText)) : value))} />
+
+        <View style={formStyles.field}>
+          <FormLabel>Nội dung</FormLabel>
+          <TextInput
+            value={note}
+            onChangeText={setNote}
+            placeholder="Ví dụ: Trả tiền ăn, chuyển tiền nhà"
+            placeholderTextColor={colors.muted}
+            accessibilityLabel="Nội dung"
+            style={[formStyles.input, { backgroundColor: colors.bg, borderColor: colors.line, color: colors.ink, fontFamily: AppFonts.semibold }]}
+          />
+        </View>
+
+        <View style={formStyles.field}>
+          <FormLabel>Ngày</FormLabel>
+          <DateField value={date} onPress={() => setCalendarOpen(true)} accessibilityLabel="Thời gian" />
+        </View>
+
+        <KeyboardAnchor style={formStyles.actions}>
           <Pressable
             accessibilityRole="button"
-            accessibilityState={{ disabled: !canRecord || busy }}
-            disabled={!canRecord || busy}
+            accessibilityState={{ disabled: busy }}
+            disabled={busy}
             onPress={() => void save()}
-            style={[styles.primary, { backgroundColor: colors.primary, opacity: canRecord && !busy ? 1 : 0.45 }]}>
-            <SvgIcon name="check" size={20} color={colors.primaryInk} strokeWidth={2.2} />
-            <AppText weight="semibold" color={colors.primaryInk} style={styles.primaryText}>
-              {editing ? 'Lưu thay đổi' : 'Lưu'}
+            style={[formStyles.btn, formStyles.btnSave, { backgroundColor: colors.primary }, busy && formStyles.disabled]}>
+            <AppText weight="semibold" color={colors.primaryInk} style={formStyles.btnText}>
+              {editing ? 'Lưu thay đổi' : 'Lưu giao dịch'}
             </AppText>
           </Pressable>
         </KeyboardAnchor>
+
+        {calendarOpen && (
+          <CalendarPanel
+            variant="overlay"
+            value={date}
+            today={today}
+            onCancel={() => setCalendarOpen(false)}
+            onConfirm={(picked) => {
+              setDate(picked);
+              setCalendarOpen(false);
+            }}
+          />
+        )}
       </View>
-
-      {picking && (
-        <OptionPicker
-          title={picking === 'from' ? 'Người trả' : 'Người nhận'}
-          options={picking === 'from' ? options : toOptions}
-          selected={picking === 'from' ? from : effectiveTo}
-          emptyText="Chưa có người"
-          onClose={() => setPicking(null)}
-          onPick={(option) => {
-            if (picking === 'from') {
-              setFrom(option);
-              if (option === to) setTo('');
-            } else setTo(option);
-            if (!typeChosen && !editing) setType('vay'); // như PWA: đổi người thì loại về mặc định nếu chưa tự chọn
-            setPicking(null);
-          }}
-        />
-      )}
-
-      {calendarOpen && (
-        <CalendarPanel
-          variant="popup"
-          value={date}
-          today={today}
-          onCancel={() => setCalendarOpen(false)}
-          onConfirm={(picked) => {
-            setDate(picked);
-            setCalendarOpen(false);
-          }}
-        />
-      )}
     </KeyboardAwareScrollView>
   );
 }
 
-// Số đo theo CSS `.mod-c` của PWA: thẻ bo 16 đệm 14; ô ngày rộng 150; ô chọn người cao 58; mũi tên 34; nút loại cao 38 bo 9;
-// ô số tiền lớn; "Lưu" cao 50.
+// Giao diện như form Chi tiêu quỹ: thẻ `formStyles.card`, nhãn trên ô, ô chọn (PickButton) cao 46 và bảng chọn phủ thẻ (PickPanel).
 const styles = StyleSheet.create({
-  flex: { flex: 1, minWidth: 0 },
   content: { paddingHorizontal: 12, paddingTop: 4, gap: 12 },
   loading: { marginTop: 40 },
   notice: { marginHorizontal: 12, marginTop: 12, padding: 14, borderRadius: 14 },
   noticeText: { fontSize: 14, lineHeight: 20 },
-  card: { borderRadius: AppRadius.card, padding: 14, gap: 10 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  dateBox: { width: 150 },
-  input: { height: 46, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, fontSize: 16 },
-  select: { flex: 1, minWidth: 0, minHeight: 58, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  selectText: { flex: 1, fontSize: 16 },
-  arrow: { fontSize: 30, lineHeight: 34, paddingHorizontal: 2 },
-  types: { flexDirection: 'row', gap: 6, padding: 4, borderRadius: 12 },
-  typeButton: { flex: 1, minHeight: 38, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  typeText: { fontSize: 13.5 },
-  amountBox: { justifyContent: 'center' },
-  amountInput: { height: 62, fontSize: 30, paddingRight: 78, textAlign: 'right' },
-  amountSuffix: { position: 'absolute', right: 15, fontSize: 20 },
-  actions: { flexDirection: 'row', gap: 8 },
-  primary: { flex: 1, minHeight: 50, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  primaryText: { fontSize: 17 },
-  ghost: { minHeight: 50, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  delete: { alignSelf: 'flex-start', minHeight: 40, paddingHorizontal: 14, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  whoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 4 },
+  whoCol: { flex: 1, minWidth: 0 },
+  arrow: { marginTop: 37 },
+  badge: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
 });

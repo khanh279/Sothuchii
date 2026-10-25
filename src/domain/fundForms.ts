@@ -7,7 +7,7 @@ import { DEFAULT_CONTRIBUTION_TITLE } from '@/domain/funds';
 import type { Contribution, ContributionPerson } from '@/types/fund';
 import type { Vnd } from '@/types/money';
 
-export const MAX_PEOPLE = 200;
+export const MAX_PEOPLE = 1000;
 export const PERSON_NAME_MAX = 30;
 export const FUND_TITLE_MAX = 80;
 export const DEFAULT_PERSON_PREFIX = 'Người';
@@ -18,7 +18,7 @@ export interface PersonRow {
   amount: Vnd;
 }
 
-/** Số người đóng: nguyên, từ 1 đến 200; chữ không hợp lệ coi là 1. */
+/** Số người đóng: nguyên, từ 1 đến 1000; chữ không hợp lệ coi là 1. */
 export function clampPeopleCount(value: string | number): number {
   const parsed = typeof value === 'number' ? Math.trunc(value) : parseInt(value, 10);
   return Math.max(1, Math.min(MAX_PEOPLE, Number.isFinite(parsed) ? parsed : 1));

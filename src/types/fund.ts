@@ -29,6 +29,8 @@ export interface Contribution {
   /** Khoản chi cá nhân tự ghi tương ứng với phần của "Tôi" (nếu có). */
   exp?: ExpenseRef;
   people: ContributionPerson[];
+  /** Lần đóng dùng "Thêm nhiều thành viên" (nhập số người, tên thủ công). Chỉ lưu khi true; thiếu = false (dữ liệu cũ). */
+  bulk?: boolean;
 }
 
 /**

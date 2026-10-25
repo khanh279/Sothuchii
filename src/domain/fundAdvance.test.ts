@@ -13,6 +13,8 @@ import {
   personalDebt,
   overflowExpense,
   personalDebtLabel,
+  planAdvanceReallocation,
+  planAdvanceRefund,
   planAdvanceSpend,
   planCombinedPayout,
   directSpendAvailable,
@@ -373,5 +375,82 @@ describe('directSpendAvailable', () => {
     expect(directSpendAvailable(100_000, 40_000)).toBe(140_000);
     expect(directSpendAvailable(-20_000)).toBe(0);
     expect(directSpendAvailable(-20_000, 5000)).toBe(0);
+  });
+});
+
+describe('planAdvanceReallocation', () => {
+  const base = {
+    contribs: [],
+    txns: [],
+    advances: [
+      { id: 'a1', fundId: F, person: 'An', title: '', date: '2025-10-02', amount: 100_000 },
+      { id: 'a2', fundId: F, person: 'An', title: '', date: '2025-10-03', amount: 500_000 },
+    ],
+  };
+  const spend = (id: string, amount: number, advanceId: string) => ({ id, fundId: F, title: 'Mua', date: '2025-10-04', amount, mode: 'advance' as const, payer: 'An', advanceId });
+
+  it('đã đúng phân bổ → null', () => {
+    const d = data({ ...base, expenses: [spend('x1', 100_000, 'a1'), spend('x2', 50_000, 'a2')] });
+    expect(planAdvanceReallocation(d, F, 'An')).toBeNull();
+  });
+
+  it('phân bổ cũ sai (lần cũ còn chỗ) → đổi phần, thêm phần mới khi cần, bỏ phần thừa', () => {
+    const d = data({ ...base, expenses: [spend('x1', 20_000, 'a1'), spend('x2', 130_000, 'a2')] });
+    const plan = planAdvanceReallocation(d, F, 'An')!;
+    expect(plan.updates).toEqual([
+      { id: 'x1', advanceId: 'a1', amount: 100_000 },
+      { id: 'x2', advanceId: 'a2', amount: 50_000 },
+    ]);
+    expect(plan.removes).toEqual([]);
+    expect(plan.adds).toEqual([]);
+    const one = planAdvanceReallocation(data({ ...base, expenses: [spend('x1', 150_000, 'a2')] }), F, 'An')!;
+    expect(one.updates).toEqual([{ id: 'x1', advanceId: 'a1', amount: 100_000 }]);
+    expect(one.adds).toEqual([{ anchorId: 'x1', advanceId: 'a2', amount: 50_000 }]);
+    const merged = planAdvanceReallocation(data({ ...base, expenses: [spend('x1', 60_000, 'a1'), spend('x2', 40_000, 'a2')] }), F, 'An')!;
+    expect(merged.updates).toEqual([{ id: 'x1', advanceId: 'a1', amount: 100_000 }]);
+    expect(merged.removes).toEqual(['x2']);
+  });
+
+  it('người chưa có lần giao hoặc chưa chi gì → null', () => {
+    expect(planAdvanceReallocation(data({ ...base, expenses: [] }), F, 'An')).toBeNull();
+    expect(planAdvanceReallocation(data({ ...base, expenses: [spend('x1', 10_000, 'a1')] }), F, 'Bình')).toBeNull();
+  });
+});
+
+describe('planAdvanceRefund — hoàn tiền ứng của một người có nhiều lần giao', () => {
+  const old = { ...advance('a-old', 500_000), date: '2025-10-03' };
+  const fresh = { ...advance('a-new', 300_000), date: '2025-10-09' };
+  const d = data({ advances: [old, fresh], expenses: [expense('e1', 200_000, { mode: 'advance', advanceId: 'a-old', payer: 'A' })] });
+
+  it('hoàn một phần: trừ vào lần giao MỚI nhất trước', () => {
+    expect(planAdvanceRefund(d, F, 'A', 100_000)).toEqual([{ advanceId: 'a-new', amount: 100_000 }]);
+  });
+
+  it('hoàn quá số còn giữ của lần mới thì lùi về lần cũ', () => {
+    expect(planAdvanceRefund(d, F, 'A', 400_000)).toEqual([
+      { advanceId: 'a-new', amount: 300_000 },
+      { advanceId: 'a-old', amount: 100_000 },
+    ]);
+  });
+
+  it('vượt tổng còn giữ: chỉ trả phần hoàn được (tổng 600.000)', () => {
+    expect(planAdvanceRefund(d, F, 'A', 900_000).reduce((sum, part) => sum + part.amount, 0)).toBe(600_000);
+  });
+});
+
+describe('planAdvanceRefund — ưu tiên lần giao chưa chi', () => {
+  const oldUnspent = { ...advance('u-old', 200_000), date: '2025-10-03' };
+  const fresh = { ...advance('u-new', 300_000), date: '2025-10-09' };
+  const d = data({ advances: [oldUnspent, fresh], expenses: [expense('e1', 100_000, { mode: 'advance', advanceId: 'u-new', payer: 'A' })] });
+
+  it('lần cũ chưa chi và số hoàn ≥ số giao: hoàn hết lần cũ trước, dù lần mới hơn', () => {
+    expect(planAdvanceRefund(d, F, 'A', 250_000)).toEqual([
+      { advanceId: 'u-old', amount: 200_000 },
+      { advanceId: 'u-new', amount: 50_000 },
+    ]);
+  });
+
+  it('số hoàn nhỏ hơn lần chưa chi: theo thứ tự mới → cũ như thường', () => {
+    expect(planAdvanceRefund(d, F, 'A', 150_000)).toEqual([{ advanceId: 'u-new', amount: 150_000 }]);
   });
 });

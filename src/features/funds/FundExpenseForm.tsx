@@ -15,7 +15,7 @@ import { AppFonts } from '@/constants/fonts';
 import { FundInputError } from '@/data/fundRepository';
 import { createAdvanceSynced, saveFundExpenseSynced, updateAdvanceSynced } from '@/data/fundService';
 import { AppRadius } from '@/constants/palette';
-import { FUND_TITLE_MAX, fundExpenseSavedMessage, overspends, validateFundExpense } from '@/domain/fundForms';
+import { FUND_TITLE_MAX, PERSON_NAME_MAX, fundExpenseSavedMessage, overspends, validateFundExpense } from '@/domain/fundForms';
 import { newExpenseId } from '@/domain/expenses';
 import { FUND_INSUFFICIENT_MESSAGE, defaultExpenseKind, directSpendAvailable, splitByCash, type ExpenseKind, type SpendSplit } from '@/domain/fundAdvance';
 import { formatVnd } from '@/utils/format';
@@ -49,6 +49,8 @@ interface Props {
   showTitle?: boolean;
   /** Những người thuộc quỹ này (`fundMembers`): có thì ô "Người chi" / "Người nhận ứng" chỉ xổ chọn trong số họ; bỏ trống = chọn trong danh sách người chung như cũ. */
   members?: readonly string[];
+  /** Quỹ có khoản thu dùng "Thêm nhiều thành viên": ô chọn người chi / người nhận ứng là ô NHẬP TÊN thay vì danh sách. */
+  freeNames?: boolean;
   /** Những người đang giữ tiền ứng của quỹ: mỗi người thêm một lựa chọn "Quỹ giao tiền A chi" ở Hình thức chi (khoản chi tính vào tiền A ứng trước; nhiều lần giao gộp chung, chi vào lần cũ nhất trước). */
   heldPersons?: readonly string[];
   /** Chia khoản chi của một người vào các lần giao ứng của họ (cũ nhất trước): `planAdvanceSpend` của dữ liệu quỹ hiện tại. */
@@ -73,6 +75,7 @@ function KindFields({
   kind,
   person,
   members,
+  freeNames,
   spendKey,
   spendOptions,
   onKind,
@@ -83,6 +86,7 @@ function KindFields({
   kind: ExpenseKind;
   person: string;
   members?: readonly string[];
+  freeNames?: boolean;
   /** Hồ sơ ứng trước đang chọn cho "Quỹ giao tiền A chi" (null = không chọn). */
   spendKey: string | null;
   spendOptions: readonly { key: string; name: string }[];
@@ -92,6 +96,10 @@ function KindFields({
   onPersonPick: (name: string) => void;
 }) {
   const colors = useColors();
+  /** Đã chọn "Thành viên khác": ô chọn người thành ô nhập tên (có nút quay lại chọn từ danh sách). */
+  const [typing, setTyping] = useState(false);
+  /** Vừa quay về chọn từ danh sách: danh sách người hiện ra đã xổ sẵn. */
+  const [listOpen, setListOpen] = useState(false);
   const personBadge = (
     <View style={[styles.fundBadge, { backgroundColor: colors.primarySoft }]}>
       <SvgIcon name="person" size={16} color={colors.primary} strokeWidth={2} />
@@ -128,14 +136,55 @@ function KindFields({
       {kind !== 'direct' && !spendKey && (
         <View style={formStyles.field}>
           <FormLabel>{kind === 'personal' ? 'Người chi' : 'Người nhận tiền ứng'}</FormLabel>
-          {members && members.length > 0 ? (
+          {freeNames || typing ? (
+            // Quỹ có khoản thu "nhiều thành viên" hoặc đã chọn "Thành viên khác": người chi / người nhận ứng nhập tên trực tiếp.
+            <View style={[styles.nameRow, { backgroundColor: colors.bg, borderColor: colors.line }]}>
+              {personBadge}
+              <TextInput
+                value={person}
+                onChangeText={onPersonPick}
+                maxLength={PERSON_NAME_MAX}
+                placeholder="Nhập tên"
+                placeholderTextColor={colors.muted}
+                accessibilityLabel={kind === 'personal' ? 'Người chi' : 'Người nhận tiền ứng'}
+                style={[styles.nameField, { color: colors.ink, fontFamily: AppFonts.semibold }]}
+              />
+              {!freeNames && (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Chọn từ danh sách"
+                  hitSlop={6}
+                  onPress={() => {
+                    setTyping(false);
+                    setListOpen(true);
+                    onPersonPick('');
+                  }}
+                  style={styles.backRow}
+                >
+                  <AppText weight="semibold" color={colors.primary} style={styles.backText}>
+                    Chọn từ danh sách
+                  </AppText>
+                  <View style={{ transform: [{ rotate: '90deg' }] }}>
+                    <SvgIcon name="chevronRight" size={16} color={colors.primary} strokeWidth={2} />
+                  </View>
+                </Pressable>
+              )}
+            </View>
+          ) : members && members.length > 0 ? (
             <InlineSelect
+              initiallyOpen={listOpen}
               accessibilityLabel={kind === 'personal' ? 'Người chi' : 'Người nhận tiền ứng'}
               selectedKey={person}
-              onSelect={onPersonPick}
+              onSelect={(key) => {
+                if (key === OTHER_PERSON_KEY) {
+                  setListOpen(false);
+                  setTyping(true);
+                  onPersonPick('');
+                } else onPersonPick(key);
+              }}
               placeholder="Chọn người"
               placeholderIcon={personBadge}
-              options={(person && !members.includes(person) ? [person, ...members] : [...members]).map((name) => ({ key: name, name, icon: personBadge }))}
+              options={[...(person && !members.includes(person) ? [person, ...members] : [...members]).map((name) => ({ key: name, name, icon: personBadge })), { key: OTHER_PERSON_KEY, name: 'Thành viên khác', icon: personBadge }]}
             />
           ) : (
             <Pressable
@@ -171,6 +220,9 @@ function FundWarning({ text }: { text: string }) {
   );
 }
 
+/** Lựa chọn cuối ô chọn người chi / người nhận ứng: chuyển ô thành nơi nhập tên. */
+const OTHER_PERSON_KEY = '__other__';
+
 const NO_CASH_WARNING = 'Quỹ đã hết tiền. Khoản chi này sẽ do cá nhân ứng chi.';
 const SHORT_WARNING = 'Quỹ không đủ tiền — phần còn thiếu sẽ do cá nhân ứng chi.';
 
@@ -187,6 +239,7 @@ export function FundExpenseForm({
   onPickFund,
   showTitle = true,
   members,
+  freeNames = false,
   heldPersons,
   planSpend,
 }: Props) {
@@ -300,13 +353,11 @@ export function FundExpenseForm({
       mode === 'advance'
         ? !who
           ? 'Chọn người nhận tiền ứng.'
-          : !title.trim()
-            ? 'Nhập nội dung.'
-            : !date
-              ? 'Chọn ngày giao.'
-              : amount < 0
-                ? 'Số tiền giao không hợp lệ.'
-                : null
+          : !date
+            ? 'Chọn ngày giao.'
+            : amount < 0
+              ? 'Số tiền giao không hợp lệ.'
+              : null
         : mode === 'personal' && !who
           ? 'Chọn người chi.'
           : validateFundExpense({ title, date, fundId: fund.id, amount });
@@ -439,6 +490,7 @@ export function FundExpenseForm({
             kind={kind}
             person={person}
             members={members}
+            freeNames={freeNames}
             spendKey={advanceSpendId}
             spendOptions={spendOptions}
             onKind={pickKind}
@@ -461,20 +513,23 @@ export function FundExpenseForm({
           }}
         />
 
-        <View style={formStyles.field}>
-          <FormLabel>Nội dung</FormLabel>
-          <TextInput
-            value={title}
-            onChangeText={(text) => {
-              setTitle(text);
-              setError('');
-            }}
-            maxLength={FUND_TITLE_MAX}
-            placeholder="Mua nước, thuê sân…"
-            placeholderTextColor={colors.muted}
-            style={[formStyles.input, { backgroundColor: colors.bg, borderColor: colors.line, color: colors.ink, fontFamily: AppFonts.regular }]}
-          />
-        </View>
+        {/* Giao tiền ứng không cần nội dung: chỉ chọn người nhận, số tiền và ngày. */}
+        {!givingAdvance && (
+          <View style={formStyles.field}>
+            <FormLabel>Nội dung</FormLabel>
+            <TextInput
+              value={title}
+              onChangeText={(text) => {
+                setTitle(text);
+                setError('');
+              }}
+              maxLength={FUND_TITLE_MAX}
+              placeholder="Ví dụ: Mua nước, thuê sân"
+              placeholderTextColor={colors.muted}
+              style={[formStyles.input, { backgroundColor: colors.bg, borderColor: colors.line, color: colors.ink, fontFamily: AppFonts.semibold }]}
+            />
+          </View>
+        )}
 
         <View style={formStyles.twoCols}>
           <View style={[formStyles.field, formStyles.dateCol]}>
@@ -596,6 +651,7 @@ export function FundExpenseForm({
           kind={kind}
           person={person}
           members={members}
+          freeNames={freeNames}
           spendKey={advanceSpendId}
           spendOptions={spendOptions}
           onKind={pickKind}
@@ -620,22 +676,24 @@ export function FundExpenseForm({
           }}
         />
       </View>
-      <View>
-        <AppText weight="medium" color={colors.muted} style={styles.label}>
-          Nội dung
-        </AppText>
-        <TextInput
-          value={title}
-          onChangeText={(text) => {
-            setTitle(text);
-            setError('');
-          }}
-          maxLength={FUND_TITLE_MAX}
-          placeholder="Ví dụ: Mua nước, thuê sân"
-          placeholderTextColor={colors.muted}
-          style={[styles.input, { backgroundColor: colors.bg, borderColor: colors.line, color: colors.ink, fontFamily: AppFonts.semibold }]}
-        />
-      </View>
+      {!givingAdvance && (
+        <View>
+          <AppText weight="medium" color={colors.muted} style={styles.label}>
+            Nội dung
+          </AppText>
+          <TextInput
+            value={title}
+            onChangeText={(text) => {
+              setTitle(text);
+              setError('');
+            }}
+            maxLength={FUND_TITLE_MAX}
+            placeholder="Ví dụ: Mua nước, thuê sân"
+            placeholderTextColor={colors.muted}
+            style={[styles.input, { backgroundColor: colors.bg, borderColor: colors.line, color: colors.ink, fontFamily: AppFonts.semibold }]}
+          />
+        </View>
+      )}
       <View>
         <AppText weight="medium" color={colors.muted} style={styles.label}>
           Ngày
@@ -707,6 +765,11 @@ export function FundExpenseForm({
 
 const styles = StyleSheet.create({
   form: { gap: 12 },
+  /** Ô nhập tên (sau "Thành viên khác"): cùng dáng hàng chọn người, có biểu tượng bên trái và nút quay lại danh sách bên phải. */
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 46, paddingVertical: 6, paddingLeft: 6, paddingRight: 12, borderWidth: 1, borderRadius: 12 },
+  nameField: { flex: 1, minWidth: 0, height: 34, fontSize: 15, padding: 0 },
+  backRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  backText: { fontSize: 13 },
   fundBadge: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   fundList: { gap: 8 },
   fundItem: { minHeight: 52, borderRadius: AppRadius.field, borderWidth: 1, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },

@@ -1,10 +1,10 @@
 import { Stack } from 'expo-router';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { CardHead, EmptyState, ScreenTitle } from '@/components/design';
+import { CardHead, ChipRow, EmptyState, ScreenTitle } from '@/components/design';
 import { PageLayout } from '@/constants/layout';
 import { AppRadius } from '@/constants/palette';
 import { dayHeading, periodTitle } from '@/domain/expenses';
@@ -16,6 +16,16 @@ import { useColors } from '@/hooks/use-colors';
 import { useSharedPeriod } from '@/hooks/use-shared-period';
 import { formatVnDate, todayStr } from '@/utils/date';
 import { formatVnd } from '@/utils/format';
+
+/** Các mục lọc: khớp `typeLabel` của giao dịch; "Bill" gộp Chia bill và Trả bill (thẻ lịch sử vẫn ghi riêng từng loại). */
+const BILL_TYPES = ['Chia bill', 'Trả bill'];
+const TYPE_OPTIONS = [
+  { value: 'all', label: 'Tất cả' },
+  { value: 'Chi tiêu', label: 'Chi tiêu' },
+  { value: 'Chuyển tiền', label: 'Chuyển tiền' },
+  { value: 'bill', label: 'Bill' },
+  { value: 'Quỹ nhóm', label: 'Quỹ nhóm' },
+] as const;
 
 interface Day {
   date: string;
@@ -35,22 +45,26 @@ export default function TransactionsScreen() {
   const debt = useDebtData();
   const { list, settings, loaded, error } = useTransactionFeed({ window: period, filterPeriod: period, pays: debt.pays, paysLoaded: debt.loaded, paysError: debt.error, limit: Infinity });
 
+  const [type, setType] = useState<string>('all');
+  /** Lọc theo mục (loại giao dịch); các chip luôn đủ để chuyển qua lại. */
+  const shown = useMemo(() => (type === 'all' ? list : list.filter((item) => (type === 'bill' ? BILL_TYPES.includes(item.typeLabel) : item.typeLabel === type))), [list, type]);
+
   const days = useMemo<Day[]>(() => {
     const groups: Day[] = [];
-    for (const item of list) {
+    for (const item of shown) {
       const last = groups[groups.length - 1];
       if (last && last.date === item.date) last.items.push(item);
       else groups.push({ date: item.date, items: [item] });
     }
     return groups;
-  }, [list]);
-  const totalOut = list.filter((item) => item.flow === 'out').reduce((sum, item) => sum + item.amount, 0);
-  const totalIn = list.filter((item) => item.flow === 'in').reduce((sum, item) => sum + item.amount, 0);
+  }, [shown]);
+  const totalOut = shown.filter((item) => item.flow === 'out').reduce((sum, item) => sum + item.amount, 0);
+  const totalIn = shown.filter((item) => item.flow === 'in').reduce((sum, item) => sum + item.amount, 0);
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
-      <Stack.Screen options={{ title: 'Giao dịch', headerShown: false }} />
-      <ScreenTitle title="Giao dịch" topInset={insets.top} />
+      <Stack.Screen options={{ title: 'Giao dịch gần đây', headerShown: false }} />
+      <ScreenTitle title="Giao dịch gần đây" topInset={insets.top} />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]}>
         {error ? (
           <View style={[styles.notice, { backgroundColor: colors.dangerSoft }]}>
@@ -63,8 +77,20 @@ export default function TransactionsScreen() {
         ) : (
           <View style={[styles.card, { backgroundColor: colors.surface }]}>
             <View style={styles.head}>
-              <CardHead title="Tất cả giao dịch" subtitle={periodTitle(period)} rightTop={`${list.length} giao dịch`} rightBottom={`−${formatVnd(totalOut)}${totalIn > 0 ? ` · +${formatVnd(totalIn)}` : ''}`} />
+              <CardHead fit title="Tất cả giao dịch" subtitle={periodTitle(period)} rightTop={`${shown.length} giao dịch`}
+                rightBottom={
+                  <View style={styles.totals}>
+                    <AppText color={colors.success} style={styles.total} numberOfLines={1} adjustsFontSizeToFit>
+                      +{formatVnd(totalIn)}
+                    </AppText>
+                    <AppText color={colors.danger} style={styles.total} numberOfLines={1} adjustsFontSizeToFit>
+                      −{formatVnd(totalOut)}
+                    </AppText>
+                  </View>
+                }
+              />
             </View>
+            <ChipRow options={TYPE_OPTIONS} value={type} onChange={setType} />
             {days.length === 0 ? (
               <EmptyState text="Không có giao dịch nào trong kỳ này" icon="check" />
             ) : (
@@ -77,7 +103,7 @@ export default function TransactionsScreen() {
                     , {formatVnDate(day.date)}
                   </AppText>
                   {day.items.map((item, index) => (
-                    <TransactionItemRow key={item.key} item={item} settings={settings} first={index === 0} />
+                    <TransactionItemRow key={item.key} item={item} settings={settings} first={index === 0} showDate={false} />
                   ))}
                 </View>
               ))
@@ -97,6 +123,8 @@ const styles = StyleSheet.create({
   noticeText: { fontSize: 15 },
   card: { borderRadius: AppRadius.card, overflow: 'hidden', paddingBottom: 8 },
   head: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 6 },
+  totals: { alignItems: 'flex-end' },
+  total: { fontSize: 11, lineHeight: 15 },
   day: { paddingHorizontal: 16, paddingTop: 10 },
   dayName: { fontSize: 13, lineHeight: 18.85 },
 });

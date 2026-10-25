@@ -26,8 +26,8 @@ describe('filterCashMovementDays (lịch sử chỉ gồm khoản làm đổi s�
   const history = buildFundHistory(data, 'all', ALL);
   const kept = filterCashMovementDays(history.days, data).flatMap((day) => day.entries);
 
-  it('giữ đóng quỹ, chi trực tiếp, giao ứng, hoàn tiền, quỹ trả; bỏ cá nhân ứng chi và chi từ tiền ứng', () => {
-    expect(kept.map((entry) => entry.id).sort()).toEqual(['a1', 'c1', 't1', 't2', 'x1', 'x4']);
+  it('giữ đóng quỹ, chi trực tiếp, giao ứng (đã trừ hoàn tiền), quỹ trả; bỏ cá nhân ứng chi và chi từ tiền ứng', () => {
+    expect(kept.map((entry) => entry.id).sort()).toEqual(['a1', 'c1', 't2', 'x1', 'x4']);
   });
 
   it('khoản chia nguồn chỉ hiện phần quỹ chi (phần làm đổi số dư thực tế)', () => {
@@ -36,7 +36,7 @@ describe('filterCashMovementDays (lịch sử chỉ gồm khoản làm đổi s�
   });
 
   it('không sửa dữ liệu gốc và bỏ ngày không còn dòng nào', () => {
-    expect(history.days.flatMap((day) => day.entries)).toHaveLength(8);
+    expect(history.days.flatMap((day) => day.entries)).toHaveLength(7);
     const onlyPersonal = filterCashMovementDays([{ date: '2025-10-04', entries: history.days.flatMap((d) => d.entries).filter((e) => e.id === 'x2') }], data);
     expect(onlyPersonal).toEqual([]);
   });

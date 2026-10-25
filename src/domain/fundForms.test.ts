@@ -19,14 +19,14 @@ import { parseVndInput } from './money';
 const row = (name: string, amount: number) => ({ name, amount });
 
 describe('số người đóng', () => {
-  it('giới hạn 1–200, chữ không hợp lệ là 1', () => {
+  it('giới hạn 1–1000, chữ không hợp lệ là 1', () => {
     expect(clampPeopleCount('0')).toBe(1);
     expect(clampPeopleCount('-5')).toBe(1);
     expect(clampPeopleCount('abc')).toBe(1);
     expect(clampPeopleCount('')).toBe(1);
     expect(clampPeopleCount('7')).toBe(7);
-    expect(clampPeopleCount('999')).toBe(200);
-    expect(clampPeopleCount(200.9)).toBe(200);
+    expect(clampPeopleCount('9999')).toBe(1000);
+    expect(clampPeopleCount(1000.9)).toBe(1000);
     expect(clampPeopleCount(3)).toBe(3);
   });
 
@@ -34,7 +34,7 @@ describe('số người đóng', () => {
     const base = [row('Tôi', 50_000), row('An', 10_000)];
     expect(resizeRows(base, 4, 30_000)).toEqual([row('Tôi', 50_000), row('An', 10_000), row('', 30_000), row('', 30_000)]);
     expect(resizeRows(base, 1, 0)).toEqual([row('Tôi', 50_000)]);
-    expect(resizeRows(base, 500, 0)).toHaveLength(200);
+    expect(resizeRows(base, 5000, 0)).toHaveLength(1000);
     expect(resizeRows([], 0, 5)).toEqual([row('', 5)]); // luôn còn ít nhất 1 dòng
   });
 

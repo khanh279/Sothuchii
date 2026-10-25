@@ -354,6 +354,39 @@ export function planAdvanceSpend(data: Data, fundId: string | 'all', person: str
 }
 
 /**
+ * HOÀN TIỀN ỨNG của MỘT người (các lần giao là một khoản chung): ƯU TIÊN hoàn hết các lần giao chưa chi đồng nào (số hoàn ≥ số còn giữ của lần đó), rồi trừ vào lần giao MỚI NHẤT còn giữ tiền trước, lùi dần về cũ (ngược với chi: cũ → mới), mỗi lần giao tối đa
+ * số tiền còn giữ. Tổng còn giữ không đủ thì trả danh sách chỉ gồm phần hoàn được (người gọi so với `amount` để báo lỗi). `fundId` = 'all' thì lấy mọi quỹ.
+ */
+export function planAdvanceRefund(data: Data, fundId: string | 'all', person: string, amount: Vnd): { advanceId: string; amount: Vnd }[] {
+  const who = person.trim();
+  const advances = advancesOf(data)
+    .filter((advance) => (fundId === 'all' || advance.fundId === fundId) && advance.person.trim() === who)
+    .sort(byDateThenKey((item) => item.id))
+    .reverse();
+  const parts: { advanceId: string; amount: Vnd }[] = [];
+  const taken = new Set<string>();
+  let left = amount;
+  // Ưu tiên 1: lần giao CHƯA CHI đồng nào mà số hoàn đủ trả hết số còn giữ → hoàn hết lần đó (nơi ghi sẽ xoá lần giao), mới → cũ.
+  for (const advance of advances) {
+    const summary = advanceSummary(data, advance);
+    if (summary.spent !== 0 || summary.paidExtra !== 0 || summary.held <= 0 || summary.held > left) continue;
+    parts.push({ advanceId: advance.id, amount: summary.held });
+    taken.add(advance.id);
+    left -= summary.held;
+  }
+  // Sau đó các lần giao còn lại, mới nhất → cũ nhất, mỗi lần tối đa số còn giữ.
+  for (const advance of advances) {
+    if (!(left > 0)) break;
+    if (taken.has(advance.id)) continue;
+    const part = Math.min(advanceSummary(data, advance).held, left);
+    if (part <= 0) continue;
+    parts.push({ advanceId: advance.id, amount: part });
+    left -= part;
+  }
+  return parts;
+}
+
+/**
  * Khoản chi làm A chi VƯỢT số tiền được giao (để ghi chú dòng "Chi vượt tiền ứng"): xếp các khoản chi từ tiền ứng của người đó trong quỹ từ cũ đến mới, cộng dồn;
  * khoản mới nhất làm tổng chi vượt tổng đã giao thì được trả về. Không vượt thì `null`.
  */
@@ -377,6 +410,67 @@ export function overflowExpense(data: Data, fundId: string, person: string): Fun
     if (total > given) last = expense;
   }
   return last;
+}
+
+/** Kế hoạch phân bổ lại các khoản chi từ tiền ứng của một người (xem `planAdvanceReallocation`). */
+export interface AdvanceReallocation {
+  /** Khoản chi giữ lại nhưng đổi hồ sơ ứng / số tiền. */
+  updates: { id: string; advanceId: string; amount: Vnd }[];
+  /** Mã khoản chi (phần chi) không còn cần. */
+  removes: string[];
+  /** Phần chi mới cần thêm: sao chép nội dung, ngày, người chi từ khoản `anchorId`. */
+  adds: { anchorId: string; advanceId: string; amount: Vnd }[];
+}
+
+/**
+ * PHÂN BỔ LẠI chi từ tiền ứng của MỘT người trong một quỹ sau khi hồ sơ giao ứng đổi (sửa số tiền / ngày): các khoản chi cùng ngày, cùng nội dung được xem là MỘT khoản chi
+ * (đã được chia thành nhiều phần khi ghi); xếp các khoản chi theo ngày (cũ trước), mỗi khoản lần lượt lấp đầy các lần giao CŨ NHẤT trước (mỗi lần giao tối đa số tiền giao);
+ * phần vượt tổng tiền giao ghi vào lần giao MỚI NHẤT (thành quỹ nợ). Tổng tiền của từng khoản chi không đổi. Trả về `null` nếu không cần đổi gì (hoặc người đó chưa có lần giao nào).
+ */
+export function planAdvanceReallocation(data: Data, fundId: string, person: string): AdvanceReallocation | null {
+  const who = person.trim();
+  const advances = advancesOf(data)
+    .filter((advance) => advance.fundId === fundId && advance.person.trim() === who)
+    .sort(byDateThenKey((item) => item.id));
+  if (advances.length === 0) return null;
+  const ids = new Set(advances.map((advance) => advance.id));
+  const pieces = data.expenses.filter((expense) => expenseKind(expense) === 'advance' && expense.advanceId && ids.has(expense.advanceId));
+  if (pieces.length === 0) return null;
+
+  const groups = new Map<string, FundExpense[]>();
+  for (const piece of pieces) {
+    const key = `${piece.date}|${piece.title}`;
+    groups.set(key, [...(groups.get(key) ?? []), piece]);
+  }
+  const ordered = [...groups.values()].sort((a, b) => (a[0].date === b[0].date ? data.expenses.indexOf(a[0]) - data.expenses.indexOf(b[0]) : a[0].date < b[0].date ? -1 : 1));
+
+  const capacity = new Map(advances.map((advance) => [advance.id, advance.amount] as const));
+  const newest = advances[advances.length - 1].id;
+  const result: AdvanceReallocation = { updates: [], removes: [], adds: [] };
+  for (const group of ordered) {
+    let left = sum(group.map((piece) => piece.amount));
+    const parts: { advanceId: string; amount: Vnd }[] = [];
+    for (const advance of advances) {
+      if (left <= 0) break;
+      const take = Math.min(capacity.get(advance.id) ?? 0, left);
+      if (take <= 0) continue;
+      parts.push({ advanceId: advance.id, amount: take });
+      capacity.set(advance.id, (capacity.get(advance.id) ?? 0) - take);
+      left -= take;
+    }
+    if (left > 0) {
+      const last = parts.find((part) => part.advanceId === newest);
+      if (last) last.amount += left;
+      else parts.push({ advanceId: newest, amount: left });
+    }
+    parts.forEach((part, index) => {
+      const piece = group[index];
+      if (!piece) result.adds.push({ anchorId: group[0].id, advanceId: part.advanceId, amount: part.amount });
+      else if (piece.advanceId !== part.advanceId || piece.amount !== part.amount) result.updates.push({ id: piece.id, advanceId: part.advanceId, amount: part.amount });
+    });
+    for (const extra of group.slice(parts.length)) result.removes.push(extra.id);
+  }
+  return result.updates.length || result.removes.length || result.adds.length ? result : null;
 }
 
 /**

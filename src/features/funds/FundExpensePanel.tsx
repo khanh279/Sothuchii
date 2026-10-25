@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
@@ -7,7 +7,9 @@ import { InlineSelect } from '@/components/inline-select';
 import { SvgIcon } from '@/components/svg-icon';
 import { AppRadius } from '@/constants/palette';
 import { advanceSummary, fundPosition, planAdvanceSpend } from '@/domain/fundAdvance';
-import { fundBalance, fundMembers } from '@/domain/funds';
+import { loadPeople } from '@/data/peopleRepository';
+import { fundBalance } from '@/domain/funds';
+import { memberOptions } from '@/domain/people';
 import { ContributionForm } from '@/features/funds/ContributionForm';
 import { FundExpenseForm } from '@/features/funds/FundExpenseForm';
 import { useColors } from '@/hooks/use-colors';
@@ -33,6 +35,17 @@ interface Props {
 export function FundExpensePanel({ data, onChanged, mode = 'chi', initialFundId }: Props) {
   const colors = useColors();
   const [pickedId, setPickedId] = useState<string | null>(initialFundId ?? null);
+  /** Danh sách người trong mục Thiết lập: nguồn DUY NHẤT của danh sách thành viên ở thu / chi quỹ (cùng "Tôi"). */
+  const [peopleList, setPeopleList] = useState<string[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    loadPeople()
+      .then((list) => !cancelled && setPeopleList(list))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const fund = data.funds.find((item) => item.id === pickedId) ?? null;
 
   const balanceColor = (id: string) => (fundBalance(data, id) < 0 ? colors.danger : colors.success);
@@ -57,44 +70,48 @@ export function FundExpensePanel({ data, onChanged, mode = 'chi', initialFundId 
     );
   }
 
+  const fundSelect = (
+    <View style={formStyles.field}>
+      <FormLabel>Quỹ</FormLabel>
+      <InlineSelect
+        accessibilityLabel="Quỹ"
+        selectedKey={fund.id}
+        onSelect={setPickedId}
+        options={data.funds.map((item) => ({
+          key: item.id,
+          name: item.name,
+          trailing: formatVnd(fundBalance(data, item.id)),
+          trailingColor: balanceColor(item.id),
+          icon: (
+            <View style={[styles.badge, { backgroundColor: colors.primarySoft }]}>
+              <SvgIcon name="people" size={16} color={colors.primary} strokeWidth={2} />
+            </View>
+          ),
+        }))}
+      />
+    </View>
+  );
+
+  // Thu quỹ: ô chọn quỹ nằm hàng đầu của thẻ trên cùng trong form (hai thẻ như trang tạo bill).
+  if (mode === 'thu') return <ContributionForm key={fund.id} fund={fund} header={fundSelect} onChanged={onChanged} />;
+
   return (
     <View style={styles.list}>
-      <View style={formStyles.field}>
-        <FormLabel>Quỹ</FormLabel>
-        <InlineSelect
-          accessibilityLabel="Quỹ"
-          selectedKey={fund.id}
-          onSelect={setPickedId}
-          options={data.funds.map((item) => ({
-            key: item.id,
-            name: item.name,
-            trailing: formatVnd(fundBalance(data, item.id)),
-            trailingColor: balanceColor(item.id),
-            icon: (
-              <View style={[styles.badge, { backgroundColor: colors.primarySoft }]}>
-                <SvgIcon name="people" size={16} color={colors.primary} strokeWidth={2} />
-              </View>
-            ),
-          }))}
-        />
-      </View>
-      {mode === 'thu' ? (
-        <ContributionForm key={fund.id} fund={fund} onChanged={onChanged} />
-      ) : (
-        <FundExpenseForm
-          key={fund.id}
-          fund={fund}
-          members={fundMembers(data, fund.id)}
-          heldPersons={[
-            ...new Set((data.advances ?? []).filter((advance) => advance.fundId === fund.id && advanceSummary(data, advance).held > 0).map((advance) => advance.person.trim())),
-          ]}
-          planSpend={(spendPerson, spendAmount) => planAdvanceSpend(data, fund.id, spendPerson, spendAmount)}
-          showTitle={false}
-          balance={fundBalance(data, fund.id)}
-          cash={fundPosition(data, fund.id).cash}
-          onChanged={onChanged}
-        />
-      )}
+      {fundSelect}
+      <FundExpenseForm
+        key={fund.id}
+        fund={fund}
+        members={memberOptions(peopleList, [])}
+        freeNames={data.contribs.some((contribution) => contribution.fundId === fund.id && contribution.bulk)}
+        heldPersons={[
+          ...new Set((data.advances ?? []).filter((advance) => advance.fundId === fund.id && advanceSummary(data, advance).held > 0).map((advance) => advance.person.trim())),
+        ]}
+        planSpend={(spendPerson, spendAmount) => planAdvanceSpend(data, fund.id, spendPerson, spendAmount)}
+        showTitle={false}
+        balance={fundBalance(data, fund.id)}
+        cash={fundPosition(data, fund.id).cash}
+        onChanged={onChanged}
+      />
     </View>
   );
 }

@@ -108,7 +108,7 @@ export function PickPanel({ title, children, style }: { title: string; children:
 
 export const formStyles = StyleSheet.create({
   /** Khung form: bo 22, đệm 16, các khối cách nhau 16 (đo từ PWA). */
-  card: { borderRadius: AppRadius.hero, padding: 16, gap: 16 },
+  card: { borderRadius: AppRadius.hero, padding: 16, gap: 8 },
   title: { fontSize: 18, lineHeight: 26 },
   field: { gap: 6 },
   label: { fontSize: 13, lineHeight: 19 },

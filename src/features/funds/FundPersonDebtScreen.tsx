@@ -6,14 +6,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from '@/components/app-text';
 import { DetailNotice } from '@/components/detail-parts';
 import { EmptyState, PrimaryButton, ScreenTitle, SecondaryButton } from '@/components/design';
-import { SheetFrame, SheetHeader, useSheetClose } from '@/components/sheet-frame';
 import { PayPageFrame } from '@/components/pay-page-frame';
 import { PAY_ACTION_BAR_CLEARANCE, PayActionBar } from '@/components/pay-action-bar';
-import { PAYOUT_NO_CASH_MESSAGE, overflowExpense, advanceSummary, fundPersonBalances, fundPersonTargets } from '@/domain/fundAdvance';
+import { PAYOUT_NO_CASH_MESSAGE, advanceSummary, overflowExpense, fundPersonBalances, fundPersonTargets } from '@/domain/fundAdvance';
 import { PERSON_ITEM_LABEL, buildPersonFundDetail, filterPersonDetailBySide, type PersonDebtSide, type PersonFundItem } from '@/domain/fundPerson';
 import { FundPayFlow, isFundPayBlocked } from '@/features/funds/FundPayFlow';
 import { useFundData } from '@/features/funds/hooks';
-import { AdvanceSpendCard } from '@/features/funds/AdvanceSpendCard';
+import { AdvanceSpendCard, advanceSpendItems } from '@/features/funds/AdvanceSpendCard';
 import { useColors } from '@/hooks/use-colors';
 import { formatVnDate } from '@/utils/date';
 import { formatVnd } from '@/utils/format';
@@ -32,9 +31,9 @@ export default function FundPersonDebtScreen() {
   const insets = useSafeAreaInsets();
   const { data, loaded, error, reload } = useFundData();
   const [payOpen, setPayOpen] = useState(false);
-  /** Trang "Nợ quỹ": `choosing` = đang chọn hồ sơ ứng trước cho nút "Hoàn tiền ứng" (khi người đó có nhiều hồ sơ còn giữ tiền). */
-  const [choosing, setChoosing] = useState(false);
   const isHeld = side === 'held';
+  /** Trang "Nợ quỹ": đang mở danh sách các lần giao dưới dòng "Tổng giao A ứng". */
+  const [lotsOpen, setLotsOpen] = useState(false);
 
   const balance = useMemo(() => fundPersonBalances(data, fund).find((item) => item.person === person.trim()), [data, fund, person]);
   const detail = useMemo(() => {
@@ -48,13 +47,9 @@ export default function FundPersonDebtScreen() {
   const heldAdvances = targets.filter((item) => item.kind === 'refund' && item.advanceId);
   const noCash = targets.some((item) => isFundPayBlocked(data, item));
 
-  /** Hoàn tiền ứng: một hồ sơ thì mở thẳng; nhiều hồ sơ thì chọn hồ sơ trước. (Chi tiêu thì gộp các lần giao, không chọn.) */
+  /** Hoàn tiền ứng: gộp mọi lần giao của người đó thành một khoản; hoàn một phần thì trừ vào lần giao mới nhất trước. */
   function startRefund() {
-    if (heldAdvances.length === 1) openRefund(heldAdvances[0]);
-    else setChoosing(true);
-  }
-  function openRefund(item: (typeof heldAdvances)[number]) {
-    if (item.advanceId) router.push({ pathname: '/quy/ung-chi', params: { mode: 'refund', id: item.advanceId } });
+    router.push({ pathname: '/quy/ung-chi', params: { mode: 'refund', person: person.trim(), fund } });
   }
 
   let body;
@@ -67,9 +62,18 @@ export default function FundPersonDebtScreen() {
     /** Phía "Quỹ nợ": chỉ liệt kê các khoản người đó ỨNG CHI (không có dòng tổng hợp hay khoản quỹ trả), và bỏ các khoản quỹ đã trả hết. */
     // Số còn nợ của từng khoản chi (khoản đã được quỹ trả hết thì không có trong danh sách này và bị bỏ khỏi trang).
     const remainingOf = new Map(targets.map((target) => [target.expenseId, target.remaining] as const));
-    const spendItems = detail.items.filter((entry) => entry.kind === 'advanceSpend');
-    /** Số đã chi của từng hồ sơ ứng (để ghi chú trạng thái chi dưới số tiền ứng). */
-    const spentOf = new Map((data.advances ?? []).map((advance) => [advance.id, advanceSummary(data, advance).spent] as const));
+    // Phía "Nợ quỹ": chỉ tính các lần giao CHƯA hoàn tất. Lần giao đã chi hết / hoàn hết (số dư về 0) coi như xong chu kỳ: không hiện nữa, các khoản phát sinh sau của người này tính lại từ đầu
+    // (dữ liệu vẫn nằm trong Lịch sử quỹ, không bị xoá).
+    const liveLots = (data.advances ?? [])
+      .filter((item) => (fund === 'all' || item.fundId === fund) && item.person.trim() === person.trim())
+      .map((item) => advanceSummary(data, item))
+      .filter((summary) => summary.state !== 'settled')
+      .sort((x, y) => (x.advance.date === y.advance.date ? 0 : x.advance.date < y.advance.date ? -1 : 1));
+    const liveIds = new Set(liveLots.map((summary) => summary.advance.id));
+    const heldGiven = liveLots.reduce((total, summary) => total + summary.given, 0);
+    const heldSpent = liveLots.reduce((total, summary) => total + summary.spent, 0);
+    const heldRefunded = liveLots.reduce((total, summary) => total + summary.refunded, 0);
+    const spendItems = isHeld ? advanceSpendItems(data, fund, person).filter((entry) => !!entry.advanceId && liveIds.has(entry.advanceId)) : detail.items.filter((entry) => entry.kind === 'advanceSpend');
     // Trang "Nợ quỹ": các lần giao ứng chưa chi hết (khoản đã chi hết không hiện; lịch sử quỹ vẫn lưu đủ).
     // Phía "Quỹ nợ": thêm các khoản A chi VƯỢT số tiền được giao (quỹ nợ phần vượt); chạm để xem vì sao nợ.
     // Khoản chi làm vượt: tên + ngày hiện ở ghi chú nhỏ dưới dòng.
@@ -91,7 +95,7 @@ export default function FundPersonDebtScreen() {
       side === 'owed'
         ? [...detail.items.filter((entry) => entry.kind === 'personalSpend' && remainingOf.has(entry.id)), ...overflowItems]
         : isHeld
-          ? detail.items.filter((entry) => entry.kind === 'advance' && (spentOf.get(entry.id) ?? 0) < entry.amount)
+          ? [] // Trang "Nợ quỹ": khối riêng (xem `HeldLine`), không dùng danh sách chung.
           : detail.items;
     if (!isHeld && side !== 'owed' && detail.given > 0) rows.push({ label: 'Quỹ đã giao ứng', value: formatVnd(detail.given) });
     if (!isHeld && side !== 'owed' && detail.spentFromAdvance > 0) rows.push({ label: 'Đã chi từ tiền ứng', value: formatVnd(detail.spentFromAdvance) });
@@ -107,8 +111,8 @@ export default function FundPersonDebtScreen() {
           amount={formatVnd(owed > 0 ? owed : held)}
           amountColor={owed > 0 ? colors.danger : held > 0 ? colors.warning : undefined}
           caption={owed > 0 && held > 0 ? `Đang giữ ứng ${formatVnd(held)}` : undefined}
-          detailsTitle={side === 'owed' ? `Các khoản ${person} ứng chi` : isHeld ? `Các khoản giao ${person} ứng` : `Các khoản · ${person}`}
-          detailsCount={`${items.length} khoản`}
+          detailsTitle={side === 'owed' ? `Các khoản ${person} ứng chi` : isHeld ? undefined : `Các khoản · ${person}`}
+          detailsCount={isHeld ? undefined : `${items.length} khoản`}
         >
           {rows.length > 0 && (
             <View style={styles.summary}>
@@ -124,7 +128,21 @@ export default function FundPersonDebtScreen() {
               ))}
             </View>
           )}
-          {items.length === 0 ? (
+          {isHeld ? (
+            liveLots.length === 0 ? (
+              <EmptyState text="Chưa có khoản nào" icon="check" />
+            ) : (
+              <View>
+                <HeldLine label={`Tổng giao ${person} ứng`} value={formatVnd(heldGiven)} bold open={lotsOpen} onPress={() => setLotsOpen((open) => !open)} />
+                {lotsOpen &&
+                  liveLots.map((summary) => (
+                    <HeldLine key={summary.advance.id} sub label={`Ngày ${formatVnDate(summary.advance.date)}`} value={formatVnd(summary.given)} />
+                  ))}
+                <HeldLine label={`${person} đã chi`} value={formatVnd(heldSpent)} bold top />
+                <HeldLine label={`${person} hoàn tiền`} value={formatVnd(heldRefunded)} bold top />
+              </View>
+            )
+          ) : items.length === 0 ? (
             <EmptyState text="Chưa có khoản nào" icon="check" />
           ) : (
             <View>
@@ -143,17 +161,17 @@ export default function FundPersonDebtScreen() {
                     <AppText color={colors.muted} style={styles.itemSub}>
                       {entry.kind === 'overflow'
                         ? [entry.note, formatVnDate(entry.date)].filter(Boolean).join(' · ')
-                        : side === 'owed' || isHeld
-                          ? formatVnDate(entry.date)
-                          : `${PERSON_ITEM_LABEL[entry.kind]} · ${formatVnDate(entry.date)}`}
+                        : isHeld
+                          ? (entry.note ?? '')
+                          : side === 'owed'
+                            ? formatVnDate(entry.date)
+                            : `${PERSON_ITEM_LABEL[entry.kind]} · ${formatVnDate(entry.date)}`}
                     </AppText>
                   </View>
                   <View style={styles.itemRight}>
                     <AppText weight="bold" color={entry.kind === 'refund' ? colors.success : entry.kind === 'payout' ? colors.muted : undefined} style={styles.itemAmount}>
                       {formatVnd(entry.amount)}
                     </AppText>
-                    {/* Khoản giao ứng: ghi chú nhỏ số ĐÃ CHI từ khoản ứng đó ngay dưới số tiền (chỉ khi đã chi). */}
-                    {isHeld && entry.kind === 'advance' && <SpendNote spent={spentOf.get(entry.id) ?? 0} />}
                     {/* Khoản đã được quỹ trả một phần: ghi chú nhỏ số ĐÃ THANH TOÁN ngay dưới số tiền. */}
                     {side === 'owed' && (remainingOf.get(entry.id) ?? entry.amount) < entry.amount && (
                       <AppText color={colors.warning} style={styles.itemSub}>
@@ -188,64 +206,61 @@ export default function FundPersonDebtScreen() {
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom + (canPay ? PAY_ACTION_BAR_CLEARANCE : 0) }]}>{body}</ScrollView>
       <PayActionBar visible={canPay} bottom={16} onPress={() => setPayOpen(true)} />
       {payOpen && <FundPayFlow data={data} person={person.trim()} scope={fund} side={side} reload={reload} onClose={() => setPayOpen(false)} />}
-      {choosing && (
-        <SheetFrame onClose={() => setChoosing(false)}>
-          <View style={styles.chooser}>
-            <SheetHeader title="Chọn hồ sơ ứng trước" />
-            <AdvanceRows
-              advances={heldAdvances.map((item) => ({ key: item.key, title: item.title || 'Giao tiền ứng', held: item.remaining }))}
-              onPick={(key, hide) => {
-                const item = heldAdvances.find((candidate) => candidate.key === key);
-                hide(() => {
-                  if (item) openRefund(item);
-                });
-              }}
-            />
-          </View>
-        </SheetFrame>
-      )}
     </View>
   );
 }
 
-/** Ghi chú nhỏ dưới số tiền của một lần giao ứng chưa chi hết: "Đã chi <số đã chi>" (chưa chi = "Đã chi 0 đ"). */
-function SpendNote({ spent }: { spent: number }) {
-  const colors = useColors();
-  return (
-    <AppText color={colors.muted} style={styles.itemSub}>
-      Đã chi {formatVnd(spent)}
-    </AppText>
-  );
-}
-
-/** Danh sách hồ sơ ứng trước người đó còn giữ tiền (tên hồ sơ và số còn giữ), để chọn hồ sơ cho nút "Hoàn tiền ứng". */
-function AdvanceRows({
-  advances,
-  onPick,
+/**
+ * Một dòng của khối "Tiền giao ứng" ở trang Nợ quỹ: nhãn bên trái, số tiền bên phải. `bold` = dòng tiêu đề nhóm (in đậm); `sub` = dòng chi tiết nhỏ bên dưới nhóm
+ * (`note` = ghi chú nhỏ dưới nhãn, vd. ngày); `top` kẻ đường mảnh phía trên để tách nhóm.
+ */
+function HeldLine({
+  label,
+  value,
+  bold,
+  sub,
+  note,
+  top,
+  open,
+  onPress,
 }: {
-  advances: readonly { key: string; title: string; held: number }[];
-  onPick: (key: string, hide: (after?: () => void) => void) => void;
+  label: string;
+  value: string;
+  bold?: boolean;
+  sub?: boolean;
+  note?: string;
+  top?: boolean;
+  /** Có `onPress` thì dòng là nút mở / đóng danh sách bên dưới (`open` = đang mở, hiện mũi tên). */
+  open?: boolean;
+  onPress?: () => void;
 }) {
   const colors = useColors();
-  const hide = useSheetClose();
   return (
-    <View style={styles.chooserRows}>
-      {advances.map((advance) => (
-        <Pressable
-          key={advance.key}
-          accessibilityRole="button"
-          onPress={() => onPick(advance.key, hide)}
-          style={({ pressed }) => [styles.chooserRow, { backgroundColor: colors.bg, opacity: pressed ? 0.8 : 1 }]}
-        >
-          <AppText weight="semibold" style={[styles.flex, styles.itemTitle]} numberOfLines={2}>
-            {advance.title}
+    <Pressable
+      disabled={!onPress}
+      accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityState={onPress ? { expanded: !!open } : undefined}
+      onPress={onPress}
+      style={[styles.heldLine, top && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line }]}>
+      <View style={styles.flex}>
+        <AppText weight={bold ? 'semibold' : undefined} color={bold ? colors.ink : colors.muted} style={sub ? styles.itemSub : styles.itemTitle} numberOfLines={2}>
+          {label}
+        </AppText>
+        {!!note && (
+          <AppText color={colors.muted} style={styles.itemSub}>
+            {note}
           </AppText>
-          <AppText weight="bold" color={colors.warning} style={styles.itemAmount}>
-            {formatVnd(advance.held)}
-          </AppText>
-        </Pressable>
-      ))}
-    </View>
+        )}
+      </View>
+      <AppText weight={bold ? 'bold' : 'semibold'} style={sub ? styles.itemSub : styles.itemAmount}>
+        {value}
+      </AppText>
+      {onPress && (
+        <AppText color={colors.muted} style={styles.itemSub}>
+          {open ? '▴' : '▾'}
+        </AppText>
+      )}
+    </Pressable>
   );
 }
 
@@ -254,9 +269,7 @@ type ListItem = Omit<PersonFundItem, 'kind'> & { kind: PersonFundItem['kind'] | 
 
 const styles = StyleSheet.create({
   actions: { gap: 10 },
-  chooser: { gap: 12 },
-  chooserRows: { gap: 8 },
-  chooserRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 12, padding: 12 },
+  heldLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingVertical: 8 },
   screen: { flex: 1 },
   flex: { flex: 1, minWidth: 0 },
   content: { paddingHorizontal: 16, paddingTop: 4, gap: 12 },

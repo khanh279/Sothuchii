@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type ComponentRef } from 'react';
 import { Platform, TextInput, type TextInputProps } from 'react-native';
 
 import { useAmountSuggest } from '@/components/amount-suggest';
@@ -9,6 +9,11 @@ interface Props extends Omit<TextInputProps, 'value' | 'onChangeText' | 'keyboar
   /** Số tiền (ĐỒNG, số nguyên); 0 = để trống. */
   value: number;
   onChangeValue: (value: number) => void;
+}
+
+/** Đặt chữ thẳng xuống ô native (nếu phiên bản React Native còn `setNativeProps`); không có thì bỏ qua, React vẫn ghi `value` ngay sau đó. */
+function setNativeText(input: unknown, text: string) {
+  (input as { setNativeProps?: (props: { text: string }) => void } | null)?.setNativeProps?.({ text });
 }
 
 /** Chữ số cùng độ rộng: thêm / bớt chữ số không làm các chữ số khác co giãn. */
@@ -27,7 +32,7 @@ const RIGHT = { textAlign: 'right' as const };
  */
 export function MoneyTextInput({ value, onChangeValue, onFocus, onBlur, style, ...rest }: Props) {
   const suggest = useAmountSuggest(value, onChangeValue);
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<ComponentRef<typeof TextInput>>(null);
   const text = value ? formatGrouped(value) : '';
   /** Chữ native đang mang (do ta đặt hoặc do React ghi): chỉ ghi xuống ô khi khác, để mỗi phím gõ chỉ có tối đa MỘT lần viết lại ô. */
   const nativeText = useRef(text);
@@ -36,7 +41,7 @@ export function MoneyTextInput({ value, onChangeValue, onFocus, onBlur, style, .
   useEffect(() => {
     if (Platform.OS === 'web' || nativeText.current === text) return;
     nativeText.current = text;
-    inputRef.current?.setNativeProps({ text });
+    setNativeText(inputRef.current, text);
   }, [text]);
 
   return (
@@ -50,7 +55,7 @@ export function MoneyTextInput({ value, onChangeValue, onFocus, onBlur, style, .
           const next = parseAmountInput(typed);
           const formatted = next ? formatGrouped(next) : '';
           nativeText.current = formatted;
-          if (Platform.OS !== 'web' && formatted !== typed) inputRef.current?.setNativeProps({ text: formatted });
+          if (Platform.OS !== 'web' && formatted !== typed) setNativeText(inputRef.current, formatted);
           suggest.onTyped(next);
         }}
         keyboardType="number-pad"
@@ -62,9 +67,7 @@ export function MoneyTextInput({ value, onChangeValue, onFocus, onBlur, style, .
           suggest.inputProps.onBlur();
           onBlur?.(event);
         }}
-        inputAccessoryViewID={suggest.inputProps.inputAccessoryViewID}
       />
-      {suggest.accessory}
     </>
   );
 }

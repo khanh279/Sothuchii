@@ -16,11 +16,11 @@ import { CategoryIcon } from '@/components/category-icon';
 import { DateField } from '@/components/date-field';
 import { ScreenTitle } from '@/components/design';
 import { KeyboardAnchor, KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll';
-import { AmountField, FormLabel, PickButton, PickPanel, formStyles } from '@/components/expense-form-parts';
+import { AmountField, FormLabel, formStyles } from '@/components/expense-form-parts';
+import { InlineSelect } from '@/components/inline-select';
 import { useToast } from '@/components/toast';
 import { DEFAULT_CATEGORY_ID, MEMO_MAX } from '@/constants/categories';
 import { AppFonts } from '@/constants/fonts';
-import { AppRadius } from '@/constants/palette';
 import { addExpense, getExpense, updateExpense } from '@/data/expenseRepository';
 import {
   allCategories,
@@ -33,8 +33,7 @@ import {
 import { linkedExpenseNotice } from '@/domain/linkedExpense';
 import { describeStorageError, useExpenseSettings } from '@/features/expenses/hooks';
 import { useColors } from '@/hooks/use-colors';
-import type { Category, ExpenseRef, ExpenseSettings, ExpenseWithId, Period } from '@/types/expense';
-import { withAlpha } from '@/utils/color';
+import type { ExpenseRef, ExpenseSettings, ExpenseWithId, Period } from '@/types/expense';
 import { isValidDateStr, monthOf, todayStr } from '@/utils/date';
 
 /** Quay lại màn trước; nếu không có màn trước (mở thẳng trang này) thì về Tổng quan. */
@@ -42,9 +41,6 @@ function leave() {
   if (router.canGoBack()) router.back();
   else router.replace('/');
 }
-
-/** Bảng chọn mục có 4 cột (đo từ PWA). */
-const PICK_COLUMNS = 4;
 
 type Loaded =
   | { status: 'loading' }
@@ -138,23 +134,18 @@ function ExpenseForm({ settings, existing, suggestedDate, period }: FormProps) {
   );
   const [categoryId, setCategoryId] = useState(existing ? resolveCategory(settings, existing.c).id : DEFAULT_CATEGORY_ID);
   const [calendarOpen, setCalendarOpen] = useState(false);
-  const [pickerOpen, setPickerOpen] = useState(false);
   const [errors, setErrors] = useState({ amount: false, date: false });
   const [busy, setBusy] = useState(false);
 
-  const category = resolveCategory(settings, categoryId);
-  const overlayOpen = calendarOpen || pickerOpen;
-
-  // Android: nút Back đóng lịch / bảng chọn mục trước khi rời màn hình.
+  // Android: nút Back đóng lịch trước khi rời màn hình.
   useEffect(() => {
-    if (!overlayOpen) return;
+    if (!calendarOpen) return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       setCalendarOpen(false);
-      setPickerOpen(false);
       return true;
     });
     return () => subscription.remove();
-  }, [overlayOpen]);
+  }, [calendarOpen]);
 
   async function save() {
     if (busy) return;
@@ -188,6 +179,16 @@ function ExpenseForm({ settings, existing, suggestedDate, period }: FormProps) {
   return (
       <KeyboardAwareScrollView style={styles.flex} contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
         <View style={[formStyles.card, { backgroundColor: colors.surface }]}>
+          <View style={formStyles.field}>
+            <FormLabel>Mục chi</FormLabel>
+            <InlineSelect
+              accessibilityLabel="Mục chi"
+              selectedKey={categoryId}
+              onSelect={setCategoryId}
+              options={allCategories(settings).map((item) => ({ key: item.id, name: item.name, icon: <CategoryIcon category={item} size={28} /> }))}
+            />
+          </View>
+
           <AmountField
             value={amount}
             invalid={errors.amount}
@@ -201,21 +202,18 @@ function ExpenseForm({ settings, existing, suggestedDate, period }: FormProps) {
           <View style={formStyles.field}>
             <FormLabel>Nội dung</FormLabel>
             <TextInput
-              style={[formStyles.input, { backgroundColor: colors.bg, borderColor: colors.line, color: colors.ink, fontFamily: AppFonts.regular }]}
+              style={[formStyles.input, { backgroundColor: colors.bg, borderColor: colors.line, color: colors.ink, fontFamily: AppFonts.semibold }]}
               value={memo}
               onChangeText={setMemo}
               maxLength={MEMO_MAX}
-              placeholder="Phở sáng, mừng cưới…"
+              placeholder="Ví dụ: Phở sáng, mừng cưới"
               placeholderTextColor={colors.muted}
             />
           </View>
 
-          <View style={formStyles.twoCols}>
-            <View style={[formStyles.field, formStyles.dateCol]}>
-              <FormLabel>Ngày</FormLabel>
-              <DateField value={date} invalid={errors.date} onPress={() => setCalendarOpen(true)} />
-            </View>
-            <PickButton label="Mục chi" name={category.name} icon={<CategoryIcon category={category} size={28} />} onPress={() => setPickerOpen(true)} />
+          <View style={formStyles.field}>
+            <FormLabel>Ngày</FormLabel>
+            <DateField value={date} invalid={errors.date} onPress={() => setCalendarOpen(true)} />
           </View>
           {errors.date && (
             <AppText color={colors.danger} style={formStyles.error}>
@@ -249,57 +247,8 @@ function ExpenseForm({ settings, existing, suggestedDate, period }: FormProps) {
               }}
             />
           )}
-          {pickerOpen && (
-            <CategoryPicker
-              categories={allCategories(settings)}
-              selectedId={categoryId}
-              onSelect={(id) => {
-                setCategoryId(id);
-                setPickerOpen(false);
-              }}
-            />
-          )}
         </View>
       </KeyboardAwareScrollView>
-  );
-}
-
-/** Bảng chọn mục chi phủ lên khung form (`.pick-grid`): lưới 4 cột, mục đang chọn viền theo màu mục. */
-function CategoryPicker({ categories, selectedId, onSelect }: { categories: Category[]; selectedId: string; onSelect: (id: string) => void }) {
-  const rows: Category[][] = [];
-  for (let i = 0; i < categories.length; i += PICK_COLUMNS) rows.push(categories.slice(i, i + PICK_COLUMNS));
-  return (
-    <PickPanel title="Chọn mục chi">
-      <View style={styles.pickGrid}>
-        {rows.map((row, rowIndex) => (
-          <View key={rowIndex} style={styles.pickRow}>
-            {row.map((item) => {
-          const selected = item.id === selectedId;
-          return (
-            <Pressable
-              key={item.id}
-              style={[
-                styles.pickItem,
-                selected ? { backgroundColor: withAlpha(item.color, 0.1), borderColor: item.color } : { borderColor: 'transparent' },
-              ]}
-              accessibilityRole="button"
-              accessibilityState={{ selected }}
-              accessibilityLabel={item.name}
-              onPress={() => onSelect(item.id)}>
-              <CategoryIcon category={item} />
-              <AppText weight="medium" style={styles.pickItemName} numberOfLines={1}>
-                {item.name}
-              </AppText>
-            </Pressable>
-          );
-            })}
-            {Array.from({ length: PICK_COLUMNS - row.length }, (_, i) => (
-              <View key={`blank-${i}`} style={styles.pickBlank} />
-            ))}
-          </View>
-        ))}
-      </View>
-    </PickPanel>
   );
 }
 
@@ -309,18 +258,4 @@ const styles = StyleSheet.create({
   loading: { marginTop: 48 },
   notice: { marginHorizontal: 12, padding: 16, borderRadius: 16 },
   noticeText: { fontSize: 15 },
-  pickGrid: { gap: 8 },
-  pickRow: { flexDirection: 'row', gap: 8 },
-  pickItem: {
-    flex: 1,
-    height: 85,
-    borderRadius: AppRadius.field,
-    borderWidth: 0.8,
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 2,
-    gap: 6,
-  },
-  pickBlank: { flex: 1 },
-  pickItemName: { fontSize: 12, maxWidth: '100%' },
 });

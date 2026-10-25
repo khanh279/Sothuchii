@@ -125,7 +125,7 @@ export default function BillDetailScreen() {
                     const status = rowStatus(row);
                     const tone = status.kind === 'get' ? 'get' : status.kind === 'owe' ? 'owe' : 'mid';
                     const amount = status.kind === 'even' ? 'Đã đủ' : `${status.kind === 'get' ? '+' : '−'}${formatVnd(status.amount)}`;
-                    return <PersonAmountRow key={row.index} first={index === 0} name={row.name} caption={`Đã chi: ${formatVnd(row.paid)}\nPhải chịu: ${formatVnd(row.share)}`} amount={amount} tone={tone} />;
+                    return <PersonAmountRow key={row.index} first={index === 0} name={row.name} caption={`Đã chi: ${formatVnd(row.paid)}\n${shareLabel(row)}: ${formatVnd(row.share)}`} amount={amount} tone={tone} />;
                   })}
                 </View>
                 {statuses.length > 0 && (
@@ -166,6 +166,12 @@ export default function BillDetailScreen() {
 }
 
 /** Đường kẻ liền giữa hai phần của khung (các phần nằm sát nhau trong cùng một khung). */
+/** Nhãn của phần mỗi người: mức cố định thì "Cố định"; hệ số khác 1 thì "Phải chịu (x2)"; còn lại "Phải chịu". */
+function shareLabel(row: { fixed: boolean; w: number }): string {
+  if (row.fixed) return 'Cố định';
+  return row.w !== 1 ? `Phải chịu (x${String(row.w).replace('.', ',')})` : 'Phải chịu';
+}
+
 function Band() {
   const colors = useColors();
   return <View style={[styles.band, { backgroundColor: colors.line }]} />;

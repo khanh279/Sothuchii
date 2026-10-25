@@ -37,7 +37,7 @@ export interface FundHistoryEntry {
   advanceId?: string;
   /** Chỉ với dòng quỹ trả cá nhân: khoản chi cá nhân ứng gốc mà lần trả này thuộc về (để biết khoản đó đã thanh toán xong chưa). */
   expenseId?: string;
-  /** Chỉ với dòng quỹ trả cá nhân ĐÃ GỘP (`mergePayoutEntries`): mã mọi giao dịch trả được gộp và mọi khoản chi gốc của chúng. */
+  /** Chỉ với dòng ĐÃ GỘP (`mergePayoutEntries`): mã mọi bản ghi cùng loại được gộp (giao dịch trả, khoản chi từ ứng hoặc lần giao ứng) và mọi khoản chi gốc của chúng. */
   mergedIds?: string[];
   expenseIds?: string[];
   /** Các thành viên đã đóng (chỉ với lần đóng quỹ), để lọc lịch sử theo thành viên. */
@@ -49,7 +49,8 @@ export interface FundHistoryEntry {
 }
 
 /**
- * Gộp, trong CÙNG MỘT NGÀY, các dòng quỹ trả cho cá nhân ứng chi có cùng người và cùng nội dung thành một dòng (cộng số tiền; giữ vị trí dòng đầu tiên); tương tự các khoản
+ * Gộp, trong CÙNG MỘT NGÀY, các dòng quỹ trả cho cá nhân ứng chi có cùng người và cùng nội dung thành một dòng (cộng số tiền; giữ vị trí dòng đầu tiên); các lần quỹ GIAO tiền ứng
+ * cho cùng một người ở cùng quỹ trong ngày cũng thành một dòng (giữ nội dung của lần đầu; trạng thái chi tính trên tổng); tương tự các khoản
  * "Quỹ giao A ứng chi" (chi từ tiền ứng) cùng ngày, cùng người, cùng nội dung — ví dụ một khoản chi chia vào hai lần giao ứng — được xem là MỘT khoản. Các dòng khác giữ nguyên.
  * Chỉ để hiển thị lịch sử: không đổi dữ liệu; `mergedIds` giữ mã các giao dịch được gộp để xoá đủ khi người dùng xoá dòng.
  */
@@ -58,11 +59,11 @@ export function mergePayoutEntries(days: readonly FundHistoryDay[]): FundHistory
     const merged: FundHistoryEntry[] = [];
     const byKey = new Map<string, FundHistoryEntry>();
     for (const entry of day.entries) {
-      if (entry.kind !== 'payout' && !(entry.kind === 'expense' && entry.spendFromAdvance)) {
+      if (entry.kind !== 'payout' && entry.kind !== 'advance' && !(entry.kind === 'expense' && entry.spendFromAdvance)) {
         merged.push(entry);
         continue;
       }
-      const key = `${entry.kind}|${entry.person ?? ''}|${entry.title}`;
+      const key = entry.kind === 'advance' ? `advance|${entry.fundId}|${entry.person ?? ''}` : `${entry.kind}|${entry.person ?? ''}|${entry.title}`;
       const existing = byKey.get(key);
       if (!existing) {
         const copy: FundHistoryEntry = { ...entry, mergedIds: [entry.id], expenseIds: entry.expenseId ? [entry.expenseId] : [] };
@@ -149,34 +150,38 @@ export function buildFundHistory(
   }
   for (const a of data.advances ?? []) {
     if (!ids.has(a.fundId) || !isInPeriod(a.date, period)) continue;
+    // Hoàn tiền ứng KHÔNG có dòng riêng: số đã hoàn được trừ thẳng vào số tiền của lần giao (lần giao hết sạch thì không còn dòng).
+    const refunded = (data.txns ?? []).filter((t) => t.kind === 'refund' && t.advanceId === a.id).reduce((sum, t) => sum + t.amount, 0);
+    const remaining = a.amount - refunded;
+    if (refunded > 0 && remaining <= 0) continue;
     entries.push({
       kind: 'advance',
       id: a.id,
       date: a.date,
       title: a.title || 'Giao tiền ứng',
       fundId: a.fundId,
-      amount: a.amount,
+      amount: refunded > 0 ? remaining : a.amount,
       meta: `Giao ${a.person} ứng`,
       person: a.person,
       advanceId: a.id,
     });
   }
   for (const t of data.txns ?? []) {
-    if (!ids.has(t.fundId) || !isInPeriod(t.date, period)) continue;
+    if (!ids.has(t.fundId) || !isInPeriod(t.date, period) || t.kind === 'refund') continue;
     // Quỹ trả cho cá nhân ứng chi: ghi theo khoản GỐC — tiêu đề (to) là nội dung khoản A đã chi (khoản chi hoặc hồ sơ ứng trước mà lần trả này thuộc về), ghi chú nhỏ "A ứng chi".
-    const sourceItem = t.kind === 'payout' ? (data.expenses.find((e) => e.id === t.expenseId) ?? (data.advances ?? []).find((a) => a.id === t.advanceId)) : undefined;
+    const sourceItem = data.expenses.find((e) => e.id === t.expenseId) ?? (data.advances ?? []).find((a) => a.id === t.advanceId);
     const source = sourceItem?.title;
     entries.push({
-      kind: t.kind === 'refund' ? 'refund' : 'payout',
+      kind: 'payout',
       id: t.id,
       date: t.date,
-      title: t.kind === 'refund' ? 'Hoàn tiền ứng' : source?.trim() || `${t.person} ứng chi`,
+      title: source?.trim() || `${t.person} ứng chi`,
       fundId: t.fundId,
       amount: t.amount,
-      meta: t.kind === 'refund' ? `Hoàn tiền ứng · ${t.person}` : `${t.person} ứng chi${sourceItem ? ` · ${formatVnDate(sourceItem.date)}` : ''}`,
+      meta: `${t.person} ứng chi${sourceItem ? ` · ${formatVnDate(sourceItem.date)}` : ''}`,
       person: t.person,
       advanceId: t.advanceId,
-      ...(t.kind === 'payout' && t.expenseId ? { expenseId: t.expenseId } : {}),
+      ...(t.expenseId ? { expenseId: t.expenseId } : {}),
     });
   }
   entries.sort(newestFirst);
@@ -242,6 +247,34 @@ const involves = (entry: FundHistoryEntry, person: string): boolean => entry.per
 export function filterDaysByPerson(days: readonly FundHistoryDay[], person: string): FundHistoryDay[] {
   if (!person) return [...days];
   return days.map((day) => ({ ...day, entries: day.entries.filter((entry) => involves(entry, person)) })).filter((day) => day.entries.length > 0);
+}
+
+/** Loại khoản dùng để lọc Lịch sử quỹ. */
+export type FundHistoryCategory = 'contribution' | 'direct' | 'personal' | 'advance';
+
+/** Các loại lọc theo thứ tự hiển thị (sau chip "Tất cả"). */
+export const FUND_HISTORY_CATEGORIES: readonly { value: FundHistoryCategory; label: string }[] = [
+  { value: 'contribution', label: 'Thu quỹ' },
+  { value: 'direct', label: 'Quỹ chi trực tiếp' },
+  { value: 'personal', label: 'Cá nhân ứng chi' },
+  { value: 'advance', label: 'Giao tiền ứng trước' },
+];
+
+/**
+ * Dòng lịch sử thuộc loại nào: đóng quỹ → Thu quỹ; giao tiền ứng → Giao tiền ứng trước; khoản chi có người chi (cá nhân ứng tiền túi) và dòng quỹ trả cá nhân ("A ứng chi") → Cá nhân ứng chi;
+ * khoản chi còn lại → Quỹ chi trực tiếp. Dòng hoàn tiền ứng (nếu còn) tính cùng Giao tiền ứng trước.
+ */
+export function entryCategory(entry: Pick<FundHistoryEntry, 'kind' | 'person' | 'spendFromAdvance'>): FundHistoryCategory {
+  if (entry.kind === 'contribution') return 'contribution';
+  if (entry.kind === 'advance' || entry.kind === 'refund') return 'advance';
+  if (entry.kind === 'payout') return 'personal';
+  return entry.person?.trim() && !entry.spendFromAdvance ? 'personal' : 'direct';
+}
+
+/** Giữ lại các dòng thuộc một loại (`null` = không lọc); bỏ ngày không còn dòng nào. Chỉ lọc hiển thị. */
+export function filterDaysByCategory(days: readonly FundHistoryDay[], category: FundHistoryCategory | null): FundHistoryDay[] {
+  if (!category) return [...days];
+  return days.map((day) => ({ ...day, entries: day.entries.filter((entry) => entryCategory(entry) === category) })).filter((day) => day.entries.length > 0);
 }
 
 /** Thành viên có mặt thật trong lịch sử đang xem (người đóng, người chi / nhận ứng / nhận thanh toán), theo tên, không trùng; không tạo người giả. */

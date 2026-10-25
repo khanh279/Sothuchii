@@ -486,6 +486,14 @@ describe('fundMembers — người thuộc một quỹ', () => {
   it('quỹ không có ai thì rỗng', () => {
     expect(fundMembers(data, 'f3')).toEqual([]);
   });
+
+  it('người của khoản thu "Thêm nhiều thành viên" (bulk) không vào danh sách chọn', () => {
+    const withBulk = {
+      ...data,
+      contribs: [...data.contribs, { id: 'c3', fundId: 'f1', title: 'Đóng quỹ', date: '2025-10-04', bulk: true, people: [{ name: 'Người 1', amount: 100 }, { name: 'Người 2', amount: 100 }] }],
+    } as Parameters<typeof fundMembers>[0];
+    expect(fundMembers(withBulk, 'f1')).toEqual(['Tôi', 'An', 'Chi']);
+  });
 });
 
 describe('isOwnerName', () => {

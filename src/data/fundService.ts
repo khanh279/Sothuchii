@@ -15,6 +15,7 @@ import {
   renameFund,
   saveContribution,
   saveFundExpense,
+  refundAdvancesForPerson,
   saveFundTxn,
   updateAdvance,
   updateFundTxn,
@@ -23,6 +24,7 @@ import {
   type AdvanceUpdate,
   type FundExpenseInput,
   type FundTxnInput,
+  type PersonRefundInput,
   type FundTxnUpdate,
 } from '@/data/fundRepository';
 import { syncFundExpenses } from '@/data/fundSync';
@@ -90,6 +92,11 @@ export async function deleteAdvanceSynced(id: string): Promise<SyncedChange<bool
 }
 
 /** Hoàn tiền ứng / thanh toán cho cá nhân (chỉ dòng tiền và công nợ, không có chi phí mới). */
+/** Hoàn tiền ứng theo NGƯỜI: hoàn vào lần giao mới nhất trước; lần giao chưa chi mà hoàn hết thì bị xoá (xem `refundAdvancesForPerson`). */
+export async function refundAdvancesForPersonSynced(input: PersonRefundInput): Promise<SyncedChange<{ recorded: number; removed: number }>> {
+  return thenSync(await refundAdvancesForPerson(input));
+}
+
 export async function saveFundTxnSynced(input: FundTxnInput): Promise<SyncedChange<string>> {
   return thenSync(await saveFundTxn(input));
 }

@@ -32,6 +32,8 @@ interface Props {
   placeholder?: string;
   /** Biểu tượng của ô khi chưa chọn. */
   placeholderIcon?: ReactNode;
+  /** true: danh sách đã xổ sẵn ngay khi hiện (vd. vừa quay lại từ ô nhập tên). */
+  initiallyOpen?: boolean;
 }
 
 /**
@@ -40,12 +42,12 @@ interface Props {
  * Để phân biệt "đang chọn" với "danh sách": khi xổ, hàng đang chọn đổi nền xanh nhạt và khung đổi viền chủ đạo, mũi tên xoay lên, còn danh sách mở ra từ từ theo chiều cao (phần bên dưới trượt theo, không nhảy) kèm mờ dần
  * (khi thu gọn thì làm ngược lại) trên nền trắng.
  */
-export function InlineSelect({ options, selectedKey, onSelect, accessibilityLabel, placeholder = 'Chọn', placeholderIcon }: Props) {
+export function InlineSelect({ options, selectedKey, onSelect, accessibilityLabel, placeholder = 'Chọn', placeholderIcon, initiallyOpen = false }: Props) {
   const colors = useColors();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initiallyOpen);
   /** Danh sách còn được vẽ (đang mở hoặc đang chạy hoạt ảnh thu gọn). */
-  const [mounted, setMounted] = useState(false);
-  const [progress] = useState(() => new Animated.Value(0));
+  const [mounted, setMounted] = useState(initiallyOpen);
+  const [progress] = useState(() => new Animated.Value(initiallyOpen ? 1 : 0));
   const current = options.find((option) => option.key === selectedKey) ?? null;
   const others = options.filter((option) => option.key !== current?.key);
 

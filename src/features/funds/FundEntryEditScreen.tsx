@@ -70,7 +70,7 @@ export default function FundEntryEditScreen() {
   if (txn) return <FundActionSheet asPage target={txn.target} data={txn.data} existing={txn.existing} onClose={leave} onDone={leave} />;
   if (fund && contribution) {
     return (
-      <FormPage title={heading}>
+      <FormPage title={heading} card={false}>
         <ContributionForm fund={fund} existing={contribution} onChanged={leave} />
       </FormPage>
     );

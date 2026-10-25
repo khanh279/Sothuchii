@@ -14,12 +14,11 @@ import { averagePerDay } from '@/domain/overviewStats';
 import { AddExpenseFab } from '@/features/expenses/AddExpenseFab';
 import { useExpenseSettings, useExpenses } from '@/features/expenses/hooks';
 import { BillStatCard } from '@/features/bills/BillOverviewCard';
-import { DebtStatCard } from '@/features/debts/DebtOverviewCards';
+import { DebtSplitCard, DebtStatCard } from '@/features/debts/DebtOverviewCards';
 import { useDebtData } from '@/features/debts/hooks';
 import { useFundData } from '@/features/funds/hooks';
 import { PageLayout } from '@/constants/layout';
 import { PeriodBar } from '@/features/expenses/PeriodBar';
-import { ExpenseStatCard } from '@/features/expenses/ExpenseStatCard';
 import { FundStatCard } from '@/features/funds/FundOverviewCard';
 import { RecentTransactions } from '@/features/expenses/RecentTransactions';
 import { FundTxnSheet } from '@/features/funds/FundTxnSheet';
@@ -31,7 +30,7 @@ import { todayStr } from '@/utils/date';
 
 /**
  * Màn Tổng quan: ô chọn kỳ dính ở mép trên, thẻ "Đã chi" và chi tiêu cá nhân theo mục.
- * Các thẻ Chia bill / Công nợ / Chi tiêu / Quỹ nhóm chỉ để xem (không bấm); mỗi mục có tab riêng. "Giao dịch gần đây" gộp chi tiêu, chi quỹ, bill và chuyển tiền.
+ * Bốn thẻ chỉ để xem, chia 2 hàng: Công nợ (trái) + Tôi nợ / Nợ tôi (phải); Chia bill (trái) + Quỹ nhóm (phải) (không bấm); mỗi mục có tab riêng. "Giao dịch gần đây" gộp chi tiêu, chi quỹ, bill và chuyển tiền.
  */
 export default function OverviewScreen() {
   const today = todayStr();
@@ -79,11 +78,11 @@ export default function OverviewScreen() {
           {debt.loaded && !debt.error && (
             <>
               <View style={styles.grid}>
-                <BillStatCard bills={debt.bills} period={period} style={styles.gridItem} />
                 <DebtStatCard bills={debt.bills} pays={debt.pays} period={period} style={styles.gridItem} />
+                <DebtSplitCard bills={debt.bills} pays={debt.pays} period={period} style={styles.gridItem} />
               </View>
               <View style={styles.grid}>
-                <ExpenseStatCard items={items} settings={settings} style={styles.gridItem} />
+                <BillStatCard bills={debt.bills} period={period} style={styles.gridItem} />
                 <FundStatCard style={styles.gridItem} />
               </View>
               <RecentTransactions pays={debt.pays} paysLoaded={debt.loaded} paysError={debt.error} />

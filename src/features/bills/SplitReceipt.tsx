@@ -2,8 +2,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { AppRadius } from '@/constants/palette';
-import { describeSplitProblem } from '@/domain/bills';
-import { rowMeta, rowStatus } from '@/domain/billForm';
+import { rowStatus } from '@/domain/billForm';
 import { useColors } from '@/hooks/use-colors';
 import type { BillSplit } from '@/types/bill';
 import { formatVnd } from '@/utils/format';
@@ -18,21 +17,24 @@ interface Props {
   showTotal: boolean;
   /** Bọc trong khung trắng (màn tính chia); lịch sử đã có khung riêng nên tắt. */
   framed?: boolean;
+  /** false: mức cố định sai thì KHÔNG hiện ô cảnh báo (không hiện biên lai thay vào); mặc định true. Màn tạo bill chỉ bật sau khi bấm Lưu bill mà không hợp lệ. */
+  showWarning?: boolean;
 }
 
 /**
  * Biên lai chia bill (`En` của PWA): tổng / phần mỗi người, từng người nhận lại hay còn thiếu bao nhiêu, và các
  * khoản cần chuyển. Mức cố định sai thì hiện cảnh báo thay cho biên lai.
  */
-export function SplitReceipt({ split, showTotal, framed = true }: Props) {
+export function SplitReceipt({ split, showTotal, framed = true, showWarning = true }: Props) {
   const colors = useColors();
   if (split.total <= 0) return null;
 
   if (split.bad) {
+    if (!showWarning) return null;
     return (
       <View style={[styles.warn, { backgroundColor: colors.dangerSoft }]} accessibilityRole="alert">
         <AppText weight="semibold" color={colors.danger} style={styles.warnText}>
-          {describeSplitProblem(split)}
+          {split.bad === 'over' ? 'Tổng số tiền đóng cố định lớn hơn tổng bill.' : 'Tổng số tiền đóng cố định khác tổng bill.'}
         </AppText>
       </View>
     );
@@ -70,7 +72,7 @@ export function SplitReceipt({ split, showTotal, framed = true }: Props) {
                 {row.name}
               </AppText>
               <AppText color={colors.muted} style={styles.meta}>
-                {rowMeta(row)}
+                Chi {formatVnd(row.paid)}
               </AppText>
             </View>
             {status.kind === 'even' ? (
@@ -121,8 +123,8 @@ const styles = StyleSheet.create({
   totCell: { flexShrink: 1, minWidth: 0 },
   totRight: { alignItems: 'flex-end', flexShrink: 0, marginLeft: 'auto' },
   lbl: { fontSize: 13 },
-  total: { fontSize: 30 },
-  each: { fontSize: 20 },
+  total: { fontSize: 22 },
+  each: { fontSize: 16 },
   dash: { borderTopWidth: 1, borderStyle: 'dashed' },
   resultLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   resultMain: { flex: 1, minWidth: 0 },

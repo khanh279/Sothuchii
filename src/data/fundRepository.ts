@@ -13,7 +13,7 @@
 
 import { StorageCorruptError, StorageKeys, loadJsonStrict, saveJsonStrict } from '@/data/storage';
 import { newExpenseId } from '@/domain/expenses';
-import { checkAdvanceGive, checkDirectSpend, checkPayout, checkRefund } from '@/domain/fundAdvance';
+import { advanceSummary, checkAdvanceGive, checkDirectSpend, checkPayout, checkRefund, planAdvanceReallocation, planAdvanceRefund } from '@/domain/fundAdvance';
 import { FUND_NAME_MAX, normalizeFundData } from '@/domain/funds';
 import type { DateStr, ExpenseRef } from '@/types/expense';
 import type { ContributionPerson, Fund, FundData, FundExpenseMode, FundTxnKind } from '@/types/fund';
@@ -149,6 +149,8 @@ export interface ContributionInput {
   date: DateStr;
   /** Số tiền ĐỒNG. */
   people: readonly ContributionPerson[];
+  /** Lần đóng dùng "Thêm nhiều thành viên": lưu cờ `bulk` (false / bỏ trống thì không lưu và gỡ cờ cũ khi sửa). */
+  bulk?: boolean;
 }
 
 function requireFund(raw: RawObject, fundId: string) {
@@ -160,7 +162,7 @@ export function saveContribution(input: ContributionInput, now: number = Date.no
   return mutate((raw) => {
     requireFund(raw, input.fundId);
     const people = input.people.map((person) => ({ name: person.name, amount: person.amount }));
-    const fields = { fundId: input.fundId, title: input.title, date: input.date, people };
+    const fields = { fundId: input.fundId, title: input.title, date: input.date, people, ...(input.bulk ? { bulk: true } : {}) };
     const contribs = arrayOf(raw.contribs);
 
     if (input.id === undefined) {
@@ -171,7 +173,9 @@ export function saveContribution(input: ContributionInput, now: number = Date.no
     const updated = contribs.map((item) => {
       if (!isRecord(item) || String(item.id) !== input.id) return item;
       found = true;
-      return { ...item, ...fields };
+      // Sửa: cờ `bulk` cũ bị gỡ nếu lần lưu này không còn dùng "Thêm nhiều thành viên".
+      const { bulk: _old, ...rest } = item;
+      return { ...rest, ...fields };
     });
     return { next: found ? { ...raw, contribs: updated } : raw, result: found ? input.id : null };
   });
@@ -255,10 +259,14 @@ export function saveFundExpense(input: FundExpenseInput, now: number = Date.now(
         if (!spend.ok) throw new FundInputError(spend.message);
       }
       if (item.mode === 'personal') {
-        const paid = arrayOf(raw.fundTxns).reduce<number>((sum, txn) => (isRecord(txn) && txn.kind === 'payout' && String(txn.expenseId) === input.id ? sum + (Number(txn.amount) || 0) : sum), 0);
+        const paid = arrayOf(raw.fundTxns).reduce<number>(
+          (sum, txn) => (isRecord(txn) && txn.kind === 'payout' && String(txn.expenseId) === input.id ? sum + (Number(txn.amount) || 0) : sum),
+          0,
+        );
         // Khoản đã chia nguồn tiền: tổng không được thấp hơn phần quỹ đã chi cộng số quỹ đã trả cho phần cá nhân ứng.
         const fundPart = Math.round(Number(item.fundPart) || 0);
-        if (fields.amount < paid + fundPart || (fundPart > 0 && fields.amount <= fundPart)) throw new FundInputError('Số tiền không được nhỏ hơn phần quỹ đã chi và số quỹ đã thanh toán cho khoản này.');
+        if (fields.amount < paid + fundPart || (fundPart > 0 && fields.amount <= fundPart))
+          throw new FundInputError('Số tiền không được nhỏ hơn phần quỹ đã chi và số quỹ đã thanh toán cho khoản này.');
       }
       return { ...item, ...fields, ...(item.mode === 'advance' ? { fundId: item.fundId } : {}) };
     });
@@ -317,6 +325,32 @@ export interface AdvanceUpdate {
 }
 
 /**
+ * Phân bổ lại các khoản chi từ tiền ứng của một người (xem `planAdvanceReallocation`) trên bản thô. KHÔNG làm gì nếu các lần giao của người đó đã có hoàn tiền /
+ * thanh toán gắn vào (đổi phân bổ sẽ làm lệch số giữ / số nợ của các giao dịch đó); khi đó phân bổ cũ được giữ nguyên.
+ */
+function reallocateSpends(raw: RawObject, fundId: string, person: string): RawObject {
+  const data = normalizeFundData(raw);
+  const mine = new Set((data.advances ?? []).filter((advance) => advance.fundId === fundId && advance.person.trim() === person.trim()).map((advance) => advance.id));
+  if (arrayOf(raw.fundTxns).some((txn) => isRecord(txn) && mine.has(String(txn.advanceId)))) return raw;
+  const plan = planAdvanceReallocation(data, fundId, person);
+  if (!plan) return raw;
+  const updates = new Map(plan.updates.map((item) => [item.id, item]));
+  const removes = new Set(plan.removes);
+  const expenses = arrayOf(raw.expenses).flatMap((item) => {
+    if (!isRecord(item)) return [item];
+    const id = String(item.id);
+    if (removes.has(id)) return [];
+    const change = updates.get(id);
+    return [change ? { ...item, advanceId: change.advanceId, amount: change.amount } : item];
+  });
+  plan.adds.forEach((add, index) => {
+    const anchor = arrayOf(raw.expenses).find((item) => isRecord(item) && String(item.id) === add.anchorId);
+    if (isRecord(anchor)) expenses.push({ ...anchor, id: `${add.anchorId}-r${Date.now().toString(36)}${index}`, advanceId: add.advanceId, amount: add.amount });
+  });
+  return { ...raw, expenses };
+}
+
+/**
  * Sửa hồ sơ giao tiền ứng: nội dung, ngày và số tiền giao. Người nhận và quỹ giữ nguyên (các khoản chi / hoàn tiền / thanh toán gắn với hồ sơ vẫn đúng).
  * Số tiền mới phải ≥ 0, không vượt số dư quỹ lúc ghi. Trả về false nếu không thấy hồ sơ.
  */
@@ -333,7 +367,9 @@ export function updateAdvance(id: string, input: AdvanceUpdate): Promise<boolean
       if (!give.ok) throw new FundInputError(give.message);
     }
     const updated = advances.map((item) => (item === current ? { ...item, title: input.title, date: input.date, amount } : item));
-    return { next: { ...raw, advances: updated }, result: true };
+    const next: RawObject = { ...raw, advances: updated };
+    // Số tiền / ngày giao đổi thì các khoản chi từ tiền ứng của người này được PHÂN BỔ LẠI theo thứ tự (lần giao cũ nhất lấp đầy trước), không giữ phân bổ cũ.
+    return { next: reallocateSpends(next, String(current.fundId), String(current.person ?? '')), result: true };
   });
 }
 
@@ -395,6 +431,45 @@ export function saveFundTxn(input: FundTxnInput, now: number = Date.now()): Prom
     if (input.advanceId) record.advanceId = input.advanceId;
     if (input.expenseId) record.expenseId = input.expenseId;
     return { next: { ...raw, fundTxns: [...txns, record] }, result: id };
+  });
+}
+
+export interface PersonRefundInput {
+  clientId?: string;
+  fundId: string | 'all';
+  person: string;
+  date: DateStr;
+  /** ĐỒNG, > 0 và không vượt tổng tiền ứng người đó còn giữ. */
+  amount: Vnd;
+}
+
+/**
+ * Hoàn tiền ứng THEO NGƯỜI (các lần giao là một khoản chung, không phân biệt ngày): trừ vào lần giao MỚI NHẤT còn giữ tiền trước (xem `planAdvanceRefund`), lùi dần về cũ.
+ * Lần giao CHƯA CHI đồng nào mà được hoàn hết thì coi như chưa từng tồn tại: xoá lần giao đó cùng các giao dịch hoàn đã gắn vào nó (số dư quỹ không đổi vì giao và hoàn triệt tiêu nhau);
+ * các lần giao còn lại ghi giao dịch hoàn như thường. Một lần ghi duy nhất (nguyên tử). Trả về số giao dịch hoàn đã ghi + số lần giao đã xoá.
+ */
+export function refundAdvancesForPerson(input: PersonRefundInput, now: number = Date.now()): Promise<{ recorded: number; removed: number }> {
+  return mutate((raw) => {
+    const data = normalizeFundData(raw);
+    const txns = arrayOf(raw.fundTxns);
+    if (input.clientId && txns.some((item) => isRecord(item) && String(item.id).startsWith(`${input.clientId}-`))) return { next: raw, result: { recorded: 0, removed: 0 } };
+    const amount = Math.round(input.amount);
+    if (!(amount > 0)) throw new FundInputError('Nhập số tiền lớn hơn 0.');
+    const parts = planAdvanceRefund(data, input.fundId, input.person, amount);
+    const total = parts.reduce((sum, part) => sum + part.amount, 0);
+    if (total < amount) throw new FundInputError(total > 0 ? 'Số tiền hoàn vượt số tiền ứng còn giữ.' : 'Không còn tiền ứng để hoàn.');
+    const removedIds = new Set<string>();
+    const added: Record<string, unknown>[] = [];
+    parts.forEach((part, index) => {
+      const advance = data.advances?.find((item) => item.id === part.advanceId);
+      if (!advance) return;
+      const summary = advanceSummary(data, advance);
+      if (summary.spent === 0 && summary.paidExtra === 0 && part.amount >= summary.held) removedIds.add(advance.id);
+      else added.push({ id: `${input.clientId || `t_${newExpenseId(now)}`}-${index}`, fundId: advance.fundId, kind: 'refund', person: advance.person, amount: part.amount, date: input.date, advanceId: advance.id });
+    });
+    const advances = arrayOf(raw.advances).filter((item) => !(isRecord(item) && removedIds.has(String(item.id))));
+    const kept = txns.filter((item) => !(isRecord(item) && removedIds.has(String(item.advanceId))));
+    return { next: { ...raw, advances, fundTxns: [...kept, ...added] }, result: { recorded: added.length, removed: removedIds.size } };
   });
 }
 

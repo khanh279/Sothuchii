@@ -1,5 +1,5 @@
-import { createContext, useContext, useId, useState, type ReactNode } from 'react';
-import { InputAccessoryView, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { createContext, useContext, useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { useColors } from '@/hooks/use-colors';
@@ -36,7 +36,13 @@ export function AmountSuggestBar({ values, onPick, background }: Active & { back
   return (
     <View style={[styles.bar, background ? { backgroundColor: background } : null]} accessibilityRole="toolbar">
       {values.map((value) => (
-        <Pressable key={value} accessibilityRole="button" accessibilityLabel={`Chọn ${formatGrouped(value)} đồng`} onPress={() => onPick(value)} style={[styles.chip, { backgroundColor: colors.primarySoft, borderColor: colors.line }]}>
+        <Pressable
+          key={value}
+          accessibilityRole="button"
+          accessibilityLabel={`Chọn ${formatGrouped(value)} đồng`}
+          onPress={() => onPick(value)}
+          style={[styles.chip, { backgroundColor: colors.primarySoft, borderColor: colors.line }]}
+        >
           <AppText weight="semibold" color={colors.primary} style={styles.chipText} numberOfLines={1}>
             {formatGrouped(value)}
           </AppText>
@@ -47,15 +53,12 @@ export function AmountSuggestBar({ values, onPick, background }: Active & { back
 }
 
 /**
- * Gợi ý số tiền cho MỘT ô nhập số (đồng): gõ "5" thì có 5.000 · 50.000 · 500.000 ngay trên bàn phím, đúng MỘT thanh duy nhất.
- * iOS: thanh phụ của bàn phím (`InputAccessoryView`, mỗi ô một mã riêng). Android / web: thanh của `KeyboardAvoid` gần nhất (nằm trên bàn phím);
- * KHÔNG dùng cả hai cùng lúc nên không bị hai hàng trùng nhau. Dùng qua `MoneyTextInput` / `AmountInput`.
+ * Gợi ý số tiền cho MỘT ô nhập số (đồng): gõ "5" thì có 5.000 · 50.000 · 500.000 ngay trên bàn phím, đúng MỘT thanh duy nhất: thanh của `KeyboardAvoid`
+ * gần nhất (nằm sát trên bàn phím) trên MỌI nền tảng. Không dùng `InputAccessoryView` của iOS nữa: từ React Native 0.88 nó bị dựng ngay trong bố cục, phủ lên chính ô nhập
+ * (ô trống xám, không gõ được). Dùng qua `MoneyTextInput` / `AmountInput`.
  */
 export function useAmountSuggest(value: number, onChangeValue: (value: number) => void) {
   const host = useContext(AmountSuggestContext);
-  const colors = useColors();
-  const accessoryId = useId();
-  const ios = Platform.OS === 'ios';
 
   /** Gợi ý gần nhất còn hiển thị: gõ số quá dài (không còn gợi ý mới) thì giữ nguyên gợi ý trước đó thay vì mất đi; xoá hết số thì mới xoá. */
   const [last, setLast] = useState<number[]>([]);
@@ -73,7 +76,7 @@ export function useAmountSuggest(value: number, onChangeValue: (value: number) =
   }
 
   function publish(typed: number) {
-    if (ios || !host) return;
+    if (!host) return;
     // Luôn hiện thanh (kể cả chưa có gợi ý) khi ô đang được gõ để chiều cao không đổi; chỉ `onBlur` mới ẩn.
     host.show({ values: shown(typed), onPick: pick });
   }
@@ -86,20 +89,12 @@ export function useAmountSuggest(value: number, onChangeValue: (value: number) =
     /** Gọi khi người dùng gõ ra số đồng mới. */
     onTyped: (typed: number) => {
       onChangeValue(typed);
-      if (ios) shown(typed);
-      else publish(typed);
+      publish(typed);
     },
     inputProps: {
       onFocus: () => publish(value),
       onBlur: () => host?.show(null),
-      inputAccessoryViewID: ios ? accessoryId : undefined,
     },
-    /** Thanh phụ của iOS; nơi khác là null. Đặt cạnh ô nhập. */
-    accessory: ios ? (
-      <InputAccessoryView nativeID={accessoryId} backgroundColor={colors.bg}>
-        <AmountSuggestBar values={last} onPick={pick} background={colors.bg} />
-      </InputAccessoryView>
-    ) : (null as ReactNode),
   };
 }
 

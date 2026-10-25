@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Platform, type LayoutChangeEvent } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Dimensions, Easing, Platform, type LayoutChangeEvent } from 'react-native';
 import { Gesture } from 'react-native-gesture-handler';
 
 import { slideProgress, slideSettle } from '@/domain/swipe';
@@ -21,13 +21,15 @@ export function useSlideToggle(open: boolean, onChange: (open: boolean) => void)
   const [progress] = useState(() => new Animated.Value(0));
   const value = useRef(0);
   const start = useRef(0);
-  // Bề rộng khung (px) chỉ dùng để đổi quãng kéo (px) thành tiến độ; phép dịch dùng phần trăm nên đúng ngay từ khung hình đầu, trước khi đo xong.
+  // Bề rộng khung (px): đổi quãng kéo thành tiến độ VÀ làm quãng dịch của hai lớp. Chưa đo xong thì lấy bề rộng màn hình (luôn ≥ khung) để lớp 2 nằm ngoài khung từ khung hình đầu.
   const measured = useRef(0);
+  const [width, setWidth] = useState(() => Dimensions.get('window').width);
   const live = useRef({ open, onChange });
   /** Ô này đang giữ khoá cuộn của biểu mẫu (đang kéo ngang). */
   const holdsLock = useRef(false);
-  const [nameX] = useState(() => progress.interpolate({ inputRange: [0, 1], outputRange: ['0%', '-100%'] }));
-  const [slideInX] = useState(() => progress.interpolate({ inputRange: [0, 1], outputRange: ['100%', '0%'] }));
+  // Dịch bằng px (không dùng phần trăm): lớp 1 trượt 0 → -width, lớp 2 trượt width → 0, nên mép phải lớp 1 luôn chạm mép trái lớp 2 trong suốt quá trình kéo.
+  const nameX = useMemo(() => progress.interpolate({ inputRange: [0, 1], outputRange: [0, -width] }), [progress, width]);
+  const slideInX = useMemo(() => progress.interpolate({ inputRange: [0, 1], outputRange: [width, 0] }), [progress, width]);
 
   useEffect(() => {
     live.current = { open, onChange };
@@ -87,13 +89,14 @@ export function useSlideToggle(open: boolean, onChange: (open: boolean) => void)
   );
 
   return {
-    /** Dịch ngang của lớp 1 (trượt ra trái: 0 → -100%) và lớp 2 (trượt vào từ phải: 100% → 0). */
+    /** Dịch ngang (px) của lớp 1 (trượt ra trái: 0 → -bề rộng) và lớp 2 (trượt vào từ phải: bề rộng → 0). */
     nameX,
     slideInX,
     /** Cử chỉ vuốt: bọc khung bằng `GestureDetector gesture={gesture}`. */
     gesture,
     onLayout: (event: LayoutChangeEvent) => {
       measured.current = event.nativeEvent.layout.width;
+      setWidth(event.nativeEvent.layout.width);
     },
   };
 }

@@ -28,12 +28,13 @@ interface Props {
 }
 
 /** Một dòng giao dịch (dùng chung ở Tổng quan và trang Giao dịch): biểu tượng theo loại, nội dung, số tiền có dấu và ngày. CHỈ XEM, không bấm mở gì. */
-export function TransactionItemRow({ item, settings, first }: { item: RecentTransaction; settings: ExpenseSettings; first: boolean }) {
+export function TransactionItemRow({ item, settings, first, showDate = true }: { item: RecentTransaction; settings: ExpenseSettings; first: boolean; showDate?: boolean }) {
   const colors = useColors();
   const out = item.flow === 'out';
   return (
     <TransactionRow
       first={first}
+      singleLineTitle
       icon={
         item.categoryId ? (
           <CategoryIcon category={resolveCategory(settings, item.categoryId)} />
@@ -44,10 +45,10 @@ export function TransactionItemRow({ item, settings, first }: { item: RecentTran
         )
       }
       title={item.title}
-      subtitle={item.subtitle === item.typeLabel ? item.typeLabel : item.typeLabel + ' · ' + item.subtitle}
+      subtitle={item.typeLabel}
       amount={`${out ? '−' : '+'}${formatVnd(item.amount)}`}
       tone={out ? 'owe' : 'get'}
-      meta={formatVnDate(item.date)}
+      meta={showDate ? formatVnDate(item.date) : undefined}
       accessibilityLabel={`${item.title}, ${out ? 'chi' : 'nhận'} ${formatVnd(item.amount)}, ${formatVnDate(item.date)}`}
     />
   );

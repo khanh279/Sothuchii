@@ -29,7 +29,13 @@ export default function FundAdvanceActionScreen() {
   const advance = data.advances?.find((item) => item.id === id);
   let target: FundActionTarget | null = null;
   if (mode === 'expense' && person) target = { mode: 'expense', person, fundId: fund };
-  else if (advance && mode === 'refund') target = { mode: 'refund', advanceId: advance.id, max: advanceSummary(data, advance).held };
+  else if (mode === 'refund' && person) {
+    const who = person.trim();
+    const max = (data.advances ?? [])
+      .filter((item) => (fund === 'all' || item.fundId === fund) && item.person.trim() === who)
+      .reduce((total, item) => total + advanceSummary(data, item).held, 0);
+    target = { mode: 'refund', person: who, fundId: fund, max };
+  } else if (advance && mode === 'refund') target = { mode: 'refund', advanceId: advance.id, max: advanceSummary(data, advance).held };
 
   if (loaded && !error && target) return <FundActionSheet asPage target={target} data={data} onClose={leave} onDone={leave} />;
   return (

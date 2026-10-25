@@ -26,18 +26,48 @@ export function DetailHero({ label = 'Số tiền', amount }: { label?: string; 
 }
 
 /** Một dòng nhãn bên trái, giá trị đậm căn phải; `last` bỏ đường kẻ dưới. */
-export function DetailField({ label, value, icon, last }: { label: string; value: string; icon?: ReactNode; last?: boolean }) {
+export function DetailField({
+  label,
+  value,
+  note,
+  sub,
+  bold,
+  icon,
+  last,
+}: {
+  label: string;
+  value: string;
+  /** Ghi chú nhỏ ngay dưới giá trị (căn phải). */ note?: string;
+  /** Ghi chú nhỏ ngay dưới nhãn (căn trái), vd. ngày. */ sub?: string;
+  /** Nhãn đậm, màu chính (vd. nội dung khoản chi). */ bold?: boolean;
+  icon?: ReactNode;
+  last?: boolean;
+}) {
   const colors = useColors();
   return (
     <View style={[styles.field, !last && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line }]}>
-      <AppText color={colors.muted} style={styles.fieldLabel}>
-        {label}
-      </AppText>
+      <View style={styles.fieldLabelCol}>
+        <AppText color={bold ? colors.ink : colors.muted} weight={bold ? 'semibold' : undefined} style={styles.fieldLabel}>
+          {label}
+        </AppText>
+        {!!sub && (
+          <AppText color={colors.muted} style={styles.fieldNote}>
+            {sub}
+          </AppText>
+        )}
+      </View>
       <View style={styles.fieldValueWrap}>
         {icon}
-        <AppText weight="semibold" style={styles.fieldValue}>
-          {formatNote(value)}
-        </AppText>
+        <View style={styles.fieldValueCol}>
+          <AppText weight="semibold" style={styles.fieldValue}>
+            {formatNote(value)}
+          </AppText>
+          {!!note && (
+            <AppText color={colors.muted} style={styles.fieldNote}>
+              {note}
+            </AppText>
+          )}
+        </View>
       </View>
     </View>
   );
@@ -61,8 +91,11 @@ const styles = StyleSheet.create({
   heroAmount: { fontSize: 36, lineHeight: 44, letterSpacing: -0.6 },
   field: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingVertical: 10 },
   fieldLabel: { fontSize: 13.5 },
+  fieldLabelCol: { flexShrink: 1, maxWidth: '55%' },
   fieldValueWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8 },
+  fieldValueCol: { flexShrink: 1, alignItems: 'flex-end' },
   fieldValue: { fontSize: 15, textAlign: 'right', flexShrink: 1 },
+  fieldNote: { fontSize: 12, lineHeight: 17, textAlign: 'right' },
   notice: { borderRadius: 14, padding: 14 },
   noticeText: { fontSize: 13.5, lineHeight: 19 },
 });
