@@ -26,7 +26,6 @@ import { PERSON_NAME_LIMIT } from '@/domain/people';
 import { describeStorageError, useExpenseSettings } from '@/features/expenses/hooks';
 import { DataSheet } from '@/features/data/DataSheet';
 import { AboutSheet } from '@/features/expenses/AboutSheet';
-import { LanguageSheet } from '@/features/expenses/LanguageSheet';
 import { usePeople } from '@/features/people/hooks';
 import { useChromeScroll } from '@/hooks/use-chrome';
 import { useColors } from '@/hooks/use-colors';
@@ -55,7 +54,6 @@ export default function SettingsScreen() {
   const [name, setName] = useState('');
   const { people, error: peopleError, add: addPerson, remove: removePerson, reload: reloadPeople } = usePeople();
   const [dataOpen, setDataOpen] = useState(false);
-  const [languageOpen, setLanguageOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [personName, setPersonName] = useState('');
 
@@ -135,15 +133,10 @@ export default function SettingsScreen() {
       <ScreenTitle
         title="Thiết lập"
         topInset={insets.top}
-        right={
-          <View style={styles.titleActions}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Giới thiệu" hitSlop={6} onPress={() => setAboutOpen(true)} style={[styles.titleButton, { backgroundColor: colors.surface }]}>
-              <SvgIcon name="info" size={20} color={colors.muted} strokeWidth={1.9} />
-            </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Ngôn ngữ" hitSlop={6} onPress={() => setLanguageOpen(true)} style={[styles.titleButton, { backgroundColor: colors.surface }]}>
-              <SvgIcon name="globe" size={20} color={colors.muted} strokeWidth={1.9} />
-            </Pressable>
-          </View>
+        afterTitle={
+          <Pressable accessibilityRole="button" accessibilityLabel="Giới thiệu" hitSlop={6} onPress={() => setAboutOpen(true)} style={[styles.titleButton, { backgroundColor: colors.surface }]}>
+            <SvgIcon name="info" size={20} color={colors.muted} strokeWidth={1.9} />
+          </Pressable>
         }
       />
       <ScrollView ref={scrollRef} {...scrollProps} contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
@@ -340,7 +333,6 @@ export default function SettingsScreen() {
       </ScrollView>
 
       {aboutOpen && <AboutSheet onClose={() => setAboutOpen(false)} />}
-      {languageOpen && <LanguageSheet onClose={() => setLanguageOpen(false)} />}
       {dataOpen && (
         <DataSheet
           onClose={() => setDataOpen(false)}
@@ -400,7 +392,6 @@ const styles = StyleSheet.create({
   monthLabel: { minWidth: 72, textAlign: 'center', fontSize: 14 },
   inline: { flexDirection: 'row', gap: 8 },
   grow: { flex: 1 },
-  titleActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   titleButton: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
   /** Ô nhập số tiền có đơn vị ₫ đặt đè bên phải (chừa chỗ cho đơn vị). */
   moneyInput: { paddingRight: 34 },

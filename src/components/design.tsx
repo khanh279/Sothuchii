@@ -28,13 +28,16 @@ export function useToneColor() {
 // ───────────────────────── Tiêu đề màn hình gốc ─────────────────────────
 
 /** Tiêu đề lớn của một trang gốc (tab), kèm khoảng đệm theo vùng an toàn phía trên. */
-export function ScreenTitle({ title, topInset = 0, right }: { title: string; topInset?: number; right?: ReactNode }) {
+export function ScreenTitle({ title, topInset = 0, right, afterTitle }: { title: string; topInset?: number; right?: ReactNode; afterTitle?: ReactNode }) {
   return (
     <View style={[styles.screenTitleWrap, { paddingTop: PageLayout.titleTop + topInset }]}>
       <View style={styles.screenTitleRow}>
-        <AppText weight="display" style={[styles.screenTitle, { flexShrink: 0 }]} numberOfLines={1} accessibilityRole="header">
-          {title}
-        </AppText>
+        <View style={styles.screenTitleLeft}>
+          <AppText weight="display" style={[styles.screenTitle, { flexShrink: 0 }]} numberOfLines={1} accessibilityRole="header">
+            {title}
+          </AppText>
+          {afterTitle}
+        </View>
         {right}
       </View>
     </View>
@@ -615,6 +618,8 @@ const styles = StyleSheet.create({
   flex: { flex: 1, minWidth: 0 },
   screenTitleWrap: { paddingHorizontal: PageLayout.paddingX, paddingBottom: PageLayout.titleBottom },
   /** Hàng cao cố định (bằng nút "+"), nên tiêu đề không nhảy dù tab có hay chưa có nút thao tác. */
+  /** Tiêu đề và nút đặt ngay sau tiêu đề (nếu có), nằm sát nhau bên trái. */
+  screenTitleLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 0 },
   screenTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: PageLayout.titleRowHeight },
   screenTitle: { fontSize: 26, lineHeight: 32, letterSpacing: -0.4 },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },

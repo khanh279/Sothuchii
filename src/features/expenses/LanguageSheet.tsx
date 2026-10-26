@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
+import { FlagIcon } from '@/components/flag-icon';
 import { SheetFrame, SheetHeader, useSheetClose } from '@/components/sheet-frame';
 import { SvgIcon } from '@/components/svg-icon';
 import { useColors } from '@/hooks/use-colors';
@@ -43,6 +44,7 @@ function Choices() {
               { opacity: pressed ? 0.7 : 1 },
             ]}
           >
+            <FlagIcon language={choice.value} size={30} />
             <AppText weight={selected ? 'bold' : 'medium'} style={styles.label}>
               {choice.label}
             </AppText>
@@ -56,6 +58,6 @@ function Choices() {
 
 const styles = StyleSheet.create({
   list: { paddingTop: 6 },
-  row: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  label: { fontSize: 16, lineHeight: 22 },
+  row: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  label: { flex: 1, fontSize: 16, lineHeight: 22 },
 });
