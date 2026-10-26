@@ -1,0 +1,64 @@
+name: Deploy web to GitHub Pages
+
+# Mỗi lần đẩy lên main: xuất bản web (Expo static) và đưa lên GitHub Pages.
+# Chạy thử tại https://<tài khoản>.github.io/<tên repo>/ (cần bật Settings → Pages → Source: GitHub Actions một lần).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # GitHub Pages phục vụ ở đường dẫn con /<tên repo>/ nên đặt baseUrl khi dựng (chỉ trong CI, app.json trong repo giữ nguyên).
+      - name: Đặt baseUrl cho Pages
+        run: |
+          node -e "
+          const fs = require('fs');
+          const j = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+          j.expo.experiments = { ...(j.expo.experiments || {}), baseUrl: '/' + process.env.REPO_NAME };
+          fs.writeFileSync('app.json', JSON.stringify(j, null, 2));
+          "
+        env:
+          REPO_NAME: ${{ github.event.repository.name }}
+
+      - run: npx expo export --platform web --output-dir dist
+
+      # .nojekyll: Pages không bỏ qua thư mục bắt đầu bằng "_" (_expo). 404.html: mở thẳng một đường dẫn con vẫn vào app.
+      - name: Chuẩn bị cho Pages
+        run: |
+          touch dist/.nojekyll
+          cp dist/index.html dist/404.html
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
