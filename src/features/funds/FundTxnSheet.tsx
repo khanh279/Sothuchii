@@ -3,7 +3,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { SheetFrame, SheetHeader } from '@/components/sheet-frame';
-import { fundBalance } from '@/domain/funds';
+import { fundCash } from '@/domain/fundAdvance';
 import { FundRow } from '@/features/funds/FundExpensePanel';
 import { useFundData } from '@/features/funds/hooks';
 import { useColors } from '@/hooks/use-colors';
@@ -51,7 +51,7 @@ export function FundTxnSheet({ mode, onClose }: Props) {
           {mode === 'thu' ? 'Chọn quỹ để ghi khoản thu' : 'Chọn quỹ để ghi khoản chi'}
         </AppText>
         {data.funds.map((item) => {
-          const balance = fundBalance(data, item.id);
+          const balance = fundCash(data, item.id);
           return (
             <FundRow
               key={item.id}

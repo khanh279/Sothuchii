@@ -104,12 +104,12 @@ describe('settings & ngân sách', () => {
 });
 
 describe('mục chi', () => {
-  it('có 11 mục mặc định, Khác luôn ở cuối kể cả khi có mục riêng', () => {
-    expect(allCategories(EMPTY_SETTINGS)).toHaveLength(11);
+  it('có 12 mục mặc định (có Đầu tư), Khác luôn ở cuối kể cả khi có mục riêng', () => {
+    expect(allCategories(EMPTY_SETTINGS)).toHaveLength(12);
     const r = addCustomCategory(EMPTY_SETTINGS, 'Thú cưng', 'pet', 1);
     if (!r.ok) throw new Error('lẽ ra thêm được');
     const list = allCategories(r.settings);
-    expect(list).toHaveLength(12);
+    expect(list).toHaveLength(13);
     expect(list[list.length - 1].id).toBe('other');
     expect(list[list.length - 2].name).toBe('Thú cưng');
   });
@@ -326,7 +326,7 @@ describe('tổng hợp theo mục', () => {
 
   it('summarizeByCategory: xếp theo tiền, mục đã xoá gộp vào Khác, giữ cả mục 0 đồng', () => {
     const list = summarizeByCategory(items, EMPTY_SETTINGS);
-    expect(list).toHaveLength(11);
+    expect(list).toHaveLength(12);
     expect(list.slice(0, 3).map((s) => [s.category.id, s.sum, s.n])).toEqual([
       ['food', 80000, 2],
       ['fun', 20000, 1],

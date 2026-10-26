@@ -105,7 +105,7 @@ export function FundPayPanel({
       choices={choices}
       payer={payer}
       receiver={receiver}
-      warning={partialOfRemaining ? `Số dư quỹ (${formatVnd(cash)}) nhỏ hơn số còn nợ (${formatVnd(item.remaining)}): chỉ thanh toán tối đa ${formatVnd(limited)}.` : undefined}
+      warning={partialOfRemaining ? `Quỹ chỉ có thể quyết toán tối đa ${formatVnd(limited)}` : undefined}
       onPay={(amount) => onPay(amount)}
       onDone={onDone}
       onFailure={onFailure}
@@ -161,7 +161,7 @@ function FundOwedFlow({ data, person, scope, reload, onClose }: FlowProps) {
         choices={choices}
         payer={payer}
         receiver={person}
-        warning={limited ? `Tiền thực tế trong quỹ không đủ trả hết ${formatVnd(totalOwed)}: chỉ thanh toán tối đa ${formatVnd(limit)}.` : undefined}
+        warning={limited ? `Quỹ chỉ có thể quyết toán tối đa ${formatVnd(limit)}` : undefined}
         onPay={(amount) => payMany(planCombinedPayout(data, owed, amount))}
         onDone={onClose}
         onFailure={(e) => toast.show(describeFundError(e))}

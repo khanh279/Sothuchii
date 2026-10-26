@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ComponentRef } from 'react';
-import { Platform, TextInput, type TextInputProps } from 'react-native';
+import { Platform, type TextInputProps } from 'react-native';
+import { AppTextInput as TextInput } from '@/components/app-text-input';
 
 import { useAmountSuggest } from '@/components/amount-suggest';
 import { parseAmountInput } from '@/domain/expenses';

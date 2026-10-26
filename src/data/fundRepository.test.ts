@@ -271,13 +271,13 @@ describe('chi quỹ nâng cao (lưu trữ)', () => {
     expect((await raw()).expenses).toEqual([]);
   });
 
-  it('giao tiền ứng (cả 0 đồng), chi từ tiền ứng, hoàn thừa: tổng chi chỉ tăng ở khoản chi, tiền quỹ không trừ hai lần', async () => {
+  it('giao tiền ứng (0 đồng bị từ chối), chi từ tiền ứng, hoàn thừa: tổng chi chỉ tăng ở khoản chi, tiền quỹ không trừ hai lần', async () => {
     await seed(base());
     const a = await createAdvance({ fundId: 'f1', person: 'A', title: 'Mua vật tư', date: D, amount: 500_000 });
-    const zero = await createAdvance({ fundId: 'f1', person: 'B', title: 'Giao việc', date: D, amount: 0 });
+    await expect(createAdvance({ fundId: 'f1', person: 'B', title: 'Giao việc', date: D, amount: 0 })).rejects.toThrow('Nhập số tiền lớn hơn 0'); // phải khác 0
     let data = await loadFundData();
     expect(fundPosition(data, 'f1')).toMatchObject({ cash: 9_500_000, spent: 0, held: 500_000 });
-    expect(data.advances!.map((x) => x.id)).toEqual([a, zero]);
+    expect(data.advances!.map((x) => x.id)).toEqual([a]);
 
     await saveFundExpense({ fundId: 'f1', title: 'Giấy', date: D, amount: 200_000, mode: 'advance', advanceId: a });
     await saveFundExpense({ fundId: 'f1', title: 'Bút', date: D, amount: 100_000, mode: 'advance', advanceId: a });

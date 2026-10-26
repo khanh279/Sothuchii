@@ -73,12 +73,19 @@ export function DetailField({
   );
 }
 
-/** Dòng ghi chú: `error` nền đỏ nhạt, `info` nền navy nhạt. */
+/** Dòng ghi chú: `error` là ô nền đỏ nhạt; `info` là chữ nhỏ mờ căn trái nằm dưới khung (không đặt trong ô). */
 export function DetailNotice({ text, tone }: { text: string; tone: 'error' | 'info' }) {
   const colors = useColors();
+  if (tone === 'info') {
+    return (
+      <AppText color={colors.muted} style={styles.infoText}>
+        {text}
+      </AppText>
+    );
+  }
   return (
-    <View style={[styles.notice, { backgroundColor: tone === 'error' ? colors.dangerSoft : colors.primarySoft }]}>
-      <AppText color={tone === 'error' ? colors.danger : colors.muted} style={styles.noticeText}>
+    <View style={[styles.notice, { backgroundColor: colors.dangerSoft }]}>
+      <AppText color={colors.danger} style={styles.noticeText}>
         {text}
       </AppText>
     </View>
@@ -98,4 +105,5 @@ const styles = StyleSheet.create({
   fieldNote: { fontSize: 12, lineHeight: 17, textAlign: 'right' },
   notice: { borderRadius: 14, padding: 14 },
   noticeText: { fontSize: 13.5, lineHeight: 19 },
+  infoText: { fontSize: 12.5, lineHeight: 17, paddingHorizontal: 4 },
 });

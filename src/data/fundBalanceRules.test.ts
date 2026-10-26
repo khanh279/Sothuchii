@@ -46,14 +46,14 @@ describe('chi / giao tiền ứng theo số dư quỹ', () => {
     expect((await raw()).expenses).toHaveLength(1);
   });
 
-  it('giao tiền ứng: ≤ số dư thì được (kể cả đúng bằng), vượt thì chặn và nói số tối đa', async () => {
+  it('giao tiền ứng: ≤ số dư thì được (kể cả đúng bằng), vượt thì chặn và nói số tối đa; số 0 bị từ chối', async () => {
     await seed(withCash(500_000));
-    await expect(createAdvance({ fundId: 'f1', person: 'A', title: 'x', date: D, amount: 500_001 })).rejects.toThrow('Tối đa có thể giao: 500.000');
+    await expect(createAdvance({ fundId: 'f1', person: 'A', title: 'x', date: D, amount: 500_001 })).rejects.toThrow('Số tiền giao vượt quá số dư quỹ');
     expect((await raw()).advances ?? []).toEqual([]);
     await createAdvance({ fundId: 'f1', person: 'A', title: 'Đủ', date: D, amount: 500_000 });
     expect(fundPosition(await loadFundData(), 'f1')).toMatchObject({ cash: 0, balance: 500_000 });
     await expect(createAdvance({ fundId: 'f1', person: 'B', title: 'Hết tiền', date: D, amount: 1 })).rejects.toBeInstanceOf(FundInputError);
-    await createAdvance({ fundId: 'f1', person: 'B', title: 'Giao việc', date: D, amount: 0 }); // 0 vẫn được
+    await expect(createAdvance({ fundId: 'f1', person: 'B', title: 'Giao việc', date: D, amount: 0 })).rejects.toThrow('Nhập số tiền lớn hơn 0'); // số tiền giao phải khác 0
   });
 
   it('chi từ tiền ứng và cá nhân ứng không bị chặn bởi số dư (không lấy thêm tiền khỏi quỹ)', async () => {

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Animated, Easing, Keyboard, Platform, StyleSheet, View, type KeyboardEvent, type StyleProp, type ViewStyle } from 'react-native';
+import { Animated, Easing, Keyboard, Platform, StyleSheet, type HostInstance, type KeyboardEvent, type StyleProp, type ViewStyle } from 'react-native';
 
 import { isModalOpen } from '@/components/modal-presence';
 import { AmountSuggestBar, AmountSuggestContext, type AmountSuggestApi } from '@/components/amount-suggest';
@@ -30,7 +30,7 @@ type Active = Parameters<AmountSuggestApi['show']>[0];
  * Khung gần nhất bao quanh ô nhập là khung được dùng (tờ phủ có khung riêng).
  */
 export function KeyboardAvoid({ style, ignoreWhenModalOpen = false, children }: Props) {
-  const rootRef = useRef<View>(null);
+  const rootRef = useRef<HostInstance>(null);
   const [pad] = useState(() => new Animated.Value(0));
   /** Đệm hiện tại (đích của lần hoạt hoá gần nhất): bỏ qua các sự kiện bàn phím lặp lại cho cùng một chiều cao để khung không chuyển động thừa. */
   const target = useRef(0);

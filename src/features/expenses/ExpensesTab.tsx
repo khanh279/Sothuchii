@@ -1,14 +1,13 @@
-import { router } from 'expo-router';
 import { useMemo } from 'react';
 import { ActivityIndicator, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { LockableScrollView } from '@/components/lockable-scroll-view';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { CardHead, ChipRow, EmptyState, ScreenTitle, TitleAction } from '@/components/design';
+import { CardHead, ChipRow, EmptyState, ScreenTitle } from '@/components/design';
 import { PageLayout } from '@/constants/layout';
 import { AppRadius } from '@/constants/palette';
-import { categoriesInUse, dayHeading, filterByCategory, groupByDay, periodTitle, periodToParams, suggestedDateFor } from '@/domain/expenses';
+import { categoriesInUse, dayHeading, filterByCategory, groupByDay, periodTitle } from '@/domain/expenses';
 import { expenseLinkLabel } from '@/domain/expenseTab';
 import { ExpenseCategoryOverview } from '@/features/expenses/ExpenseCategoryOverview';
 import { ExpenseRow } from '@/features/expenses/HistoryScreen';
@@ -46,13 +45,9 @@ export default function ExpensesTab() {
   const catOptions = useMemo(() => [{ value: 'all', label: 'Tất cả' }, ...inUse.map((cat) => ({ value: cat.id, label: cat.name }))], [inUse]);
   const message = settingsError ?? error;
 
-  function addExpense() {
-    router.push({ pathname: '/chi-tieu/nhap', params: { ...periodToParams(period), d: suggestedDateFor(period, today) } });
-  }
-
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
-      <ScreenTitle title="Chi tiêu" topInset={insets.top} right={<TitleAction label="Chi tiêu" onPress={addExpense} />} />
+      <ScreenTitle title="Chi tiêu" topInset={insets.top} />
       <LockableScrollView contentContainerStyle={[styles.content, { paddingBottom: PageLayout.bottomClearance + insets.bottom }]} onScrollBeginDrag={() => setOpenId(null)} keyboardShouldPersistTaps="handled">
         {/* Thẻ tổng quan: biểu đồ tròn phân bổ chi tiêu theo mục (kèm %), nằm trên cùng; chạm một mục để lọc lịch sử bên dưới. */}
         {!message && loaded && (

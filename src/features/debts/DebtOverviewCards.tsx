@@ -31,7 +31,7 @@ export function DebtStatCard({ bills, pays, period, style }: Props & { style?: R
   const balance = overview.get - overview.owe;
   const tone = Math.abs(balance) < DEBT_ZERO ? 'mid' : balance > 0 ? 'get' : 'owe';
   return (
-    <SummaryCard label="Công nợ" icon="tabTransactions" tint="purple" value={`${SIGN[tone]}${formatVnd(Math.abs(balance))}`} tone={tone} caption="Chênh lệch nợ" style={style} />
+    <SummaryCard label="Công nợ" icon="tabTransactions" tint="purple" value={`${SIGN[tone]}${formatVnd(Math.abs(balance))}`} tone={tone} caption={`${overview.people.length} người`} style={style} />
   );
 }
 

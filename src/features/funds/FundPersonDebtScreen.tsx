@@ -6,12 +6,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from '@/components/app-text';
 import { DetailNotice } from '@/components/detail-parts';
 import { EmptyState, PrimaryButton, ScreenTitle, SecondaryButton } from '@/components/design';
+import { HistoryCard } from '@/components/history-card';
 import { PayPageFrame } from '@/components/pay-page-frame';
+import { useToast } from '@/components/toast';
+import { deleteFundExpenseSynced } from '@/data/fundService';
 import { PAY_ACTION_BAR_CLEARANCE, PayActionBar } from '@/components/pay-action-bar';
-import { PAYOUT_NO_CASH_MESSAGE, advanceSummary, overflowExpense, fundPersonBalances, fundPersonTargets } from '@/domain/fundAdvance';
+import { advanceSummary, overflowExpense, fundPersonBalances, fundPersonTargets } from '@/domain/fundAdvance';
 import { PERSON_ITEM_LABEL, buildPersonFundDetail, filterPersonDetailBySide, type PersonDebtSide, type PersonFundItem } from '@/domain/fundPerson';
 import { FundPayFlow, isFundPayBlocked } from '@/features/funds/FundPayFlow';
-import { useFundData } from '@/features/funds/hooks';
+import { FundEntryIcon } from '@/features/funds/FundEntryIcon';
+import { describeFundError, useFundData } from '@/features/funds/hooks';
 import { AdvanceSpendCard, advanceSpendItems } from '@/features/funds/AdvanceSpendCard';
 import { useColors } from '@/hooks/use-colors';
 import { formatVnDate } from '@/utils/date';
@@ -31,6 +35,9 @@ export default function FundPersonDebtScreen() {
   const insets = useSafeAreaInsets();
   const { data, loaded, error, reload } = useFundData();
   const [payOpen, setPayOpen] = useState(false);
+  const toast = useToast();
+  /** Dòng khoản cá nhân ứng chi đang vuốt mở (chỉ một dòng mở một lúc). */
+  const [openId, setOpenId] = useState<string | null>(null);
   const isHeld = side === 'held';
   /** Trang "Nợ quỹ": đang mở danh sách các lần giao dưới dòng "Tổng giao A ứng". */
   const [lotsOpen, setLotsOpen] = useState(false);
@@ -50,6 +57,18 @@ export default function FundPersonDebtScreen() {
   /** Hoàn tiền ứng: gộp mọi lần giao của người đó thành một khoản; hoàn một phần thì trừ vào lần giao mới nhất trước. */
   function startRefund() {
     router.push({ pathname: '/quy/ung-chi', params: { mode: 'refund', person: person.trim(), fund } });
+  }
+
+  /** Xóa một khoản cá nhân ứng chi (sau khi bấm Xóa lần hai ở dòng vuốt), rồi tải lại số liệu. */
+  async function removeSpend(id: string) {
+    try {
+      await deleteFundExpenseSynced(id);
+      setOpenId(null);
+      toast.show('Đã xóa khoản chi');
+      await reload();
+    } catch (e) {
+      toast.show(describeFundError(e));
+    }
   }
 
   let body;
@@ -146,7 +165,30 @@ export default function FundPersonDebtScreen() {
             <EmptyState text="Chưa có khoản nào" icon="check" />
           ) : (
             <View>
-              {items.map((entry, index) => (
+              {items.map((entry, index) =>
+                entry.kind === 'personalSpend' ? (
+                  // Khoản cá nhân ứng chi: vuốt dòng sang trái để Sửa / Xóa (chạm vào dòng không mở gì).
+                  <View key={`${entry.kind}:${entry.id}`} style={styles.swipeItem}>
+                    <HistoryCard
+                      open={openId === entry.id}
+                      onOpen={() => setOpenId(entry.id)}
+                      onClose={() => setOpenId((current) => (current === entry.id ? null : current))}
+                      onEdit={() => {
+                        setOpenId(null);
+                        router.push({ pathname: '/quy/sua', params: { kind: 'expense', id: entry.id } });
+                      }}
+                      onDelete={() => void removeSpend(entry.id)}
+                      accessibilityLabel={`${entry.title}, -${formatVnd(entry.amount)}`}
+                      icon={<FundEntryIcon kind="expense" mode="personal" />}
+                      title={entry.title}
+                      subtitle={formatVnDate(entry.date)}
+                      amount={`−${formatVnd(entry.amount)}`}
+                      tone="owe"
+                      badge={(remainingOf.get(entry.id) ?? entry.amount) < entry.amount ? `Đã thanh toán ${formatVnd(entry.amount - (remainingOf.get(entry.id) ?? 0))}` : undefined}
+                      badgeTone="warn"
+                    />
+                  </View>
+                ) : (
                 <Pressable
                   key={`${entry.kind}:${entry.id}`}
                   disabled={entry.kind !== 'overflow'}
@@ -180,11 +222,17 @@ export default function FundPersonDebtScreen() {
                     )}
                   </View>
                 </Pressable>
-              ))}
+                ),
+              )}
             </View>
           )}
         </PayPageFrame>
-        {noCash && <DetailNotice text={PAYOUT_NO_CASH_MESSAGE} tone="error" />}
+        {/* Quỹ không đủ tiền quyết toán: chữ đỏ nhỏ căn trái, không đặt trong ô, nằm sát mép dưới khung. */}
+        {noCash && (
+          <AppText color={colors.danger} style={styles.noCash}>
+            Số dư quỹ không đủ để quyết toán khoản nợ
+          </AppText>
+        )}
         {isHeld && heldAdvances.length > 0 && (
           <View style={styles.actions}>
             <PrimaryButton label="+ Thêm khoản chi" onPress={() => router.push({ pathname: '/quy/ung-chi', params: { mode: 'expense', person: person.trim(), fund } })} />
@@ -268,6 +316,8 @@ function HeldLine({
 type ListItem = Omit<PersonFundItem, 'kind'> & { kind: PersonFundItem['kind'] | 'overflow'; note?: string };
 
 const styles = StyleSheet.create({
+  swipeItem: { paddingVertical: 3 },
+  noCash: { fontSize: 12.5, lineHeight: 17, paddingHorizontal: 4, marginTop: -6 },
   actions: { gap: 10 },
   heldLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingVertical: 8 },
   screen: { flex: 1 },

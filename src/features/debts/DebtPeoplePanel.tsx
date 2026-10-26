@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
-import { EmptyState, SectionCard, StatusBadge } from '@/components/design';
+import { EmptyState } from '@/components/design';
 import { PaymentPanel, type PayChoice } from '@/components/payment-panel';
 import { SelectableCard } from '@/components/selectable-card';
 import { SvgIcon } from '@/components/svg-icon';
@@ -30,44 +30,32 @@ interface DataProps {
 }
 
 /**
- * Phần 1 — Tổng quan công nợ: hai số tách riêng "Tôi nợ" (tổng tôi phải trả) và "Nợ tôi" (tổng người khác phải trả tôi), tính bằng đúng
- * `buildDebtOverview` (tổng ròng từng người, toàn thời gian). Không bù trừ hai nhóm thành một số.
+ * Hai ô "Tôi nợ" (tổng tôi phải trả) và "Nợ tôi" (tổng người khác phải trả tôi), tính bằng đúng `buildDebtOverview` (tổng ròng từng người, toàn thời gian). Không bù trừ hai nhóm thành một số.
+ * Không bọc thẻ: nơi dùng (thẻ Tổng quan của trang Nợ & bill) tự đặt khung.
  */
-export function DebtTotalsSection({ bills, pays, period }: DataProps) {
+export function DebtTotalTiles({ bills, pays }: { bills: readonly Bill[]; pays: readonly Pay[] }) {
   const colors = useColors();
-  const overview = useMemo(() => buildDebtOverview(bills, pays, period), [bills, pays, period]);
+  const overview = useMemo(() => buildDebtOverview(bills, pays, { mode: 'all' }), [bills, pays]);
   return (
-    <SectionCard title="Tổng quan" subtitle="Toàn thời gian">
-      <View style={styles.totals}>
-        <View style={[styles.total, { backgroundColor: colors.bg, borderColor: colors.line }]} accessible accessibilityLabel={`Tôi nợ ${formatVnd(overview.owe)}`}>
-          <AppText weight="medium" color={colors.muted} style={styles.label}>
-            Tôi nợ
-          </AppText>
-          <AppText weight="display" color={overview.owe >= DEBT_ZERO ? colors.danger : colors.ink} style={styles.value} numberOfLines={1} adjustsFontSizeToFit>
-            {formatVnd(overview.owe)}
-          </AppText>
-        </View>
-        <View style={[styles.total, { backgroundColor: colors.bg, borderColor: colors.line }]} accessible accessibilityLabel={`Nợ tôi ${formatVnd(overview.get)}`}>
-          <AppText weight="medium" color={colors.muted} style={styles.label}>
-            Nợ tôi
-          </AppText>
-          <AppText weight="display" color={overview.get >= DEBT_ZERO ? colors.success : colors.ink} style={styles.value} numberOfLines={1} adjustsFontSizeToFit>
-            {formatVnd(overview.get)}
-          </AppText>
-        </View>
+    <View style={styles.totals}>
+      <View style={[styles.total, { backgroundColor: colors.bg, borderColor: colors.line }]} accessible accessibilityLabel={`Tôi nợ ${formatVnd(overview.owe)}`}>
+        <AppText weight="medium" color={colors.muted} style={styles.label}>
+          Tôi nợ
+        </AppText>
+        <AppText weight="display" color={overview.owe >= DEBT_ZERO ? colors.danger : colors.ink} style={styles.value} numberOfLines={1} adjustsFontSizeToFit>
+          {formatVnd(overview.owe)}
+        </AppText>
       </View>
-    </SectionCard>
+      <View style={[styles.total, { backgroundColor: colors.bg, borderColor: colors.line }]} accessible accessibilityLabel={`Nợ tôi ${formatVnd(overview.get)}`}>
+        <AppText weight="medium" color={colors.muted} style={styles.label}>
+          Nợ tôi
+        </AppText>
+        <AppText weight="display" color={overview.get >= DEBT_ZERO ? colors.success : colors.ink} style={styles.value} numberOfLines={1} adjustsFontSizeToFit>
+          {formatVnd(overview.get)}
+        </AppText>
+      </View>
+    </View>
   );
-}
-
-interface PeopleProps extends DataProps {
-  /** Chạm một người để mở trang thanh toán với người đó (không lọc lịch sử). */
-  onOpen: (name: string) => void;
-}
-
-/** Tên các người đang có công nợ (khoá của cơ chế chọn), đúng thứ tự hiển thị. */
-export function debtPeopleNames(bills: readonly Bill[], pays: readonly Pay[], period: Period): string[] {
-  return buildDebtOverview(bills, pays, period).people.map((person) => person.name);
 }
 
 function personCaption(person: DebtPersonRow): string {
@@ -75,24 +63,34 @@ function personCaption(person: DebtPersonRow): string {
 }
 
 /**
- * Phần 2 — Chi tiết nợ: mỗi người một thẻ, cùng MỘT hàng: bên trái nhãn "Tôi nợ" (đỏ) / "Nợ tôi" (xanh) / "Bù nhau" rồi tên, bên phải tổng vay và bill. Chạm thẻ để chọn / bỏ chọn người đó (lọc lịch sử giao dịch và hiện nút
- * Thanh toán); nút "›" bên phải mở màn chi tiết nợ hiện có.
+ * Danh sách người chia ba vùng có tiêu đề, theo thứ tự: Nợ tôi → Tôi nợ → Bù nhau (tổng bằng 0, hai sổ triệt tiêu); vùng trống thì không hiện. Mỗi dòng: tên bên trái, số tiền có dấu / màu bên phải
+ * và mũi tên; chạm một người để mở trang chi tiết nợ của người đó (`onOpen`). Không bọc thẻ.
  */
-export function DebtPeopleSection({ bills, pays, period, onOpen }: PeopleProps) {
+export function DebtPeopleZones({ people, onOpen }: { people: readonly DebtPersonRow[]; onOpen: (name: string) => void }) {
   const colors = useColors();
-  const overview = useMemo(() => buildDebtOverview(bills, pays, period), [bills, pays, period]);
+  const groups = [
+    { title: 'Nợ tôi', people: people.filter((person) => person.tone === 'get') },
+    { title: 'Tôi nợ', people: people.filter((person) => person.tone === 'owe') },
+    { title: 'Bù nhau', people: people.filter((person) => person.tone !== 'get' && person.tone !== 'owe') },
+  ].filter((group) => group.people.length > 0);
+  if (people.length === 0) return <EmptyState text="Không còn khoản nợ nào" icon="check" />;
   return (
-    <SectionCard title="Chi tiết nợ" subtitle="Toàn thời gian" rightTop={`${overview.people.length} người`}>
-      {overview.people.length === 0 ? (
-        <EmptyState text="Không còn khoản nợ nào" icon="check" />
-      ) : (
-        <View style={styles.list}>
-          {overview.people.map((person) => {
-            const tint = person.tone === 'get' ? colors.success : person.tone === 'owe' ? colors.danger : colors.muted;
+    <View style={styles.list}>
+      {groups.map((group) => (
+        <View key={group.title} style={styles.zone}>
+          <View style={styles.zoneHead}>
+            <AppText weight="semibold" color={colors.muted} style={styles.zoneTitle}>
+              {group.title}
+            </AppText>
+            <AppText color={colors.muted} style={styles.zoneCount}>
+              {group.people.length} người
+            </AppText>
+          </View>
+          {group.people.map((person) => {
+            const tint = person.tone === 'get' ? colors.success : person.tone === 'owe' ? colors.danger : colors.ink;
             return (
               <SelectableCard key={person.name} selected={false} onPress={() => onOpen(person.name)} accessibilityLabel={`Thanh toán với ${person.name}, ${personCaption(person)} ${formatVnd(Math.abs(person.total))}`}>
                 <View style={styles.cardRow}>
-                  <StatusBadge label={person.tone === 'owe' ? 'Tôi nợ' : person.tone === 'get' ? 'Nợ tôi' : 'Bù nhau'} tone={person.tone === 'owe' ? 'owe' : person.tone === 'get' ? 'get' : 'info'} style={styles.rowBadge} />
                   <AppText weight="semibold" style={[styles.flex, styles.rowName]} numberOfLines={1}>
                     {person.name}
                   </AppText>
@@ -106,8 +104,8 @@ export function DebtPeopleSection({ bills, pays, period, onOpen }: PeopleProps) 
             );
           })}
         </View>
-      )}
-    </SectionCard>
+      ))}
+    </View>
   );
 }
 
@@ -170,9 +168,11 @@ const styles = StyleSheet.create({
   label: { fontSize: 12.5, lineHeight: 17 },
   value: { fontSize: 22, lineHeight: 30, letterSpacing: -0.3 },
   list: { gap: 8 },
+  zone: { gap: 3 },
+  zoneHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  zoneTitle: { fontSize: 13, lineHeight: 18 },
+  zoneCount: { fontSize: 12.5, lineHeight: 17 },
   cardRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  /** Giống danh sách Thanh toán bill ở Chia bill: cùng khoảng cách, nhãn căn giữa dọc, tên cùng chiều cao dòng với số tiền. */
-  rowBadge: { alignSelf: 'center', marginTop: 0 },
   rowName: { fontSize: 15.5, lineHeight: 23 },
   name: { fontSize: 15.5, lineHeight: 21 },
   note: { fontSize: 12.5, lineHeight: 17 },

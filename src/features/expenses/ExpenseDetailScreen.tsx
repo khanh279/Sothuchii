@@ -71,7 +71,7 @@ export default function ExpenseDetailScreen() {
           <Field label="Nguồn" value={(expense.src && SOURCE[expense.src]) || 'Tự nhập'} />
           {!!expense.i && <Field label="Chi tiết" value={expense.i} last />}
         </Panel>
-        <Notice text={notice ?? 'Sửa hoặc xoá khoản chi này: vuốt dòng sang trái ở tab Chi tiêu.'} tone="info" />
+        <Notice text={notice ?? 'Vuốt dòng sang trái để sửa hoặc xóa'} tone="info" />
       </ScrollView>
     );
   }
@@ -104,9 +104,17 @@ function Field({ label, value, icon, last }: { label: string; value: string; ico
 
 function Notice({ text, tone }: { text: string; tone: 'error' | 'info' }) {
   const colors = useColors();
+  // Ghi chú thông tin: chữ nhỏ mờ căn trái dưới khung, không đặt trong ô; lỗi vẫn là ô nền đỏ nhạt.
+  if (tone === 'info') {
+    return (
+      <AppText color={colors.muted} style={styles.infoText}>
+        {text}
+      </AppText>
+    );
+  }
   return (
-    <View style={[styles.notice, { backgroundColor: tone === 'error' ? colors.dangerSoft : colors.primarySoft }]}>
-      <AppText color={tone === 'error' ? colors.danger : colors.muted} style={styles.noticeText}>
+    <View style={[styles.notice, { backgroundColor: colors.dangerSoft }]}>
+      <AppText color={colors.danger} style={styles.noticeText}>
         {text}
       </AppText>
     </View>
@@ -126,4 +134,5 @@ const styles = StyleSheet.create({
   fieldValue: { fontSize: 15, textAlign: 'right', flexShrink: 1 },
   notice: { borderRadius: 14, padding: 14 },
   noticeText: { fontSize: 13.5, lineHeight: 19 },
+  infoText: { fontSize: 12.5, lineHeight: 17, paddingHorizontal: 4 },
 });

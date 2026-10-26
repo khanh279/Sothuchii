@@ -1,7 +1,7 @@
 import { useFonts } from 'expo-font';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
@@ -11,6 +11,8 @@ import { FONT_ASSETS } from '@/constants/font-assets';
 import { SoTienColors } from '@/constants/palette';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ChromeProvider } from '@/hooks/use-chrome';
+import '@/i18n/en';
+import { loadLanguage } from '@/i18n/language';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -34,7 +36,13 @@ function navigationTheme(scheme: 'light' | 'dark') {
 export default function RootLayout() {
   const scheme = useColorScheme();
   const [fontsLoaded, fontError] = useFonts(FONT_ASSETS);
-  const ready = fontsLoaded || !!fontError;
+  const [languageReady, setLanguageReady] = useState(false);
+  const ready = (fontsLoaded || !!fontError) && languageReady;
+
+  // Ngôn ngữ đã chọn được đọc trước khi vẽ màn hình đầu tiên để không thấy chữ đổi từ tiếng Việt sang tiếng Anh.
+  useEffect(() => {
+    void loadLanguage().finally(() => setLanguageReady(true));
+  }, []);
 
   // Màn hình khởi động (cấu hình trong app.json) giữ nguyên cho tới khi font nạp xong, nên không có
   // cảnh chữ đổi font hoặc bố cục nhảy. Nếu nạp lỗi thì dùng font hệ thống thay vì kẹt.
@@ -75,6 +83,7 @@ export default function RootLayout() {
             <Stack.Screen name="cong-no/ghi-nhan" />
             <Stack.Screen name="cong-no/sua" />
             <Stack.Screen name="cong-no/chi-tiet" />
+            <Stack.Screen name="cong-no/vay" />
             <Stack.Screen name="cong-no/giao-dich" />
           </Stack>
           </KeyboardAvoid>

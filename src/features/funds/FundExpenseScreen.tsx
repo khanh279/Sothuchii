@@ -25,7 +25,7 @@ export default function FundExpenseScreen({ mode = 'chi' }: { mode?: 'chi' | 'th
   const { fund } = useLocalSearchParams<{ fund?: string }>();
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { data, loaded, error } = useFundData();
+  const { data, loaded, error, reload } = useFundData();
 
   let body;
   if (error) {
@@ -51,10 +51,10 @@ export default function FundExpenseScreen({ mode = 'chi' }: { mode?: 'chi' | 'th
       <KeyboardAwareScrollView style={styles.screen} contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
         {mode === 'thu' ? (
           // Thu quỹ tự có hai thẻ riêng (như trang tạo bill), nên không bọc thêm thẻ ngoài.
-          <FundExpensePanel data={data} mode={mode} initialFundId={fund} onChanged={leave} />
+          <FundExpensePanel data={data} mode={mode} initialFundId={fund} onChanged={leave} onAdded={() => void reload()} />
         ) : (
           <View style={[styles.card, { backgroundColor: colors.surface }]}>
-            <FundExpensePanel data={data} mode={mode} initialFundId={fund} onChanged={leave} />
+            <FundExpensePanel data={data} mode={mode} initialFundId={fund} onChanged={leave} onAdded={() => void reload()} />
           </View>
         )}
       </KeyboardAwareScrollView>

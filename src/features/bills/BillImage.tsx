@@ -1,5 +1,5 @@
 import { forwardRef } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, type HostInstance } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { CategoryIcon } from '@/components/category-icon';
@@ -32,7 +32,7 @@ interface Props {
  * tên, ngày, danh mục, tổng tiền, phần mỗi người, từng người (đã chi / phải chịu / nhận lại hay còn thiếu) và các khoản cần chuyển
  * với trạng thái thanh toán. Nền trắng, tự cao theo nội dung. Mọi chữ đều đặt màu rõ ràng vì ảnh không đi theo giao diện sáng/tối.
  */
-export const BillImage = forwardRef<View, Props>(function BillImage({ bill, category, split, statuses }, ref) {
+export const BillImage = forwardRef<HostInstance, Props>(function BillImage({ bill, category, split, statuses }, ref) {
   return (
     <View ref={ref} collapsable={false} style={styles.sheet}>
       <AppText weight="semibold" color={C.muted} style={styles.brand}>

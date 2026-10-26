@@ -8,6 +8,8 @@ import { AppText } from '@/components/app-text';
 import { EmptyState } from '@/components/design';
 import { HistoryCard, IconTile } from '@/components/history-card';
 import { SvgIcon } from '@/components/svg-icon';
+import type { IconName } from '@/constants/icons';
+import { payRowType } from '@/domain/expenseTab';
 import { TOAST_BOTTOM_HISTORY, useToast } from '@/components/toast';
 import { AppRadius } from '@/constants/palette';
 import { deletePaySynced } from '@/data/payService';
@@ -126,6 +128,8 @@ export function PayRowView({ row, rowProps, onDelete, badge }: { row: PayRow; ro
   const tint = row.tone === 'get' ? colors.success : row.tone === 'owe' ? colors.danger : colors.muted;
   const sign = row.tone === 'get' ? '+' : row.tone === 'owe' ? '−' : '';
   const subtitle = payRowSubtitle(row);
+  // Biểu tượng theo loại: trả bill = biên lai; chuyển tiền = mũi tên ra (mình trả) / vào (mình nhận) / hai chiều (giữa hai người khác).
+  const icon: IconName = payRowType(row) === 'bill' ? 'receipt' : row.tone === 'owe' ? 'arrowOut' : row.tone === 'get' ? 'arrowIn' : 'swapCircle';
   return (
     <HistoryCard
       {...rowProps}
@@ -137,8 +141,8 @@ export function PayRowView({ row, rowProps, onDelete, badge }: { row: PayRow; ro
       onDelete={onDelete}
       accessibilityLabel={`${row.from} trả ${row.to}, ${formatVnd(row.amt)}`}
       icon={
-        <IconTile color={tint}>
-          <SvgIcon name="tabTransactions" size={22} color={tint} />
+        <IconTile color={tint} neutral>
+          <SvgIcon name={icon} size={22} color={colors.primary} strokeWidth={1.8} />
         </IconTile>
       }
       title={`${row.from} → ${row.to}`}

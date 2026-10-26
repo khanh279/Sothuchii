@@ -368,6 +368,8 @@ interface TransactionRowProps {
   first?: boolean;
   /** true: tiêu đề chỉ một dòng, dài quá thì cắt bằng "…" (mặc định tối đa 2 dòng). */
   singleLineTitle?: boolean;
+  /** true: dòng phụ chỉ một hàng, dài quá thì cắt bằng "…" (mặc định tối đa 4 dòng). */
+  singleLineSubtitle?: boolean;
   onPress?: () => void;
   accessibilityLabel?: string;
   /** Không vẽ đường phân cách và đệm ngang (khi đặt trong `SwipeRow` đã có khung riêng). */
@@ -396,7 +398,7 @@ export function StatusBadge({ label, tone = 'info', style }: { label: string; to
 }
 
 /** Dòng giao dịch: biểu tượng, nội dung + thông tin phụ bên trái, số tiền căn phải kèm nhãn nhỏ. */
-export function TransactionRow({ icon, title, subtitle, amount, tone, meta, badge, badgeTone, first, singleLineTitle, onPress, accessibilityLabel, bare }: TransactionRowProps) {
+export function TransactionRow({ icon, title, subtitle, amount, tone, meta, badge, badgeTone, first, singleLineTitle, singleLineSubtitle, onPress, accessibilityLabel, bare }: TransactionRowProps) {
   const colors = useColors();
   const toneColor = useToneColor();
   const content = (
@@ -407,7 +409,7 @@ export function TransactionRow({ icon, title, subtitle, amount, tone, meta, badg
           {title}
         </AppText>
         {!!subtitle && (
-          <AppText color={colors.muted} style={styles.caption} numberOfLines={4}>
+          <AppText color={colors.muted} style={styles.caption} numberOfLines={singleLineSubtitle ? 1 : 4} ellipsizeMode="tail">
             {formatNote(subtitle)}
           </AppText>
         )}
@@ -572,7 +574,9 @@ interface ConfirmDialogProps {
 export function ConfirmDialog({ title, message, amountText, note, warning, confirmLabel = 'Xác nhận', cancelLabel = 'Huỷ', busy, onConfirm, onCancel }: ConfirmDialogProps) {
   const colors = useColors();
   return (
-    <Modal transparent animationType="fade" visible statusBarTranslucent onRequestClose={() => !busy && onCancel()}>
+    <Modal transparent animationType="fade" visible statusBarTranslucent onRequestClose={() => {
+        if (!busy) onCancel();
+      }}>
       <ModalPresence />
       <KeyboardAvoid style={[styles.scrim, { backgroundColor: colors.scrim }]}>
         <View style={[styles.dialog, { backgroundColor: colors.surface }]} accessibilityViewIsModal>

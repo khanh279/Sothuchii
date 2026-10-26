@@ -1,6 +1,6 @@
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View, type HostInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
@@ -40,7 +40,7 @@ export default function BillDetailScreen() {
   const { bills, pays, loaded, error } = useDebtData();
 
   const toast = useToast();
-  const shotRef = useRef<View>(null);
+  const shotRef = useRef<HostInstance>(null);
   const [exporting, setExporting] = useState<'save' | 'share' | null>(null);
 
   const bill = findBillById(bills, id);

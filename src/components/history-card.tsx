@@ -14,7 +14,7 @@ const CARD_PADDING_X = 12;
 type SwipeProps = Pick<ComponentProps<typeof SwipeRow>, 'open' | 'onOpen' | 'onClose' | 'onEdit' | 'onDelete' | 'onPressRow' | 'locked' | 'onPressLocked' | 'accessibilityLabel'>;
 
 /** Các thuộc tính hiển thị — lấy nguyên kiểu từ `TransactionRow` (kiểu props của nó không được export). */
-type RowProps = Pick<ComponentProps<typeof TransactionRow>, 'icon' | 'title' | 'subtitle' | 'amount' | 'tone' | 'meta' | 'badge' | 'badgeTone'>;
+type RowProps = Pick<ComponentProps<typeof TransactionRow>, 'icon' | 'title' | 'subtitle' | 'singleLineSubtitle' | 'amount' | 'tone' | 'meta' | 'badge' | 'badgeTone'>;
 
 export type HistoryCardProps = SwipeProps &
   RowProps & {
@@ -60,13 +60,18 @@ interface IconTileProps {
   alpha?: number;
   /** Cạnh của ô vuông, mặc định 40 (bo góc cố định 12). */
   size?: number;
+  /** Ô trung tính như biểu tượng danh mục: màu nền của app kèm viền mảnh (bỏ qua `color` / `alpha`; màu nét do màn hình chọn). */
+  neutral?: boolean;
   /** Nội dung biểu tượng (SvgIcon, chữ +/−…), do màn hình tự chọn màu nét. */
   children: ReactNode;
 }
 
 /** Ô biểu tượng vuông bo 12 nền màu mờ, dùng cho dòng chuyển tiền hoặc dấu +/− (không thay `CategoryIcon` của chi tiêu và bill). */
-export function IconTile({ color, alpha = 0.16, size = 40, children }: IconTileProps) {
-  return <View style={[styles.tile, { width: size, height: size, backgroundColor: withAlpha(color, alpha) }]}>{children}</View>;
+export function IconTile({ color, alpha = 0.16, size = 40, neutral, children }: IconTileProps) {
+  const colors = useColors();
+  return (
+    <View style={[styles.tile, { width: size, height: size, backgroundColor: neutral ? colors.bg : withAlpha(color, alpha) }, neutral && { borderWidth: 1, borderColor: colors.line }]}>{children}</View>
+  );
 }
 
 const styles = StyleSheet.create({

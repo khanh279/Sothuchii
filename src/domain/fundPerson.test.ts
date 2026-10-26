@@ -1,6 +1,6 @@
 import type { FundData } from '@/types/fund';
 
-import { filterCashMovementDays, buildFundHistory } from './fundHistory';
+import { filterCashMovementDays, buildFundHistory, fundCashSummary } from './fundHistory';
 import { buildPersonFundDetail, filterPersonDetailBySide } from './fundPerson';
 
 // DỮ LIỆU MẪU tự tạo, không phải dữ liệu thật. Tiền là ĐỒNG.
@@ -39,6 +39,13 @@ describe('filterCashMovementDays (lịch sử chỉ gồm khoản làm đổi s�
     expect(history.days.flatMap((day) => day.entries)).toHaveLength(7);
     const onlyPersonal = filterCashMovementDays([{ date: '2025-10-04', entries: history.days.flatMap((d) => d.entries).filter((e) => e.id === 'x2') }], data);
     expect(onlyPersonal).toEqual([]);
+  });
+
+  it('fundCashSummary: chi = tiền quỹ đã trừ (x1 + phần quỹ x4 + quỹ trả cá nhân), giao ứng = các lần giao còn lại sau hoàn', () => {
+    const given = kept.filter((entry) => entry.kind === 'advance').reduce((sum, entry) => sum + entry.amount, 0);
+    const payouts = kept.filter((entry) => entry.kind === 'payout').reduce((sum, entry) => sum + entry.amount, 0);
+    expect(payouts).toBeGreaterThan(0);
+    expect(fundCashSummary(filterCashMovementDays(history.days, data))).toEqual({ spent: 100_000 + 120_000 + payouts, given });
   });
 });
 

@@ -10,6 +10,7 @@ import {
   finalizeNewPays,
   isNearZero,
   isReconciliation,
+  loanLines,
   ledgerItems,
   mergeAmount,
   mergeDrafts,
@@ -354,5 +355,31 @@ describe('bảo toàn đầu vào', () => {
     pairDebts(bills, pays, { mode: 'all' });
     pairNet(bills, pays, 'Tôi', 'An', { mode: 'all' });
     expect({ bills, pays }).toEqual(copy);
+  });
+});
+
+describe('loanLines — khoản nợ vay còn hiển thị của một người', () => {
+  const loan = (id: string, from: string, to: string, amt: number, date: string, note = '') => pay(id, from, to, amt, { kind: 'vay', date, note, createdAt: Number(id.replace(/\D/g, '')) || 1 });
+
+  it('chưa tất toán lần nào: hiện đủ, cũ → mới; tiêu đề là nội dung khoản chuyển tiền, trống thì dùng nhãn mặc định', () => {
+    const events = debtEvents([], [loan('1', 'Tôi', 'An', 500_000, '2025-10-01', 'Tiền thuê nhà'), loan('2', 'An', 'Tôi', 100_000, '2025-10-03')]);
+    expect(loanLines(events, 'An')).toEqual([
+      { date: '2025-10-01', title: 'Tiền thuê nhà', v: 500_000 },
+      { date: '2025-10-03', title: 'An trả tôi', v: -100_000 },
+    ]);
+  });
+
+  it('đã trả hết rồi phát sinh mới: chỉ hiện khoản sau lần tất toán gần nhất, các khoản cũ đã xong thì ẩn', () => {
+    const events = debtEvents(
+      [],
+      [loan('1', 'Tôi', 'An', 300_000, '2025-10-01', 'Cũ'), loan('2', 'An', 'Tôi', 300_000, '2025-10-02'), loan('3', 'Tôi', 'An', 80_000, '2025-10-05', 'Mới'), loan('4', 'An', 'Tôi', 30_000, '2025-10-06')],
+    );
+    expect(loanLines(events, 'An').map((line) => line.title)).toEqual(['Mới', 'An trả tôi']);
+  });
+
+  it('đang bằng 0 (tất toán xong) thì rỗng; người khác không bị lẫn', () => {
+    const events = debtEvents([], [loan('1', 'Tôi', 'An', 100_000, '2025-10-01'), loan('2', 'An', 'Tôi', 100_000, '2025-10-02'), loan('3', 'Tôi', 'Bình', 50_000, '2025-10-03', 'Bình')]);
+    expect(loanLines(events, 'An')).toEqual([]);
+    expect(loanLines(events, 'Bình').map((line) => line.title)).toEqual(['Bình']);
   });
 });

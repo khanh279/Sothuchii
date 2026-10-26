@@ -70,14 +70,13 @@ describe('thanh toán', () => {
     expect(expenses[0]).toMatchObject({ a: 30_000, c: 'food', n: 'Ăn', i: 'Trả An · bill 01/10', d: TODAY, src: 'cb' });
   });
 
-  it('thanh toán một phần hai lần trong ngày: gộp thành MỘT khoản (cộng tiền) và chi tiêu khớp tổng', async () => {
+  it('thanh toán một phần hai lần trong ngày: mỗi lần là MỘT khoản riêng (không gộp), chi tiêu sinh theo từng khoản', async () => {
     await seedBills();
     await recordPaymentSynced('An', 'bill', 10_000);
     await recordPaymentSynced('An', 'bill', 20_000);
     const pays = await json(PAYS);
-    expect(pays).toHaveLength(1);
-    expect(pays[0].amt).toBe(30_000);
-    expect((await cbExpenses()).map((e) => e.a)).toEqual([30_000]);
+    expect(pays.map((x: { amt: number }) => x.amt)).toEqual([10_000, 20_000]);
+    expect((await cbExpenses()).map((e) => e.a as number).sort((x, y) => x - y)).toEqual([10_000, 20_000]);
     expect(await ledger('An')).toMatchObject({ bill: 0 });
   });
 
@@ -210,7 +209,7 @@ describe('thanh toán nợ bill của một người trong kỳ (một phần / 
     await recordPersonBillPaymentSynced('An', OCT, 20_000);
     expect(await remaining()).toMatchObject({ remaining: 0 });
     await expect(recordPersonBillPaymentSynced('An', OCT, 5000)).rejects.toThrow('Không còn khoản nào phải thanh toán');
-    expect((await json(PAYS)).map((x: { amt: number }) => x.amt)).toEqual([30_000]); // cùng ngày, cùng người: cộng dồn một dòng
+    expect((await json(PAYS)).map((x: { amt: number }) => x.amt)).toEqual([10_000, 20_000]); // cùng ngày, cùng người nhưng có "Tôi": mỗi lần là một dòng riêng
   });
 
   it('số tiền không hợp lệ hoặc vượt số còn phải thanh toán: báo lỗi, không ghi gì', async () => {
@@ -288,13 +287,23 @@ describe('gộp nợ và hoàn tác', () => {
 });
 
 describe('form chuyển tiền: thêm, sửa, xoá', () => {
-  it('thêm cùng một khoản hai lần trong ngày → cộng thành một khoản', async () => {
+  it('thêm cùng một khoản (có "Tôi") hai lần trong ngày → hai dòng riêng, không cộng', async () => {
     const input = { date: '2025-10-05', note: ' ăn trưa ', from: 'Tôi', to: 'An', amt: 5000, kind: 'vay' as const };
     await addTransferSynced(input);
     await addTransferSynced(input);
     const pays = await json(PAYS);
+    expect(pays).toHaveLength(2);
+    expect(pays[0]).toMatchObject({ amt: 5000, note: 'ăn trưa', kind: 'vay' });
+    expect(pays[1]).toMatchObject({ amt: 5000, note: 'ăn trưa', kind: 'vay' });
+  });
+
+  it('thêm cùng một khoản giữa hai người khác "Tôi" hai lần trong ngày → vẫn cộng thành một khoản', async () => {
+    const input = { date: '2025-10-05', note: '', from: 'An', to: 'Bình', amt: 5000, kind: 'vay' as const };
+    await addTransferSynced(input);
+    await addTransferSynced(input);
+    const pays = await json(PAYS);
     expect(pays).toHaveLength(1);
-    expect(pays[0]).toMatchObject({ amt: 10_000, note: 'ăn trưa', kind: 'vay' });
+    expect(pays[0]).toMatchObject({ amt: 10_000 });
   });
 
   it('sửa một khoản thành giống hệt khoản khác: KHÔNG cộng hai lần', async () => {

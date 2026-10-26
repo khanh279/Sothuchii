@@ -1,12 +1,12 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { AppTextInput as TextInput } from '@/components/app-text-input';
 import { LockableScrollView } from '@/components/lockable-scroll-view';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { OptionSheet } from '@/components/option-sheet';
-import { EmptyState, ScreenTitle, SecondaryButton, TitleAction } from '@/components/design';
+import { EmptyState, ScreenTitle, SecondaryButton } from '@/components/design';
 import { PageLayout } from '@/constants/layout';
 import { SvgIcon } from '@/components/svg-icon';
 import { SwipeRow } from '@/components/swipe-row';
@@ -14,8 +14,9 @@ import { useToast } from '@/components/toast';
 import { AppFonts } from '@/constants/fonts';
 import { FundInputError } from '@/data/fundRepository';
 import { createFundSynced, deleteFundSynced, renameFundSynced } from '@/data/fundService';
-import { FUND_NAME_MAX, fundBalance, fundLastActivity } from '@/domain/funds';
-import { FundTxnSheet } from '@/features/funds/FundTxnSheet';
+import { FundBalanceText } from '@/features/funds/FundBalanceText';
+import { fundPosition } from '@/domain/fundAdvance';
+import { FUND_NAME_MAX, fundLastActivity } from '@/domain/funds';
 import { describeFundError, useFundData } from '@/features/funds/hooks';
 import { useChromeScroll } from '@/hooks/use-chrome';
 import { useColors } from '@/hooks/use-colors';
@@ -39,9 +40,6 @@ export default function FundListScreen() {
   const { data, loaded, error, reload } = useFundData();
   const [editing, setEditing] = useState<Editing | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
-  /** Thẻ nổi chọn quỹ cho Thu quỹ / Chi tiêu quỹ (chọn từ menu Giao dịch quỹ). */
-  const [txnSheet, setTxnSheet] = useState<'thu' | 'chi' | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function run(task: () => Promise<string>) {
@@ -78,7 +76,7 @@ export default function FundListScreen() {
     });
 
   const title = (
-    <ScreenTitle title="Quỹ nhóm" topInset={insets.top} right={loaded && !error ? <TitleAction label="Giao dịch quỹ" onPress={() => setMenuOpen(true)} /> : undefined} />
+    <ScreenTitle title="Quỹ nhóm" topInset={insets.top} />
   );
 
   if (error) {
@@ -109,7 +107,9 @@ export default function FundListScreen() {
         {data.funds.length === 0 && editing?.mode !== 'add' && <EmptyState text="Chưa có quỹ nào. Tạo quỹ mới để bắt đầu ghi nhận thu và chi của nhóm." icon="check" />}
 
         {data.funds.map((fund) => {
-          const balance = fundBalance(data, fund.id);
+          const position = fundPosition(data, fund.id);
+          const balance = position.cash;
+          const owed = position.owed;
           const last = fundLastActivity(data, fund.id);
           return (
             <View key={fund.id} style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.line }]}>
@@ -137,12 +137,7 @@ export default function FundListScreen() {
                     </AppText>
                   </View>
                   <View style={styles.balanceCol}>
-                    <AppText color={colors.muted} style={styles.balanceLabel}>
-                      Số dư
-                    </AppText>
-                    <AppText weight="bold" color={balance < 0 ? colors.danger : colors.success} style={styles.balance} numberOfLines={1}>
-                      {formatVnd(balance)}
-                    </AppText>
+                    <FundBalanceText cash={balance} owed={owed} />
                   </View>
                   <SvgIcon name="chevronRight" size={16} color={colors.muted} strokeWidth={2} />
                 </View>
@@ -174,35 +169,6 @@ export default function FundListScreen() {
           }}
         />
       </LockableScrollView>
-
-      {txnSheet && <FundTxnSheet mode={txnSheet} onClose={() => setTxnSheet(null)} />}
-
-      {menuOpen && (
-        <OptionSheet
-          title="Giao dịch quỹ"
-          note={data.funds.length === 0 ? 'Chưa có quỹ — tạo quỹ mới trước khi ghi giao dịch.' : undefined}
-          onClose={() => setMenuOpen(false)}
-          options={[
-            {
-              icon: 'wallet',
-              label: 'Thu quỹ',
-              hint: 'Ghi nhận tiền đóng góp vào quỹ',
-              disabled: data.funds.length === 0,
-              // Mở thẻ nổi liệt kê các quỹ; chọn quỹ thì mở trang riêng của form Thu quỹ.
-              opensSheet: true,
-              onPress: () => setTxnSheet('thu'),
-            },
-            {
-              icon: 'people',
-              label: 'Chi tiêu quỹ',
-              hint: 'Ghi nhận khoản chi từ quỹ',
-              disabled: data.funds.length === 0,
-              // Mở thẻ nổi liệt kê các quỹ (cùng thẻ với nút "+" ở Tổng quan); chọn quỹ thì mở trang riêng của form Chi tiêu quỹ.
-              onPress: () => setTxnSheet('chi'),
-            },
-          ]}
-        />
-      )}
     </View>
   );
 }
@@ -263,12 +229,11 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   list: { paddingHorizontal: PageLayout.paddingX, paddingTop: PageLayout.contentTop, paddingBottom: 24, gap: PageLayout.gap },
   row: { borderWidth: 1, borderRadius: 16, overflow: 'hidden' },
-  head: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 10 },
-  nameCol: { flex: 1, minWidth: 0 },
-  name: { fontSize: 16, lineHeight: 22 },
-  balanceCol: { alignItems: 'flex-end', maxWidth: '50%' },
-  balanceLabel: { fontSize: 12, lineHeight: 16 },
-  balance: { fontSize: 17, lineHeight: 23 },
+  head: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 12 },
+  nameCol: { flex: 1, minWidth: 0, justifyContent: 'center' },
+  name: { fontSize: 16, lineHeight: 20 },
+  balanceCol: { alignItems: 'flex-end', justifyContent: 'center', maxWidth: '50%' },
+  balanceLabel: { fontSize: 11, lineHeight: 18 },
   form: { padding: 14 },
   label: { fontSize: 13, marginBottom: 4 },
   input: { height: 46, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, fontSize: 18 },

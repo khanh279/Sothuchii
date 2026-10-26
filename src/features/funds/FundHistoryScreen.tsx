@@ -25,7 +25,7 @@ import {
   personalDebtLabel,
   type PayState,
 } from '@/domain/fundAdvance';
-import { FUND_HISTORY_CATEGORIES, buildFundHistory, filterCashMovementDays, filterDaysByCategory, mergePayoutEntries, type FundHistoryCategory, type FundHistoryEntry } from '@/domain/fundHistory';
+import { FUND_HISTORY_CATEGORIES, buildFundHistory, filterCashMovementDays, filterDaysByCategory, fundCashSummary, mergePayoutEntries, type FundHistoryCategory, type FundHistoryEntry } from '@/domain/fundHistory';
 import { FundEntryIcon } from '@/features/funds/FundEntryIcon';
 import { describeFundError, useFundData } from '@/features/funds/hooks';
 import { useColors } from '@/hooks/use-colors';
@@ -83,6 +83,7 @@ export default function FundHistoryScreen() {
   ]);
   // Lịch sử chỉ gồm khoản làm đổi số dư thực tế của quỹ; lọc theo loại khoản (thu quỹ, quỹ chi trực tiếp, cá nhân ứng chi, giao tiền ứng trước).
   const cashDays = useMemo(() => filterCashMovementDays(history.days, data), [history.days, data]);
+  const cashSummary = fundCashSummary(cashDays);
   const cashCount = cashDays.reduce((total, day) => total + day.entries.length, 0);
   // Trong cùng một ngày, các lần quỹ trả cho cùng một khoản A ứng chi (cùng người, cùng nội dung) gộp thành một dòng.
   const shownDays = useMemo(() => mergePayoutEntries(filterDaysByCategory(cashDays, category === 'all' ? null : category)), [cashDays, category]);
@@ -150,9 +151,12 @@ export default function FundHistoryScreen() {
           <SectionCard title="Tổng quan" subtitle={periodTitle(period)} rightTop={single ? undefined : `${history.funds.length} quỹ`}>
             <View>
               <InfoRow label="Thu trong kỳ" value={`+${formatVnd(history.totalIn)}`} color={colors.success} first />
-              <InfoRow label="Chi trong kỳ" value={`−${formatVnd(history.totalOut)}`} color={colors.danger} />
-              <InfoRow label={single ? `Số dư ${single.name}` : 'Số dư các quỹ'} value={formatVnd(history.balance)} color={history.balance < 0 ? colors.danger : undefined} bold />
-              {position.advanced && <InfoRow label="Tiền thực tế trong quỹ" value={formatVnd(position.cash)} />}
+              <InfoRow label="Chi trong kỳ" value={`−${formatVnd(cashSummary.spent)}`} color={colors.danger} />
+              {position.advanced && <InfoRow label="Giao cá nhân ứng" value={`−${formatVnd(cashSummary.given)}`} color={colors.warning} />}
+              {/* Còn lại = tiền đang có trong quỹ (toàn thời gian), cũng là số dư hiện ở danh sách quỹ; trừ nợ cá nhân còn lại là số dư thực tế. */}
+              <InfoRow label="Còn lại" value={formatVnd(position.cash)} bold />
+              {position.advanced && <InfoRow label="Nợ cá nhân" value={`−${formatVnd(position.owed)}`} color={colors.danger} />}
+              {position.advanced && <InfoRow label="Số dư thực tế" value={formatVnd(position.cash - position.owed)} color={position.cash - position.owed < 0 ? colors.danger : position.cash - position.owed > 0 ? colors.success : undefined} bold />}
             </View>
           </SectionCard>
 
@@ -269,9 +273,10 @@ export default function FundHistoryScreen() {
                             accessibilityLabel={`${entry.title}, ${incoming ? '+' : '-'}${formatVnd(entry.amount)}`}
                             icon={<FundEntryIcon kind={entry.kind} mode={data.expenses.find((e) => e.id === entry.id)?.mode} />}
                             title={entry.title}
+                            singleLineSubtitle={!!entry.split}
                             subtitle={
                               entry.split
-                                ? `${name ? `${name} · ` : ''}Quỹ chi: ${formatVnd(entry.split.fund)}\nCá nhân ứng${entry.person ? ` (${entry.person})` : ''}: ${formatVnd(entry.split.personal)}`
+                                ? `${name ? `${name} · ` : ''}${entry.person ? `${entry.person} ứng` : 'Cá nhân ứng'}: ${formatVnd(entry.split.personal)}`
                                 : name
                                   ? `${name} · ${entry.meta}`
                                   : entry.meta

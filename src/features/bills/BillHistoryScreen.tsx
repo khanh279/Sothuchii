@@ -71,7 +71,7 @@ export default function BillHistoryScreen({ tab }: { tab?: BillHistoryTabMode } 
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg, paddingTop: tab ? 0 : 12 + insets.top }]}>
-      {!tab && <Stack.Screen options={{ title: 'Lịch sử bill', headerShown: false }} />}
+      {!tab && <Stack.Screen options={{ title: 'Danh sách bill', headerShown: false }} />}
       {tab?.header}
       {error ? (
         <View style={[styles.notice, tab && styles.tabNotice, { backgroundColor: colors.dangerSoft }]}>
@@ -103,7 +103,7 @@ export default function BillHistoryScreen({ tab }: { tab?: BillHistoryTabMode } 
             </View>
           )}
           <BillListCard
-            title={tab ? 'Danh sách bill' : 'Lịch sử bill'}
+            title="Danh sách bill"
             period={period}
             history={history}
             settledOf={settledOf}

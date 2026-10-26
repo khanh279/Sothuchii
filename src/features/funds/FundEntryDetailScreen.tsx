@@ -277,7 +277,7 @@ export default function FundEntryDetailScreen() {
             })}
           </Panel>
         )}
-        <DetailNotice text="Sửa hoặc xoá khoản này: vuốt dòng sang trái ở Lịch sử quỹ." tone="info" />
+        <DetailNotice text="Vuốt dòng sang trái để sửa hoặc xóa" tone="info" />
       </ScrollView>
     );
   }

@@ -573,6 +573,6 @@ export function checkAdvanceGive(data: Data, fundId: string, amount: number, exc
   const value = positiveInt(amount);
   if (!Number.isFinite(amount) || amount < 0) return { ok: false, message: 'Số tiền giao không hợp lệ.' };
   const max = maxAdvanceGive(data, fundId, excludeAdvanceId);
-  if (value > max) return { ok: false, message: `Số tiền giao vượt số dư quỹ. Tối đa có thể giao: ${formatVnd(max)}.` };
+  if (value > max) return { ok: false, message: 'Số tiền giao vượt quá số dư quỹ' };
   return { ok: true, amount: value };
 }

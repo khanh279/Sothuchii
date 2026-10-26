@@ -9,7 +9,8 @@ import { useColors } from '@/hooks/use-colors';
 export interface SheetOption {
   icon: IconName;
   label: string;
-  hint: string;
+  /** Dòng ghi chú nhỏ dưới tên; bỏ trống = không hiện. */
+  hint?: string;
   disabled?: boolean;
   /** Mục này mở một TỜ NỔI khác: nền mờ đứng yên, tờ cũ trượt xuống rồi tờ mới hiện ra (không sáng lên rồi tối lại). */
   opensSheet?: boolean;
@@ -72,9 +73,11 @@ function OptionList({ title, options, onClose, note }: Props) {
             <AppText weight="semibold" style={styles.optionLabel}>
               {option.label}
             </AppText>
-            <AppText color={colors.muted} style={styles.optionHint}>
-              {option.hint}
-            </AppText>
+            {!!option.hint && (
+              <AppText color={colors.muted} style={styles.optionHint}>
+                {option.hint}
+              </AppText>
+            )}
           </View>
           <SvgIcon name="chevronRight" size={16} color={colors.muted} strokeWidth={2} />
         </Pressable>

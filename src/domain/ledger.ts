@@ -319,6 +319,38 @@ export function ledgerItems(events: readonly DebtEvent[], categoryName?: (id: st
   });
 }
 
+/** Một dòng khoản vay ở trang Chi tiết nợ vay: nội dung của khoản chuyển tiền, ngày và số tiền có dấu (dương = người kia nợ tôi thêm). */
+export interface LoanLine {
+  date: DateStr;
+  title: string;
+  v: Vnd;
+}
+
+/**
+ * Các khoản NỢ VAY còn hiển thị của MỘT người, cũ → mới: chỉ lấy các khoản phát sinh SAU lần gần nhất sổ vay về 0 (đã thanh toán xong); các khoản trước mốc đó đã tất toán nên ẩn hết.
+ * Sổ chưa từng về 0 thì hiện đủ; đang bằng 0 thì rỗng. Tiêu đề là nội dung (ghi chú) của khoản chuyển tiền, trống thì dùng nhãn mặc định của dòng sổ (`eventLabel`); khoản gộp nợ ghi "Gộp nợ".
+ */
+export function loanLines(events: readonly DebtEvent[], name: string): LoanLine[] {
+  const own = personLedger(events, name).ev.loan;
+  let balance = 0;
+  let from = 0;
+  own.forEach((event, index) => {
+    balance = roundVnd(balance + event.v);
+    if (isNearZero(balance)) from = index + 1;
+  });
+  balance = 0;
+  const lines: LoanLine[] = [];
+  own.forEach((event, index) => {
+    const before = balance;
+    balance = roundVnd(balance + event.v);
+    if (index < from) return;
+    const note = event.k === 'pay' ? clean(event.pay?.note) : '';
+    const hasNote = note && note !== 'Đối soát' && note !== 'Trả nợ';
+    lines.push({ date: event.d, title: hasNote ? note : eventLabel(event, before), v: event.v });
+  });
+  return lines;
+}
+
 // ───────────────────────── Theo cặp người trong kỳ ─────────────────────────
 
 export interface PairDebt {

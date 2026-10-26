@@ -1,7 +1,7 @@
 import type { Bill } from '@/types/bill';
 import type { Pay } from '@/types/pay';
 
-import { buildDebtOverview } from './debtOverview';
+import { buildDebtOverview, buildLoanPeople } from './debtOverview';
 
 // DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng. Tiền là ĐỒNG.
 const p = (name: string, paid: number) => ({ name, paid, w: 1 });
@@ -83,5 +83,21 @@ describe('buildDebtOverview', () => {
     const copy = JSON.parse(JSON.stringify({ B1, B2, LOAN }));
     buildDebtOverview([B1, B2], [LOAN], { mode: 'all' });
     expect({ B1, B2, LOAN }).toEqual(copy);
+  });
+});
+
+describe('buildLoanPeople — nợ vay theo người, toàn thời gian', () => {
+  it('chỉ tính sổ vay (bỏ nợ bill); dương = họ nợ tôi, âm = tôi nợ họ; lớn nhất trước', () => {
+    const people = buildLoanPeople([B1, B2], [LOAN, pay('L2', 'Bình', 'Tôi', 70_000, { kind: 'vay' })]);
+    // An: vay +50 (bill −30 không tính); Bình: vay −70
+    expect(people).toEqual([
+      { name: 'Bình', total: -70_000, tone: 'owe' },
+      { name: 'An', total: 50_000, tone: 'get' },
+    ]);
+  });
+
+  it('người chỉ có nợ bill (không có vay) không xuất hiện; vay về 0 cũng bị bỏ', () => {
+    expect(buildLoanPeople([B1, B2], [])).toEqual([]);
+    expect(buildLoanPeople([], [pay('L', 'Tôi', 'An', 30_000, { kind: 'vay' }), pay('R', 'An', 'Tôi', 30_000, { kind: 'vay' })])).toEqual([]);
   });
 });

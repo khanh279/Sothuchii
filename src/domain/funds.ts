@@ -151,18 +151,57 @@ export function fundTotals(data: Pick<FundData, 'contribs' | 'expenses'>, fundId
 }
 
 /** Số dư của một quỹ. */
+/** Tên tự đặt cho người CHƯA nhập tên khi dùng "Thêm nhiều thành viên" ("Người 1", "Người 2"… theo `DEFAULT_PERSON_PREFIX` ở `fundForms`). */
+const AUTO_PERSON_NAME = /^Người \d+$/;
+
 /**
  * Những người thuộc MỘT quỹ: người đã đóng quỹ, người từng nhận tiền ứng và người từng ứng tiền chi cho quỹ đó (không trùng, theo thứ tự xuất hiện; "Tôi" đứng đầu nếu có).
- * Dùng để chọn "Người chi" / "Người nhận ứng" chỉ trong số người của quỹ.
+ * Dùng để chọn "Người chi" / "Người nhận ứng" chỉ trong số người của quỹ. Người chưa nhập tên của khoản thu nhiều thành viên ("Người 1"…) không có mặt.
  */
+/**
+ * Những người ĐÃ NHẬP TÊN trong các khoản thu "Thêm nhiều thành viên" của một quỹ (không trùng, theo thứ tự xuất hiện): thêm vào danh sách chọn thành viên ở form Thu quỹ
+ * (ví dụ "Người 1" được nhập thành "A" thì "A" có trong danh sách). Người chưa nhập tên ("Người 1"…) không có mặt.
+ */
+export function fundBulkNames(data: Pick<FundData, 'contribs'>, fundId: string): string[] {
+  const names: string[] = [];
+  for (const contrib of data.contribs) {
+    if (contrib.fundId !== fundId || !contrib.bulk) continue;
+    for (const person of contrib.people) {
+      const name = person.name.trim();
+      if (name && !AUTO_PERSON_NAME.test(name) && !names.includes(name)) names.push(name);
+    }
+  }
+  return names;
+}
+
+/**
+ * Những người ĐÃ ĐÓNG QUỸ của một quỹ (từ các khoản thu), không trùng, theo thứ tự xuất hiện, "Tôi" đứng đầu nếu có; người chưa nhập tên của khoản thu nhiều thành viên ("Người 1"…) bỏ qua.
+ * Dùng làm danh sách thành viên MẶC ĐỊNH được chọn khi thêm khoản thu mới.
+ */
+export function fundContributors(data: Pick<FundData, 'contribs'>, fundId: string): string[] {
+  const names: string[] = [];
+  for (const contrib of data.contribs) {
+    if (contrib.fundId !== fundId) continue;
+    for (const person of contrib.people) {
+      const name = person.name.trim();
+      if (!name || (contrib.bulk && AUTO_PERSON_NAME.test(name)) || names.includes(name)) continue;
+      names.push(name);
+    }
+  }
+  return names.includes(FUND_OWNER_NAME) ? [FUND_OWNER_NAME, ...names.filter((name) => name !== FUND_OWNER_NAME)] : names;
+}
+
 export function fundMembers(data: Pick<FundData, 'contribs' | 'expenses' | 'advances'>, fundId: string): string[] {
   const seen = new Set<string>();
   const add = (name: string | undefined) => {
     const clean = (name ?? '').trim();
     if (clean) seen.add(clean);
   };
-  // Người của khoản thu "Thêm nhiều thành viên" (cờ `bulk`) không phải thành viên được tạo sẵn nên không vào danh sách chọn người.
-  for (const contrib of data.contribs) if (contrib.fundId === fundId && !contrib.bulk) for (const person of contrib.people) add(person.name);
+  // Khoản thu "Thêm nhiều thành viên" (cờ `bulk`): chỉ người ĐÃ NHẬP TÊN mới vào danh sách; người chưa nhập tên ("Người 1"…) bị bỏ.
+  for (const contrib of data.contribs) {
+    if (contrib.fundId !== fundId) continue;
+    for (const person of contrib.people) if (!contrib.bulk || !AUTO_PERSON_NAME.test(person.name.trim())) add(person.name);
+  }
   for (const advance of data.advances ?? []) if (advance.fundId === fundId) add(advance.person);
   for (const expense of data.expenses) if (expense.fundId === fundId) add(expense.payer);
   const names = [...seen];

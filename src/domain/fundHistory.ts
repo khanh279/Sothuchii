@@ -306,3 +306,19 @@ export function filterCashMovementDays(days: readonly FundHistoryDay[], data: Pi
   const modes = new Map(data.expenses.map((expense) => [expense.id, expense.mode]));
   return days.map((day) => ({ ...day, entries: day.entries.flatMap((entry) => cashMovementEntry(entry, modes.get(entry.id)) ?? []) })).filter((day) => day.entries.length > 0);
 }
+
+/**
+ * Hai số của thẻ Tổng quan quỹ tính trên các dòng làm đổi số dư thực tế TRONG kỳ (kết quả của `filterCashMovementDays`):
+ * `spent` = tiền quỹ đã trừ cho khoản chi (chi trực tiếp, phần quỹ chi của khoản chia nguồn và tiền quỹ quyết toán cho cá nhân), `given` = tiền giao cá nhân ứng (đã trừ phần cá nhân hoàn lại).
+ */
+export function fundCashSummary(cashDays: readonly FundHistoryDay[]): { spent: Vnd; given: Vnd } {
+  let spent = 0;
+  let given = 0;
+  for (const day of cashDays) {
+    for (const entry of day.entries) {
+      if (entry.kind === 'expense' || entry.kind === 'payout') spent += entry.amount;
+      else if (entry.kind === 'advance') given += entry.amount;
+    }
+  }
+  return { spent, given };
+}

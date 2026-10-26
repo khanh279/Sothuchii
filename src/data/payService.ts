@@ -157,7 +157,7 @@ export interface TransferInput {
   kind: 'vay' | 'billpay';
 }
 
-/** Form "Ghi nhận": thêm một khoản chuyển tiền / trả bill. Khoản giống hệt khoản đã có (cùng ngày, người, loại, ghi chú) được cộng vào đó. */
+/** Form "Ghi nhận": thêm một khoản chuyển tiền / trả bill. Khoản có "Tôi" ở một đầu luôn là một dòng riêng (không gộp); chỉ khoản giữa hai người khác "Tôi" giống hệt khoản đã có (cùng ngày, người, loại, ghi chú) mới được cộng vào đó. */
 export async function addTransferSynced(input: TransferInput): Promise<SyncedPayChange<string>> {
   const pay: Pay = { id: newBillId(), createdAt: Date.now(), date: input.date, note: input.note.trim(), from: input.from, to: input.to, amt: input.amt, kind: input.kind };
   await appendPays([pay]);

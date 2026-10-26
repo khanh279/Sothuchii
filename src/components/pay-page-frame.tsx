@@ -17,6 +17,8 @@ interface Props {
   /** Tiêu đề và số lượng của phần chi tiết (ví dụ "Các khoản bill", "3 khoản"). */
   detailsTitle?: string;
   detailsCount?: string;
+  /** Dòng chú thích nhỏ nằm ngay dưới tiêu đề phần chi tiết (vd. kỳ đang xem). */
+  detailsSubtitle?: string;
   /** Phần chi tiết các khoản. */
   children: ReactNode;
 }
@@ -26,7 +28,7 @@ interface Props {
  * (1) tổng: nhãn nhỏ, số tiền lớn có màu theo quy ước, chú thích; (2) chi tiết các khoản. Nút Thanh toán cố định ở đáy trang mở tờ nổi thanh toán.
  * Chỉ là khung hiển thị, màu nền nhạt để nhìn nhẹ nhàng; không biết gì về cách tính hay ghi tiền.
  */
-export function PayPageFrame({ label, amount, amountColor, caption, detailsTitle, detailsCount, children }: Props) {
+export function PayPageFrame({ label, amount, amountColor, caption, detailsTitle, detailsCount, detailsSubtitle, children }: Props) {
   const colors = useColors();
   return (
     <View style={[styles.frame, { backgroundColor: colors.surface }]}>
@@ -48,9 +50,16 @@ export function PayPageFrame({ label, amount, amountColor, caption, detailsTitle
       <View style={styles.section}>
         {!!detailsTitle && (
           <View style={styles.titleRow}>
-            <AppText weight="semibold" style={styles.title}>
-              {detailsTitle}
-            </AppText>
+            <View style={styles.titleCol}>
+              <AppText weight="semibold" style={styles.title}>
+                {detailsTitle}
+              </AppText>
+              {!!detailsSubtitle && (
+                <AppText color={colors.muted} style={styles.label} numberOfLines={1}>
+                  {detailsSubtitle}
+                </AppText>
+              )}
+            </View>
             {!!detailsCount && (
               <AppText color={colors.muted} style={styles.label}>
                 {detailsCount}
@@ -70,6 +79,7 @@ const styles = StyleSheet.create({
   divider: { height: StyleSheet.hairlineWidth },
   label: { fontSize: 13, lineHeight: 18 },
   amount: { fontSize: 30, lineHeight: 38, letterSpacing: -0.4 },
-  titleRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 4 },
+  titleCol: { flex: 1, minWidth: 0 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 4 },
   title: { fontSize: 15, lineHeight: 21 },
 });

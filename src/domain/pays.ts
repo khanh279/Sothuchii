@@ -3,6 +3,7 @@
  * Chỉ đọc schema `v2`, không chạy migration cũ. Trường `nexp` của bản PWA cũ được BỎ QUA hoàn toàn.
  */
 
+import { isOwnerName } from '@/domain/funds';
 import { isReconciliation } from '@/domain/ledger';
 import type { ExpenseRef } from '@/types/expense';
 import type { Pay } from '@/types/pay';
@@ -53,11 +54,12 @@ export function payExpenseRefs(pays: readonly Pay[]): ExpenseRef[] {
 
 /**
  * Khóa nhận ra hai khoản trùng nhau (`re`): cùng ngày, người trả, người nhận, loại, bill, item, sổ, nhóm, ghi chú và
- * cùng là/không là "Đối soát". Khoản có `bills` (thanh toán nhiều bill) lấy chính `id` làm khóa nên không bao giờ bị gộp.
+ * cùng là/không là "Đối soát". Khoản có `bills` (thanh toán nhiều bill) và MỌI khoản có "Tôi" ở một đầu (tôi chuyển / tôi trả, người khác chuyển / trả tôi) lấy chính `id` làm khóa nên
+ * không bao giờ bị gộp: mỗi lần tôi ghi nhận là một dòng riêng. Chỉ khoản giữa hai người khác "Tôi" mới được gộp khi trùng khóa.
  */
 export function payDedupeKey(pay: Pay): string {
   return [
-    pay.id && pay.bills ? pay.id : '',
+    pay.id && (pay.bills || isOwnerName(pay.from) || isOwnerName(pay.to)) ? pay.id : '',
     pay.grp || '',
     pay.date,
     pay.from.trim(),

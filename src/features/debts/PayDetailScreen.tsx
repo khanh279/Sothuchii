@@ -54,7 +54,7 @@ export default function PayDetailScreen() {
             <DetailField key={item.label} label={item.label} value={item.value} last={index === rows.length - 1} />
           ))}
         </Panel>
-        <DetailNotice text="Sửa hoặc xoá giao dịch này: vuốt dòng sang trái ở Lịch sử giao dịch." tone="info" />
+        <DetailNotice text="Vuốt dòng sang trái để sửa hoặc xóa" tone="info" />
       </ScrollView>
     );
   }

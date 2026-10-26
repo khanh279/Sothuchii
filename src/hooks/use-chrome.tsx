@@ -1,6 +1,6 @@
 import { useFocusEffect } from 'expo-router';
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { NativeScrollEvent, NativeSyntheticEvent, ScrollView } from 'react-native';
+import type { NativeScrollEvent, NativeSyntheticEvent, ScrollViewInstance } from 'react-native';
 
 import { initialChromeScroll, stepChromeScroll } from '@/domain/scrollChrome';
 
@@ -48,7 +48,7 @@ export const useChrome = () => useContext(ChromeContext);
  */
 export function useChromeScroll(enabled = true) {
   const { setHidden, registerTop } = useChrome();
-  const ref = useRef<ScrollView>(null);
+  const ref = useRef<ScrollViewInstance>(null);
   const state = useRef(initialChromeScroll);
 
   const onScroll = useCallback(

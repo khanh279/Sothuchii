@@ -304,6 +304,8 @@ export function createAdvance(input: AdvanceInput, now: number = Date.now()): Pr
   const person = String(input.person ?? '').trim();
   if (!person) return Promise.reject(new FundInputError('Chọn người nhận tiền ứng.'));
   if (!Number.isFinite(input.amount) || Math.round(input.amount) < 0) return Promise.reject(new FundInputError('Số tiền giao không hợp lệ.'));
+  // Giao ứng MỚI phải có số tiền khác 0 (sửa hồ sơ đã có vẫn cho số 0).
+  if (Math.round(input.amount) === 0) return Promise.reject(new FundInputError('Nhập số tiền lớn hơn 0.'));
   return mutate((raw) => {
     requireFund(raw, input.fundId);
     const advances = arrayOf(raw.advances);

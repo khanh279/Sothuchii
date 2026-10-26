@@ -1,27 +1,22 @@
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import {
   budgetSummary,
-  periodToParams,
   sumAmounts,
-  suggestedDateFor,
 } from '@/domain/expenses';
 import { averagePerDay } from '@/domain/overviewStats';
-import { AddExpenseFab } from '@/features/expenses/AddExpenseFab';
 import { useExpenseSettings, useExpenses } from '@/features/expenses/hooks';
 import { BillStatCard } from '@/features/bills/BillOverviewCard';
 import { DebtSplitCard, DebtStatCard } from '@/features/debts/DebtOverviewCards';
 import { useDebtData } from '@/features/debts/hooks';
-import { useFundData } from '@/features/funds/hooks';
 import { PageLayout } from '@/constants/layout';
 import { PeriodBar } from '@/features/expenses/PeriodBar';
 import { FundStatCard } from '@/features/funds/FundOverviewCard';
 import { RecentTransactions } from '@/features/expenses/RecentTransactions';
-import { FundTxnSheet } from '@/features/funds/FundTxnSheet';
 import { SpentCard } from '@/features/expenses/SpentCard';
 import { useChromeScroll } from '@/hooks/use-chrome';
 import { useSharedPeriod } from '@/hooks/use-shared-period';
@@ -41,9 +36,6 @@ export default function OverviewScreen() {
 
   const { settings, error: settingsError } = useExpenseSettings();
   const { items, loaded, error } = useExpenses(period);
-  const hasFunds = useFundData().data.funds.length > 0;
-  /** Thẻ nổi chọn quỹ cho Chi tiêu quỹ (mở từ nút "+"); chọn quỹ thì mở trang riêng của form. */
-  const [fundSheet, setFundSheet] = useState(false);
   const debt = useDebtData();
 
   const total = useMemo(() => sumAmounts(items), [items]);
@@ -51,7 +43,6 @@ export default function OverviewScreen() {
   const budget = useMemo(() => budgetSummary(total, period, settings, today), [total, period, settings, today]);
   const message = settingsError ?? error;
 
-  const periodParams = periodToParams(period);
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
@@ -90,18 +81,6 @@ export default function OverviewScreen() {
           )}
         </View>
       </ScrollView>
-
-      {fundSheet && <FundTxnSheet mode="chi" onClose={() => setFundSheet(false)} />}
-
-      <AddExpenseFab
-        hasFunds={hasFunds}
-        onTransfer={() => router.push('/cong-no/ghi-nhan')}
-        onCreateBill={() => router.push('/chia-bill/tao')}
-        onAddFund={() => setFundSheet(true)}
-        onAddPersonal={() =>
-          router.push({ pathname: '/chi-tieu/nhap', params: { ...periodParams, d: suggestedDateFor(period, today) } })
-        }
-      />
     </View>
   );
 }

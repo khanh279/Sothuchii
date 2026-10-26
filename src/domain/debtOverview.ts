@@ -21,6 +21,17 @@ export interface DebtPersonRow {
   tone: Tone;
 }
 
+/**
+ * Nợ VAY (sổ chuyển tiền) theo từng người, TOÀN THỜI GIAN: chỉ người còn nợ vay (từ 50 đồng); dương = họ nợ tôi (tone 'get'), âm = tôi nợ họ (tone 'owe').
+ * Lớn nhất trước. Không gồm nợ bill (nợ bill xem theo cặp ở `buildBillPairs`).
+ */
+export function buildLoanPeople(bills: readonly Bill[], pays: readonly Pay[]): DebtPersonRow[] {
+  return allDebts(debtEvents(bills, pays))
+    .list.filter((person) => !isNearZero(person.loan))
+    .map((person) => ({ name: person.name, total: roundVnd(person.loan), tone: toneOf(person.loan) }))
+    .sort((a, b) => Math.abs(b.total) - Math.abs(a.total) || a.name.localeCompare(b.name));
+}
+
 export interface PairRow extends PairDebt {
   /** 'owe' khi tôi là người trả, 'get' khi tôi là người nhận, 'mid' với cặp không có tôi. */
   tone: Tone;

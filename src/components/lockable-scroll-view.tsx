@@ -1,5 +1,5 @@
 import { forwardRef, useRef, useState } from 'react';
-import { ScrollView, type NativeScrollEvent, type NativeSyntheticEvent, type ScrollViewProps } from 'react-native';
+import { ScrollView, type NativeScrollEvent, type NativeSyntheticEvent, type ScrollViewInstance, type ScrollViewProps } from 'react-native';
 
 import { useSwipeLocked } from '@/hooks/use-swipe-lock';
 
@@ -14,7 +14,7 @@ const HOLD_FROM_OFFSET = 2;
  * (giữ mép dưới) làm khung phía trên bị kéo lên. Nên khi đang cuộn xuống (cách đầu trang quá `HOLD_FROM_OFFSET`) ta giữ chiều cao nội dung ở mức lớn nhất đã có
  * (`minHeight`): danh sách ngắn lại thì chỉ phần phía dưới co lại (để trống), khung phía trên đứng yên. Về lại đầu trang thì thả, trang trở về chiều cao thật.
  */
-export const LockableScrollView = forwardRef<ScrollView, ScrollViewProps>(function LockableScrollView(
+export const LockableScrollView = forwardRef<ScrollViewInstance, ScrollViewProps>(function LockableScrollView(
   { scrollEnabled = true, contentContainerStyle, onScroll, onContentSizeChange, scrollEventThrottle = 16, ...rest },
   ref,
 ) {

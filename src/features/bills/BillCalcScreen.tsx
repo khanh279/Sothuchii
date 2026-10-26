@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Keyboard, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Animated, Keyboard, Pressable, StyleSheet, View } from 'react-native';
+import { AppTextInput as TextInput } from '@/components/app-text-input';
 import { GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -50,8 +51,7 @@ const BILL_CATEGORY_IDS = ['food', 'fun', 'trip', 'move', 'bill', 'other'];
 /**
  * Màn tính chia bill (phần "Chia bill" của tab Giao dịch): nội dung, mục chi, ngày, số người 2–20, số tiền mỗi
  * người đã chi (đồng) và kết quả chia theo thời gian thực. Vuốt ô tiền sang trái để đặt hệ số hoặc mức
- * cố định. Có `existing` thì là chế độ SỬA bill đó (lưu xong gọi `onFinished`, không đặt lại form). Tạo mới mà có `onFinished`
- * (màn "Tạo bill" riêng) thì lưu xong cũng gọi `onFinished` để quay lại.
+ * cố định. Có `existing` thì là chế độ SỬA bill đó (lưu xong gọi `onFinished`, không đặt lại form). Tạo mới thì lưu xong ở lại trang (xoá tiền, hệ số, nội dung; giữ nhóm người và ngày) để tạo tiếp, KHÔNG gọi `onFinished`.
  */
 export default function BillCalcScreen({ existing = null, onFinished }: { existing?: Bill | null; onFinished?: () => void }) {
   const colors = useColors();
@@ -144,8 +144,7 @@ export default function BillCalcScreen({ existing = null, onFinished }: { existi
       setTitle('');
       setCatId('food');
       setOpenRow(null);
-      // Mở từ màn "Tạo bill" riêng: lưu xong quay lại danh sách.
-      onFinished?.();
+      // Tạo mới: ở lại trang để tạo tiếp (không quay lại); chỉ sửa một bill mới quay về.
     } catch (e) {
       toast.show(e instanceof BillInputError ? e.message : describeStorageError(e));
     } finally {

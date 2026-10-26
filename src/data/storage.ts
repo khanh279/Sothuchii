@@ -17,6 +17,7 @@ export const StorageKeys = {
   me: 'chiabill:me',
   meV4: 'chiabill:v4:me',
   people: 'sotien:people',
+  language: 'sct:lang', // ngôn ngữ giao diện đã chọn: 'vi' | 'en' (không nằm trong sao lưu / xoá dữ liệu)
 } as const;
 
 type WriteListener = (keys: readonly string[]) => void;

@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { AppTextInput as TextInput } from '@/components/app-text-input';
 
 import { AppText } from '@/components/app-text';
 import { CalendarPanel } from '@/components/calendar-panel';
@@ -45,6 +46,9 @@ interface FormRow {
   custom: boolean;
 }
 
+/** Danh sách dòng ban đầu khi thêm mới: những người đã đóng quỹ (mặc định chọn hết), trống thì chỉ "Tôi". */
+const defaultRows = (names: readonly string[]): FormRow[] => (names.length > 0 ? names.map((name) => ({ name, text: '', custom: false })) : [{ name: FUND_OWNER_NAME, text: '', custom: false }]);
+
 const toPerson = (row: FormRow): PersonRow => ({ name: row.name, amount: parseVndInput(row.text) });
 
 interface Props {
@@ -53,8 +57,15 @@ interface Props {
   existing?: Contribution | null;
   /** Ô ở hàng đầu thẻ trên (ô chọn quỹ khi thêm mới). */
   header?: ReactNode;
+  /** Những người đã nhập tên ở các khoản thu "Thêm nhiều thành viên" của quỹ này: thêm vào danh sách thành viên để chọn (cùng "Tôi" và Danh sách người trong Thiết lập). */
+  extraNames?: readonly string[];
+  /** Thêm MỚI: những người đã đóng quỹ này, được chọn sẵn (có thể bỏ chọn / chọn thêm); trống thì chỉ chọn sẵn "Tôi". */
+  defaultMembers?: readonly string[];
   /** Gọi sau khi lưu / xoá xong (màn cha đọc lại dữ liệu). */
+  /** Gọi khi SỬA xong khoản thu (nơi chứa quay về trang trước). */
   onChanged: () => void;
+  /** Gọi sau khi THÊM MỚI xong: form được xoá để ghi tiếp và ở lại trang; nơi chứa dùng để làm mới dữ liệu quỹ. */
+  onAdded?: () => void;
 }
 
 /** Từ số người này trở lên (khi dùng "Thêm nhiều thành viên") form tự chuyển sang "Áp dụng cho tất cả". */
@@ -71,7 +82,7 @@ const MODE_OPTIONS = [
  * (mặc định áp dụng tất cả: nhập tiền ở một người thì mọi người cùng số đó) và từng dòng tên + số tiền. Ô tiền nhập và lưu theo đồng. Đúng chữ "Tôi" là phần của chính mình
  * và được đồng bộ sang chi tiêu cá nhân.
  */
-export function ContributionForm({ fund, existing, header, onChanged }: Props) {
+export function ContributionForm({ fund, existing, header, extraNames = [], defaultMembers = [], onChanged, onAdded }: Props) {
   const colors = useColors();
   const toast = useToast();
   const today = todayStr();
@@ -80,7 +91,7 @@ export function ContributionForm({ fund, existing, header, onChanged }: Props) {
   const [title, setTitle] = useState(existing?.title ?? '');
   const [date, setDate] = useState(existing?.date ?? today);
   const [rows, setRows] = useState<FormRow[]>(() =>
-    initial ? initial.rows.map((row) => ({ name: row.name, text: formatVndInput(row.amount), custom: !!existing?.bulk })) : [{ name: FUND_OWNER_NAME, text: '', custom: false }],
+    initial ? initial.rows.map((row) => ({ name: row.name, text: formatVndInput(row.amount), custom: !!existing?.bulk })) : defaultRows(defaultMembers),
   );
   const [all, setAll] = useState(initial ? initial.all : true);
   const [eachText, setEachText] = useState(initial?.all ? formatVndInput(initial.each) : '');
@@ -111,8 +122,12 @@ export function ContributionForm({ fund, existing, header, onChanged }: Props) {
   const memberRows = rows.filter((row) => !row.custom);
   const customRows = rows.filter((row) => row.custom);
   const selectedNames = memberRows.map((row) => row.name);
-  // Chỉ "Tôi" và những người trong mục Thiết lập.
-  const options = memberOptions(peopleList, []);
+  // "Tôi", những người trong mục Thiết lập và những người đã nhập tên ở các khoản thu nhiều thành viên của quỹ.
+  const options = (() => {
+    const base = memberOptions(peopleList, []);
+    for (const name of [...extraNames, ...defaultMembers]) if (name && !base.includes(name)) base.push(name);
+    return base;
+  })();
   const summary = contributionSummary(rows.map(toPerson));
   const rowText = (text: string) => (all ? eachText : text);
 
@@ -204,8 +219,11 @@ export function ContributionForm({ fund, existing, header, onChanged }: Props) {
         return;
       }
       toast.show(contributionSavedMessage(!!existing));
-      if (!existing) reset();
-      onChanged();
+      if (existing) onChanged();
+      else {
+        reset();
+        onAdded?.();
+      }
     } catch (e) {
       setError(e instanceof FundInputError ? e.message : describeFundError(e));
     } finally {
@@ -216,7 +234,7 @@ export function ContributionForm({ fund, existing, header, onChanged }: Props) {
   function reset() {
     setTitle('');
     setDate(todayStr());
-    setRows([{ name: FUND_OWNER_NAME, text: '', custom: false }]);
+    setRows(defaultRows(defaultMembers));
     setAll(true);
     setEachText('');
     setOutside(false);

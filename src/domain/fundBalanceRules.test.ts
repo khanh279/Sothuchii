@@ -52,7 +52,7 @@ describe('checkAdvanceGive', () => {
     expect(checkAdvanceGive(data(), F, 0)).toEqual({ ok: true, amount: 0 });
     const over = checkAdvanceGive(data(), F, 1_000_001);
     expect(over.ok).toBe(false);
-    expect(!over.ok && over.message).toContain('Tối đa có thể giao: 1.000.000');
+    expect(!over.ok && over.message).toContain('Số tiền giao vượt quá số dư quỹ');
     expect(checkAdvanceGive(data(), F, -1)).toMatchObject({ ok: false });
   });
 

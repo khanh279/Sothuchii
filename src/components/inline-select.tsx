@@ -16,6 +16,8 @@ export interface InlineSelectOption {
   /** Chữ nhỏ bên phải tên (ví dụ số dư quỹ). */
   trailing?: string;
   trailingColor?: string;
+  /** Thay chữ `trailing` bằng nội dung tuỳ ý bên phải tên (ví dụ hai dòng số dư của quỹ). */
+  trailingNode?: ReactNode;
   /** Biểu tượng bên trái (thường là vòng tròn nền nhạt kèm biểu tượng). */
   icon?: ReactNode;
 }
@@ -34,6 +36,8 @@ interface Props {
   placeholderIcon?: ReactNode;
   /** true: danh sách đã xổ sẵn ngay khi hiện (vd. vừa quay lại từ ô nhập tên). */
   initiallyOpen?: boolean;
+  /** true: ô chỉ HIỂN THỊ lựa chọn hiện tại, không mở ra để chọn lựa chọn khác (không có mũi tên). */
+  disabled?: boolean;
 }
 
 /**
@@ -42,7 +46,7 @@ interface Props {
  * Để phân biệt "đang chọn" với "danh sách": khi xổ, hàng đang chọn đổi nền xanh nhạt và khung đổi viền chủ đạo, mũi tên xoay lên, còn danh sách mở ra từ từ theo chiều cao (phần bên dưới trượt theo, không nhảy) kèm mờ dần
  * (khi thu gọn thì làm ngược lại) trên nền trắng.
  */
-export function InlineSelect({ options, selectedKey, onSelect, accessibilityLabel, placeholder = 'Chọn', placeholderIcon, initiallyOpen = false }: Props) {
+export function InlineSelect({ options, selectedKey, onSelect, accessibilityLabel, placeholder = 'Chọn', placeholderIcon, initiallyOpen = false, disabled = false }: Props) {
   const colors = useColors();
   const [open, setOpen] = useState(initiallyOpen);
   /** Danh sách còn được vẽ (đang mở hoặc đang chạy hoạt ảnh thu gọn). */
@@ -52,6 +56,7 @@ export function InlineSelect({ options, selectedKey, onSelect, accessibilityLabe
   const others = options.filter((option) => option.key !== current?.key);
 
   function toggle() {
+    if (disabled) return;
     if (open) {
       setOpen(false);
       Animated.timing(progress, { toValue: 0, duration: 160, easing: Easing.inOut(Easing.cubic), useNativeDriver: false }).start(({ finished }) => {
@@ -70,8 +75,9 @@ export function InlineSelect({ options, selectedKey, onSelect, accessibilityLabe
     <View style={[styles.frame, { backgroundColor: colors.surface, borderColor: open ? colors.primary : colors.line }]}>
       <Pressable
         accessibilityRole="button"
-        accessibilityState={{ expanded: open }}
-        accessibilityLabel={`${accessibilityLabel}: ${current?.name ?? placeholder}. Chạm để ${open ? 'thu gọn' : 'chọn'}`}
+        accessibilityState={{ expanded: open, disabled }}
+        accessibilityLabel={disabled ? `${accessibilityLabel}: ${current?.name ?? placeholder}` : `${accessibilityLabel}: ${current?.name ?? placeholder}. Chạm để ${open ? 'thu gọn' : 'chọn'}`}
+        disabled={disabled}
         onPress={toggle}
         style={({ pressed }) => [styles.row, { backgroundColor: open ? colors.primarySoft : colors.bg, opacity: pressed ? 0.8 : 1 }]}
       >
@@ -79,14 +85,17 @@ export function InlineSelect({ options, selectedKey, onSelect, accessibilityLabe
         <AppText weight="semibold" color={current ? colors.ink : colors.muted} style={styles.name} numberOfLines={1}>
           {current?.name ?? placeholder}
         </AppText>
-        {!!current?.trailing && (
+        {!!current?.trailingNode && current.trailingNode}
+        {!current?.trailingNode && !!current?.trailing && (
           <AppText weight="bold" color={current.trailingColor ?? colors.muted} style={styles.trailing} numberOfLines={1}>
             {current.trailing}
           </AppText>
         )}
-        <Animated.View style={{ transform: [{ rotate }] }}>
-          <SvgIcon name="chevronRight" size={16} color={open ? colors.primary : colors.muted} strokeWidth={2} />
-        </Animated.View>
+        {!disabled && (
+          <Animated.View style={{ transform: [{ rotate }] }}>
+            <SvgIcon name="chevronRight" size={16} color={open ? colors.primary : colors.muted} strokeWidth={2} />
+          </Animated.View>
+        )}
       </Pressable>
       {mounted && (
         <Animated.View
@@ -108,7 +117,8 @@ export function InlineSelect({ options, selectedKey, onSelect, accessibilityLabe
               <AppText weight="medium" style={styles.name} numberOfLines={1}>
                 {option.name}
               </AppText>
-              {!!option.trailing && (
+              {!!option.trailingNode && option.trailingNode}
+              {!option.trailingNode && !!option.trailing && (
                 <AppText weight="bold" color={option.trailingColor ?? colors.muted} style={styles.trailing} numberOfLines={1}>
                   {option.trailing}
                 </AppText>

@@ -4,7 +4,7 @@ import { Pressable, StyleSheet } from 'react-native';
 import { AppText } from '@/components/app-text';
 import { Panel, PersonAmountRow, SectionHeader, SummaryCard } from '@/components/design';
 import { buildOverviewFundCard } from '@/domain/fundHistory';
-import { fundBalance } from '@/domain/funds';
+import { fundPosition } from '@/domain/fundAdvance';
 import { useFundData } from '@/features/funds/hooks';
 import { useColors } from '@/hooks/use-colors';
 import type { Period } from '@/types/expense';
@@ -69,11 +69,11 @@ const styles = StyleSheet.create({
 
 /**
  * Thẻ số liệu "Quỹ nhóm" (chỉ xem, không bấm): TỔNG SỐ DƯ của các quỹ cộng lại (toàn thời gian, không phụ thuộc kỳ) và số quỹ.
- * Số dư lấy từ `fundBalance` đã có; vào chi tiết bằng tab Quỹ nhóm.
+ * Số dư là số dư thực tế (tiền đang có trừ nợ cá nhân); vào chi tiết bằng tab Quỹ nhóm.
  */
 export function FundStatCard({ style }: { style?: React.ComponentProps<typeof SummaryCard>['style'] }) {
   const { data, loaded, error } = useFundData();
-  const balance = useMemo(() => data.funds.reduce((sum, fund) => sum + fundBalance(data, fund.id), 0), [data]);
+  const balance = useMemo(() => data.funds.reduce((sum, fund) => sum + fundPosition(data, fund.id).cash - fundPosition(data, fund.id).owed, 0), [data]);
   const ready = loaded && !error;
   return (
     <SummaryCard

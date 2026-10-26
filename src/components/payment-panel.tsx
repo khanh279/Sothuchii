@@ -168,7 +168,7 @@ export function PaymentPanel({ remaining, choices, payer, receiver, note, warnin
                 <SheetHeader title={sheet.title} />
                 <PaymentSummary heading={sheet.heading} amountText={sheet.amountText} scope={sheet.scope} amountColor={sheet.amountColor} />
                 {!!warning && (
-                  <AppText color={colors.warning} style={styles.stepNote}>
+                  <AppText color={colors.danger} style={styles.stepNote}>
                     {warning}
                   </AppText>
                 )}

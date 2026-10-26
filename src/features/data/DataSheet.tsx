@@ -1,14 +1,13 @@
+import { File, Paths } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { useRef, useState } from 'react';
-import { ModalPresence } from '@/components/modal-presence';
-import { KeyboardAvoid } from '@/components/keyboard-avoid';
-import { Modal, Platform, Pressable, ScrollView, Share, StyleSheet, TextInput, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
-import { AppFonts } from '@/constants/fonts';
+import { SheetFrame, SheetHeader } from '@/components/sheet-frame';
 import { createBackupText, restoreFromText, wipeSection } from '@/data/backupRepository';
 import { StorageCorruptError } from '@/data/storage';
-import { SECTION_LABELS, backupFileName, parseBackup, type BackupSection } from '@/domain/backup';
+import { backupFileName, parseBackup, type BackupSection } from '@/domain/backup';
 import { useColors } from '@/hooks/use-colors';
 
 interface Props {
@@ -17,7 +16,7 @@ interface Props {
   onDataChanged: () => void;
 }
 
-const SECTIONS: BackupSection[] = ['chi-tieu', 'quy-nhom', 'chia-bill'];
+const WIPE_ORDER: BackupSection[] = ['quy-nhom', 'chia-bill', 'chi-tieu'];
 const ARM_MS = 3200;
 
 function describeError(error: unknown): string {
@@ -37,15 +36,43 @@ function downloadText(text: string, fileName: string) {
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 
+/** Một file sao lưu đã chọn: tên (để hiện) và nội dung văn bản. */
+interface PickedFile {
+  name: string;
+  text: string;
+}
+
+/** Chọn file bằng ô chọn file của trình duyệt (bản web); đóng hộp chọn không chọn gì thì trả null. */
+function pickTextFileWeb(): Promise<PickedFile | null> {
+  return new Promise((resolve, reject) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json,application/json,text/plain';
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) resolve(null);
+      else file.text().then((text) => resolve({ name: file.name, text }), reject);
+    };
+    input.oncancel = () => resolve(null);
+    input.click();
+  });
+}
+
+/** Mở bảng chọn file của hệ thống (web: ô chọn file; điện thoại: `File.pickFileAsync`) rồi đọc nội dung văn bản. */
+async function pickTextFile(): Promise<PickedFile | null> {
+  if (Platform.OS === 'web') return pickTextFileWeb();
+  const picked = await File.pickFileAsync({ mimeTypes: ['application/json', 'text/plain', '*/*'] });
+  if (picked.canceled) return null;
+  return { name: picked.result.name, text: await picked.result.text() };
+}
+
 /**
- * Bảng "Sao lưu và dữ liệu" (`#stSheet` của PWA): lưu / sao chép sao lưu, khôi phục từ nội dung dán vào, và xoá dữ liệu
- * từng phần. Khôi phục và xoá bấm hai lần ("Bấm lại để xác nhận"). Khôi phục THAY phần dữ liệu có trong file.
+ * Bảng "Sao lưu và khôi phục" (`#stSheet` của PWA): thẻ Sao lưu (lưu ra FILE), thẻ Khôi phục (CHỌN FILE sao lưu rồi khôi phục) và nút "Xoá tất cả dữ liệu". Khôi phục và xoá bấm hai lần ("Bấm lại để xác nhận"). Khôi phục THAY phần dữ liệu có trong file.
  * Kết quả hiện ngay trong bảng (thông báo nổi có thể bị bảng che).
  */
 export function DataSheet({ onClose, onDataChanged }: Props) {
   const colors = useColors();
-  const insets = useSafeAreaInsets();
-  const [text, setText] = useState('');
+  const [picked, setPicked] = useState<PickedFile | null>(null);
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
   const [armed, setArmed] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -78,34 +105,42 @@ export function DataSheet({ onClose, onDataChanged }: Props) {
         downloadText(data, name);
         say(`Đã tạo file ${name}`);
       } else {
-        await Share.share({ message: data, title: name });
+        // Điện thoại: ghi file .json vào thư mục tạm rồi mở bảng chia sẻ / lưu của hệ thống (Lưu vào Tệp, Drive…).
+        if (!(await Sharing.isAvailableAsync())) {
+          say('Máy này không mở được bảng lưu file.', true);
+          return;
+        }
+        const file = new File(Paths.cache, name);
+        file.create({ overwrite: true });
+        file.write(data);
+        await Sharing.shareAsync(file.uri, { mimeType: 'application/json', UTI: 'public.json', dialogTitle: name });
       }
     } catch (e) {
       say(describeError(e), true);
     }
   }
 
-  async function copy() {
+  async function pickFile() {
     try {
-      const data = await createBackupText();
-      if (Platform.OS === 'web' && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(data);
-        say('Đã sao chép dữ liệu');
-      } else {
-        setText(data);
-        say('Chọn và sao chép đoạn dữ liệu bên dưới');
+      const file = await pickTextFile();
+      if (!file) return;
+      const parsed = parseBackup(file.text);
+      if (!parsed.ok) {
+        setPicked(null);
+        say(parsed.error, true);
+        return;
       }
-    } catch (e) {
-      say(describeError(e), true);
+      setPicked(file);
+      setMessage(null);
+    } catch {
+      setPicked(null);
+      say('Không đọc được file này. Hãy thử lại.', true);
     }
   }
 
   function restore() {
-    const parsed = parseBackup(text);
-    if (!parsed.ok) {
-      say(parsed.error, true);
-      return;
-    }
+    if (!picked) return;
+    const { text } = picked;
     confirmThen('restore', async () => {
       const result = await restoreFromText(text);
       if (!result.ok) {
@@ -113,117 +148,68 @@ export function DataSheet({ onClose, onDataChanged }: Props) {
         return;
       }
       onDataChanged();
-      setText('');
+      setPicked(null);
       say(result.message);
     });
   }
 
-  function wipe(section: BackupSection) {
-    confirmThen(`wipe:${section}`, async () => {
-      await wipeSection(section);
+  /** Xoá cả ba phần (Quỹ nhóm và Chia bill trước, vì chúng còn xoá các khoản chi cá nhân do chúng tạo; Chi tiêu sau cùng). */
+  function wipeAll() {
+    confirmThen('wipe:all', async () => {
+      for (const section of WIPE_ORDER) await wipeSection(section);
       onDataChanged();
-      say(`Đã xoá dữ liệu ${SECTION_LABELS[section]}`);
+      say('Đã xoá tất cả dữ liệu');
     });
   }
 
-  const noteStyle = [styles.note, { color: colors.muted }];
   return (
-    <Modal transparent animationType="fade" visible onRequestClose={onClose}>
-      <ModalPresence />
-      <KeyboardAvoid style={[styles.scrim, { backgroundColor: colors.scrim }]}>
-        <Pressable style={styles.flex} onPress={onClose} accessibilityLabel="Đóng" />
-        <View style={[styles.sheet, { backgroundColor: colors.surface, paddingBottom: 12 + insets.bottom }]}>
-          <View style={styles.header}>
-            <AppText weight="display" style={styles.title}>
-              Sao lưu và dữ liệu
+    <SheetFrame onClose={onClose}>
+      <SheetHeader title="Sao lưu và khôi phục" />
+
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        {!!message && (
+          <View style={[styles.message, { backgroundColor: message.error ? colors.dangerSoft : colors.primarySoft }]} accessibilityRole="alert">
+            <AppText weight="semibold" color={message.error ? colors.danger : colors.primary} style={styles.messageText}>
+              {message.text}
             </AppText>
-            <Pressable accessibilityRole="button" accessibilityLabel="Đóng" onPress={onClose} style={styles.close}>
-              <AppText weight="bold" color={colors.muted} style={styles.closeText}>
-                ×
-              </AppText>
-            </Pressable>
           </View>
+        )}
 
-          <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-            {!!message && (
-              <View style={[styles.message, { backgroundColor: message.error ? colors.dangerSoft : colors.primarySoft }]} accessibilityRole="alert">
-                <AppText weight="semibold" color={message.error ? colors.danger : colors.primary} style={styles.messageText}>
-                  {message.text}
-                </AppText>
-              </View>
-            )}
-
-            <View style={styles.section}>
-              <AppText weight="bold" style={styles.h3}>
-                Sao lưu
-              </AppText>
-              <AppText style={noteStyle}>
-                Toàn bộ dữ liệu của sổ nằm trên máy này. Sao lưu thường xuyên, nhất là trước khi đổi máy hoặc xoá dữ liệu ứng dụng.
-              </AppText>
-              <View style={styles.row}>
-                <Button label="Lưu file sao lưu" primary onPress={() => void save()} />
-                <Button label="Sao chép dữ liệu" onPress={() => void copy()} />
-              </View>
-            </View>
-
-            <View style={styles.section}>
-              <AppText weight="bold" style={styles.h3}>
-                Khôi phục
-              </AppText>
-              <AppText style={noteStyle}>
-                Dán dữ liệu sao lưu vào ô dưới. Bản sao lưu Sổ Thu Chi sẽ thay phần dữ liệu có trong file. Bản sao lưu của app Quỹ nhóm cũ cũng dùng được.
-              </AppText>
-              <TextInput
-                value={text}
-                onChangeText={(value) => {
-                  setText(value);
-                  setMessage(null);
-                }}
-                multiline
-                numberOfLines={3}
-                placeholder="Dán dữ liệu sao lưu vào đây"
-                placeholderTextColor={colors.muted}
-                autoCapitalize="none"
-                autoCorrect={false}
-                spellCheck={false}
-                accessibilityLabel="Dữ liệu sao lưu"
-                style={[styles.textarea, { backgroundColor: colors.bg, borderColor: colors.line, color: colors.ink, fontFamily: AppFonts.regular }]}
-              />
-              <View style={styles.row}>
-                <Button
-                  label={armed === 'restore' ? 'Bấm lại để xác nhận' : 'Khôi phục'}
-                  primary={armed !== 'restore'}
-                  armed={armed === 'restore'}
-                  disabled={!text.trim() || busy}
-                  onPress={restore}
-                />
-              </View>
-            </View>
-
-            <View style={styles.section}>
-              <AppText weight="bold" style={styles.h3}>
-                Xoá dữ liệu
-              </AppText>
-              <AppText style={noteStyle}>
-                Xoá toàn bộ dữ liệu của một phần, không hoàn tác được. Xoá Quỹ nhóm hoặc Chia bill cũng xoá các khoản chi cá nhân do phần đó tạo.
-              </AppText>
-              <View style={styles.row}>
-                {SECTIONS.map((section) => (
-                  <Button
-                    key={section}
-                    label={armed === `wipe:${section}` ? 'Bấm lại để xác nhận' : SECTION_LABELS[section]}
-                    danger
-                    armed={armed === `wipe:${section}`}
-                    disabled={busy}
-                    onPress={() => wipe(section)}
-                  />
-                ))}
-              </View>
-            </View>
-          </ScrollView>
+        <View style={[styles.section, { backgroundColor: colors.bg }]}>
+          <AppText weight="bold" style={styles.h3}>
+            Sao lưu
+          </AppText>
+          <View style={styles.row}>
+            <Button label="Lưu file sao lưu" primary onPress={() => void save()} />
+          </View>
         </View>
-      </KeyboardAvoid>
-    </Modal>
+
+        <View style={[styles.section, { backgroundColor: colors.bg }]}>
+          <AppText weight="bold" style={styles.h3}>
+            Khôi phục
+          </AppText>
+          {!!picked && (
+            <AppText color={colors.muted} style={styles.fileName} numberOfLines={1}>
+              {picked.name}
+            </AppText>
+          )}
+          <View style={styles.row}>
+            <Button label={picked ? 'Chọn file khác' : 'Chọn file khôi phục'} primary={!picked} disabled={busy} onPress={() => void pickFile()} />
+            {!!picked && (
+              <Button
+                label={armed === 'restore' ? 'Xác nhận' : 'Khôi phục'}
+                primary={armed !== 'restore'}
+                armed={armed === 'restore'}
+                disabled={busy}
+                onPress={restore}
+              />
+            )}
+          </View>
+        </View>
+
+        <Button label={armed === 'wipe:all' ? 'Bấm lại để xác nhận' : 'Xoá tất cả dữ liệu'} danger armed={armed === 'wipe:all'} disabled={busy} onPress={wipeAll} />
+      </ScrollView>
+    </SheetFrame>
   );
 }
 
@@ -243,7 +229,7 @@ function Button({
   disabled?: boolean;
 }) {
   const colors = useColors();
-  const background = armed ? colors.danger : primary ? colors.primary : colors.bg;
+  const background = armed ? colors.danger : primary ? colors.primary : colors.surface;
   const color = armed ? '#FFFFFF' : primary ? colors.primaryInk : danger ? colors.danger : colors.ink;
   return (
     <Pressable
@@ -260,21 +246,13 @@ function Button({
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  scrim: { flex: 1, justifyContent: 'flex-end' },
-  sheet: { borderTopLeftRadius: 22, borderTopRightRadius: 22, maxHeight: '90%' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 18, paddingRight: 8, paddingTop: 8 },
-  title: { fontSize: 18 },
-  close: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  closeText: { fontSize: 24 },
-  content: { paddingHorizontal: 18, paddingBottom: 12, gap: 18 },
+  content: { paddingTop: 12, paddingBottom: 4, gap: 12 },
   message: { borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12 },
   messageText: { fontSize: 14 },
-  section: { gap: 8 },
+  section: { gap: 10, padding: 14, borderRadius: 16 },
   h3: { fontSize: 15 },
-  note: { fontSize: 13, lineHeight: 18.85 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  textarea: { minHeight: 84, borderWidth: 1, borderRadius: 12, padding: 12, fontSize: 14, textAlignVertical: 'top' },
-  button: { minHeight: 44, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  fileName: { fontSize: 13.5 },
+  button: { flexGrow: 1, flexBasis: 0, minWidth: 96, minHeight: 44, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   buttonText: { fontSize: 14.5 },
 });

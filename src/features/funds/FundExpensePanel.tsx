@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
@@ -6,11 +6,10 @@ import { FormLabel, formStyles } from '@/components/expense-form-parts';
 import { InlineSelect } from '@/components/inline-select';
 import { SvgIcon } from '@/components/svg-icon';
 import { AppRadius } from '@/constants/palette';
-import { advanceSummary, fundPosition, planAdvanceSpend } from '@/domain/fundAdvance';
-import { loadPeople } from '@/data/peopleRepository';
-import { fundBalance } from '@/domain/funds';
-import { memberOptions } from '@/domain/people';
+import { advanceSummary, fundCash, fundPosition, planAdvanceSpend } from '@/domain/fundAdvance';
+import { fundBalance, fundBulkNames, fundContributors, fundMembers } from '@/domain/funds';
 import { ContributionForm } from '@/features/funds/ContributionForm';
+import { FundBalanceText } from '@/features/funds/FundBalanceText';
 import { FundExpenseForm } from '@/features/funds/FundExpenseForm';
 import { useColors } from '@/hooks/use-colors';
 import type { FundData } from '@/types/fund';
@@ -22,6 +21,8 @@ interface Props {
   mode?: 'chi' | 'thu';
   /** Gọi sau khi ghi (hoặc sửa) xong một khoản chi; nơi chứa đóng tờ / quay lại và làm mới dữ liệu. */
   onChanged: () => void;
+  /** Gọi sau khi thêm mới xong (ở lại trang): làm mới dữ liệu quỹ. */
+  onAdded?: () => void;
   /** Quỹ đã chọn sẵn (từ thẻ nổi chọn quỹ): có thì form hiện ngay, không có thì bắt đầu bằng danh sách quỹ. */
   initialFundId?: string;
 }
@@ -32,23 +33,11 @@ interface Props {
  * cho biết quỹ đang chọn và số dư hiện tại ở cùng một hàng (cùng kiểu ô chọn "Hình thức chi": nhãn "Quỹ", biểu tượng tròn, tên, số dư, mũi tên) — chạm cả thanh thì các quỹ khác XỔ XUỐNG ngay trong cùng khung (`InlineSelect`),
  * chọn một quỹ để đổi quỹ (thu gọn lại), chạm thanh lần nữa để thu gọn.
  */
-export function FundExpensePanel({ data, onChanged, mode = 'chi', initialFundId }: Props) {
+export function FundExpensePanel({ data, onChanged, onAdded, mode = 'chi', initialFundId }: Props) {
   const colors = useColors();
   const [pickedId, setPickedId] = useState<string | null>(initialFundId ?? null);
-  /** Danh sách người trong mục Thiết lập: nguồn DUY NHẤT của danh sách thành viên ở thu / chi quỹ (cùng "Tôi"). */
-  const [peopleList, setPeopleList] = useState<string[]>([]);
-  useEffect(() => {
-    let cancelled = false;
-    loadPeople()
-      .then((list) => !cancelled && setPeopleList(list))
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, []);
   const fund = data.funds.find((item) => item.id === pickedId) ?? null;
 
-  const balanceColor = (id: string) => (fundBalance(data, id) < 0 ? colors.danger : colors.success);
 
   if (!fund) {
     return (
@@ -60,9 +49,9 @@ export function FundExpensePanel({ data, onChanged, mode = 'chi', initialFundId 
           <FundRow
             key={item.id}
             name={item.name}
-            balance={formatVnd(fundBalance(data, item.id))}
-            balanceColor={balanceColor(item.id)}
-            label={`${item.name}, số dư ${formatVnd(fundBalance(data, item.id))}`}
+            balance={formatVnd(fundCash(data, item.id))}
+            balanceNode={<FundBalanceText hideLabel cash={fundPosition(data, item.id).cash} owed={fundPosition(data, item.id).owed} />}
+            label={`${item.name}, số dư ${formatVnd(fundCash(data, item.id))}`}
             onPress={() => setPickedId(item.id)}
           />
         ))}
@@ -80,8 +69,7 @@ export function FundExpensePanel({ data, onChanged, mode = 'chi', initialFundId 
         options={data.funds.map((item) => ({
           key: item.id,
           name: item.name,
-          trailing: formatVnd(fundBalance(data, item.id)),
-          trailingColor: balanceColor(item.id),
+          trailingNode: <FundBalanceText hideLabel cash={fundPosition(data, item.id).cash} owed={fundPosition(data, item.id).owed} />,
           icon: (
             <View style={[styles.badge, { backgroundColor: colors.primarySoft }]}>
               <SvgIcon name="people" size={16} color={colors.primary} strokeWidth={2} />
@@ -93,7 +81,7 @@ export function FundExpensePanel({ data, onChanged, mode = 'chi', initialFundId 
   );
 
   // Thu quỹ: ô chọn quỹ nằm hàng đầu của thẻ trên cùng trong form (hai thẻ như trang tạo bill).
-  if (mode === 'thu') return <ContributionForm key={fund.id} fund={fund} header={fundSelect} onChanged={onChanged} />;
+  if (mode === 'thu') return <ContributionForm key={fund.id} fund={fund} header={fundSelect} extraNames={fundBulkNames(data, fund.id)} defaultMembers={fundContributors(data, fund.id)} onChanged={onChanged} onAdded={onAdded} />;
 
   return (
     <View style={styles.list}>
@@ -101,8 +89,7 @@ export function FundExpensePanel({ data, onChanged, mode = 'chi', initialFundId 
       <FundExpenseForm
         key={fund.id}
         fund={fund}
-        members={memberOptions(peopleList, [])}
-        freeNames={data.contribs.some((contribution) => contribution.fundId === fund.id && contribution.bulk)}
+        members={fundMembers(data, fund.id)}
         heldPersons={[
           ...new Set((data.advances ?? []).filter((advance) => advance.fundId === fund.id && advanceSummary(data, advance).held > 0).map((advance) => advance.person.trim())),
         ]}
@@ -111,6 +98,7 @@ export function FundExpensePanel({ data, onChanged, mode = 'chi', initialFundId 
         balance={fundBalance(data, fund.id)}
         cash={fundPosition(data, fund.id).cash}
         onChanged={onChanged}
+        onAdded={onAdded}
       />
     </View>
   );
@@ -121,6 +109,7 @@ export function FundRow({
   name,
   balance,
   balanceColor,
+  balanceNode,
   label,
   onPress,
   selected,
@@ -128,7 +117,9 @@ export function FundRow({
 }: {
   name: string;
   balance: string;
-  balanceColor: string;
+  balanceColor?: string;
+  /** Thay số dư dạng chữ bằng nội dung tuỳ ý (ví dụ hai dòng số dư của quỹ). */
+  balanceNode?: ReactNode;
   label: string;
   onPress: () => void;
   selected?: boolean;
@@ -149,9 +140,11 @@ export function FundRow({
       <AppText weight="semibold" style={styles.name} numberOfLines={1}>
         {name}
       </AppText>
-      <AppText weight="bold" color={balanceColor} style={styles.balance} numberOfLines={1}>
-        {balance}
-      </AppText>
+      {balanceNode ?? (
+        <AppText weight="bold" color={balanceColor} style={styles.balance} numberOfLines={1}>
+          {balance}
+        </AppText>
+      )}
       <View style={expanded === undefined ? undefined : { transform: [{ rotate: expanded ? '-90deg' : '90deg' }] }}>
         <SvgIcon name="chevronRight" size={16} color={colors.muted} strokeWidth={2} />
       </View>

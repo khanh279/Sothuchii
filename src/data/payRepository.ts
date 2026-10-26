@@ -115,7 +115,7 @@ function toRaw(pay: Pay): RawObject {
 
 /**
  * Thêm các khoản trả mới rồi gộp trùng (`ot`): khoản mới giống hệt khoản đã có (cùng ngày, người, loại, ghi chú…) thì CỘNG
- * vào khoản đó. Mỗi khoản phải có mã, ngày hợp lệ, hai người và số tiền > 0 sau khi làm tròn.
+ * vào khoản đó, TRỪ khoản có "Tôi" ở một đầu (luôn là dòng riêng, xem `payDedupeKey`). Mỗi khoản phải có mã, ngày hợp lệ, hai người và số tiền > 0 sau khi làm tròn.
  */
 export async function appendPays(pays: readonly Pay[]): Promise<void> {
   for (const pay of pays) checkNewPay(pay);

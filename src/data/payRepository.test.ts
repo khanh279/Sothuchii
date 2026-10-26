@@ -60,13 +60,20 @@ describe('thêm', () => {
     expect(await AsyncStorage.getItem(KEY)).toBeNull();
   });
 
-  it('khoản mới giống hệt khoản đã có → CỘNG vào khoản đó; trường lạ và mục lạ giữ nguyên', async () => {
-    await seed([rec('a', { amt: 10_000, extra: 'giữ', nexp: [{ m: '2025-10', id: 'old' }], exp: [{ m: '2025-10', id: 'x' }] }), 'rác']);
-    await appendPays([pay('b', { amt: 5000 })]);
+  it('khoản mới giống hệt khoản đã có giữa hai người KHÁC "Tôi" → CỘNG vào khoản đó; trường lạ và mục lạ giữ nguyên', async () => {
+    const others = { from: 'An', to: 'Bình' };
+    await seed([rec('a', { ...others, amt: 10_000, extra: 'giữ', nexp: [{ m: '2025-10', id: 'old' }], exp: [{ m: '2025-10', id: 'x' }] }), 'rác']);
+    await appendPays([pay('b', { ...others, amt: 5000 })]);
     const list = await raw();
     expect(list).toHaveLength(2);
-    expect(list[0]).toEqual(rec('a', { amt: 15_000, extra: 'giữ', nexp: [{ m: '2025-10', id: 'old' }], exp: [{ m: '2025-10', id: 'x' }] }));
+    expect(list[0]).toEqual(rec('a', { ...others, amt: 15_000, extra: 'giữ', nexp: [{ m: '2025-10', id: 'old' }], exp: [{ m: '2025-10', id: 'x' }] }));
     expect(list[1]).toBe('rác');
+  });
+
+  it('khoản có "Tôi" (tôi chuyển / trả, người khác chuyển / trả tôi) giống hệt nhau thì KHÔNG bị gộp: mỗi lần ghi là một dòng, tiền không cộng', async () => {
+    await seed([rec('a', { amt: 10_000 }), rec('x', { from: 'An', to: 'Tôi', amt: 7000 })]);
+    await appendPays([pay('b', { amt: 5000 }), pay('y', { from: 'An', to: 'Tôi', amt: 3000 })]);
+    expect((await raw()).map((x: { id: string; amt: number }) => [x.id, x.amt])).toEqual([['a', 10_000], ['x', 7000], ['b', 5000], ['y', 3000]]);
   });
 
   it('khoản khác ngày / loại / ghi chú thì không gộp; khoản nhiều bill (bills) không bao giờ gộp', async () => {
@@ -109,8 +116,9 @@ describe('sửa', () => {
     expect((await raw()).map((x: { id: string; amt: number }) => [x.id, x.amt])).toEqual([['a', 10_000], ['b', 4000]]);
   });
 
-  it('khoản không được sửa vẫn được gộp như PWA khi hai khoản khác trùng nhau', async () => {
-    await seed([rec('a', { amt: 10_000 }), rec('b', { amt: 4000, note: 'khác' }), rec('c', { amt: 3000, note: 'khác' })]);
+  it('khoản không được sửa vẫn được gộp như PWA khi hai khoản giữa hai người khác "Tôi" trùng nhau', async () => {
+    const others = { from: 'An', to: 'Bình' };
+    await seed([rec('a', { amt: 10_000 }), rec('b', { ...others, amt: 4000, note: 'khác' }), rec('c', { ...others, amt: 3000, note: 'khác' })]);
     await updatePay('a', { ...patch, amt: 10_000 });
     expect((await raw()).map((x: { id: string; amt: number }) => [x.id, x.amt])).toEqual([['a', 10_000], ['b', 7000]]);
   });

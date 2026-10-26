@@ -3,7 +3,7 @@ import type { Pay } from '@/types/pay';
 import { dedupePays, normalizePays, payDedupeKey, payExpenseRefs } from './pays';
 
 // DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng. Tiền là ĐỒNG.
-const pay = (id: string, over: Partial<Pay> = {}): Pay => ({ id, createdAt: 1, date: '2025-10-05', note: '', from: 'Tôi', to: 'An', amt: 10_000, kind: 'vay', ...over });
+const pay = (id: string, over: Partial<Pay> = {}): Pay => ({ id, createdAt: 1, date: '2025-10-05', note: '', from: 'An', to: 'Bình', amt: 10_000, kind: 'vay', ...over });
 
 describe('normalizePays', () => {
   it('bỏ mục không phải đối tượng; điền mặc định; đọc exp dạng mảng hoặc đơn lẻ', () => {
@@ -43,23 +43,38 @@ describe('normalizePays', () => {
 
 describe('payDedupeKey', () => {
   it('cắt khoảng trắng ở người trả / nhận / ghi chú; "Đối soát" theo cờ ds hoặc ghi chú', () => {
-    expect(payDedupeKey(pay('a', { from: ' Tôi ', to: 'An ', note: ' hi ' }))).toBe(payDedupeKey(pay('b', { from: 'Tôi', to: 'An', note: 'hi' })));
+    expect(payDedupeKey(pay('a', { from: ' An ', to: 'Bình ', note: ' hi ' }))).toBe(payDedupeKey(pay('b', { from: 'An', to: 'Bình', note: 'hi' })));
     expect(payDedupeKey(pay('a', { ds: 1 }))).not.toBe(payDedupeKey(pay('a')));
     expect(payDedupeKey(pay('a', { note: 'Đối soát' }))).toBe(payDedupeKey(pay('b', { note: 'Đối soát', ds: 1 })).replace('|0|', '|0|'));
   });
 
   it('khác ngày / loại / sổ / nhóm / bill thì khác khóa; khoản có bills lấy id làm khóa', () => {
     const base = pay('a');
-    for (const other of [pay('b', { date: '2025-10-06' }), pay('b', { kind: 'billpay' }), pay('b', { led: 'bill' }), pay('b', { grp: 'g' }), pay('b', { bill: 'x' }), pay('b', { to: 'Bình' })]) {
+    for (const other of [pay('b', { date: '2025-10-06' }), pay('b', { kind: 'billpay' }), pay('b', { led: 'bill' }), pay('b', { grp: 'g' }), pay('b', { bill: 'x' }), pay('b', { to: 'Chi' })]) {
       expect(payDedupeKey(other)).not.toBe(payDedupeKey(base));
     }
     expect(payDedupeKey(pay('a', { bills: ['b1'] }))).not.toBe(payDedupeKey(pay('b', { bills: ['b1'] })));
   });
 });
 
+describe('khoản có "Tôi" không bao giờ bị gộp', () => {
+  it('tôi chuyển / tôi trả / người khác chuyển / trả tôi: hai khoản giống hệt vẫn là hai khoản, tiền không bị cộng', () => {
+    for (const [from, to] of [['Tôi', 'An'], ['An', 'Tôi']]) {
+      const list = [pay('a', { from, to }), pay('b', { from, to }), pay('c', { from, to, kind: 'billpay' }), pay('d', { from, to, kind: 'billpay' })];
+      const { pays, removed } = dedupePays(list);
+      expect(pays.map((x) => [x.id, x.amt])).toEqual([['a', 10_000], ['b', 10_000], ['c', 10_000], ['d', 10_000]]);
+      expect(removed).toEqual([]);
+    }
+  });
+
+  it('chỉ khoản giữa hai người khác "Tôi" mới được gộp khi trùng', () => {
+    expect(dedupePays([pay('a'), pay('b')]).pays.map((x) => x.amt)).toEqual([20_000]);
+  });
+});
+
 describe('dedupePays (chỉ dùng khi lưu)', () => {
   it('khoản trùng khóa được gộp vào khoản đầu: CỘNG số tiền, làm tròn từng đồng; trả danh sách khoản bị gộp', () => {
-    const list = [pay('a', { amt: 10_100 }), pay('b', { amt: 20_200 }), pay('c', { amt: 0.4 }), pay('d', { to: 'Bình', amt: 5000 })];
+    const list = [pay('a', { amt: 10_100 }), pay('b', { amt: 20_200 }), pay('c', { amt: 0.4 }), pay('d', { to: 'Chi', amt: 5000 })];
     const { pays, removed } = dedupePays(list);
     expect(pays.map((x) => [x.id, x.amt])).toEqual([['a', 30_300], ['d', 5000]]);
     expect(removed.map((x) => x.id)).toEqual(['b', 'c']);

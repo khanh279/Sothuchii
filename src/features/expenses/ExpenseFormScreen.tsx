@@ -1,13 +1,7 @@
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  BackHandler,
-  Pressable,
-  StyleSheet,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, BackHandler, Pressable, StyleSheet, View } from 'react-native';
+import { AppTextInput as TextInput } from '@/components/app-text-input';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
@@ -169,7 +163,15 @@ function ExpenseForm({ settings, existing, suggestedDate, period }: FormProps) {
         await addExpense(built);
       }
       toast.show(savedMessage({ isEdit: !!existing, amount: built.a, date: built.d, period }));
-      leave();
+      if (existing) {
+        leave();
+        return;
+      }
+      // Thêm mới: ở lại trang để ghi tiếp (giữ ngày và mục chi), chỉ xoá số tiền và nội dung.
+      setAmount(0);
+      setMemo('');
+      setErrors({ amount: false, date: false });
+      setBusy(false);
     } catch (error) {
       setBusy(false);
       toast.show(describeStorageError(error));

@@ -6,40 +6,22 @@ import { useColors } from '@/hooks/use-colors';
 import type { FundExpenseMode } from '@/types/fund';
 
 /**
- * Biểu tượng của một dòng lịch sử quỹ, mỗi loại một hình + một màu để phân biệt rõ:
- * - Quỹ chi trực tiếp: ví (đỏ) · Cá nhân ứng tiền túi chi: người (cam) · Chi từ tiền ứng trước: hoá đơn (tím)
- * - Giao tiền ứng trước: mũi tên chuyển (xanh dương) · Đóng quỹ: dấu cộng (xanh lá)
- * - Hoàn tiền ứng: mũi tên tải vào (xanh lá) · Quỹ trả cá nhân: dấu tích (xám).
- * Chỉ trình bày, không tính gì.
+ * Biểu tượng của một dòng lịch sử quỹ, cùng kiểu với biểu tượng danh mục và giao dịch: ô màu nền của app, viền mảnh, nét màu chủ đạo; mỗi loại một hình:
+ * - Đóng quỹ: mũi tên xuống khay · Quỹ chi trực tiếp: ví · Cá nhân ứng tiền túi chi: người · Chi từ tiền ứng trước: thẻ
+ * - Giao tiền ứng trước: khay mũi tên lên · Hoàn tiền ứng: mũi tên quay lại · Quỹ trả cá nhân: tờ tiền.
+ * Chiều tiền vẫn thể hiện bằng dấu và màu của số tiền. Chỉ trình bày, không tính gì.
  */
 export function FundEntryIcon({ kind, mode }: { kind: FundHistoryKind; mode?: FundExpenseMode }) {
   const colors = useColors();
   let icon: IconName = 'wallet';
-  let tint = colors.danger;
-  if (kind === 'contribution') {
-    icon = 'plus';
-    tint = colors.success;
-  } else if (kind === 'expense') {
-    if (mode === 'personal') {
-      icon = 'person';
-      tint = colors.iconOrange;
-    } else if (mode === 'advance') {
-      icon = 'receipt';
-      tint = colors.iconPurple;
-    }
-  } else if (kind === 'advance') {
-    icon = 'tabTransactions';
-    tint = colors.iconBlue;
-  } else if (kind === 'refund') {
-    icon = 'download';
-    tint = colors.success;
-  } else {
-    icon = 'check';
-    tint = colors.muted;
-  }
+  if (kind === 'contribution') icon = 'download';
+  else if (kind === 'expense') icon = mode === 'personal' ? 'person' : mode === 'advance' ? 'card' : 'wallet';
+  else if (kind === 'advance') icon = 'upload';
+  else if (kind === 'refund') icon = 'refund';
+  else icon = 'cash';
   return (
-    <IconTile color={tint}>
-      <SvgIcon name={icon} size={22} color={tint} strokeWidth={1.9} />
+    <IconTile color={colors.primary} neutral>
+      <SvgIcon name={icon} size={22} color={colors.primary} strokeWidth={1.8} />
     </IconTile>
   );
 }

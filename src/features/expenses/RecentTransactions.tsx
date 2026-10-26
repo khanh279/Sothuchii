@@ -5,6 +5,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/app-text';
 import { CategoryIcon } from '@/components/category-icon';
 import { EmptyState, SectionCard, TransactionRow } from '@/components/design';
+import { IconTile } from '@/components/history-card';
 import { SvgIcon } from '@/components/svg-icon';
 import { resolveCategory } from '@/domain/expenses';
 import type { RecentTransaction } from '@/domain/recentTransactions';
@@ -39,9 +40,10 @@ export function TransactionItemRow({ item, settings, first, showDate = true }: {
         item.categoryId ? (
           <CategoryIcon category={resolveCategory(settings, item.categoryId)} />
         ) : (
-          <View style={[styles.payIcon, { backgroundColor: out ? colors.dangerSoft : colors.successSoft }]}>
-            <SvgIcon name="tabTransactions" size={20} color={out ? colors.danger : colors.success} strokeWidth={1.9} />
-          </View>
+          // Khoản trả: ô trung tính như biểu tượng danh mục; trả bill = biên lai, chuyển tiền = mũi tên ra / vào.
+          <IconTile color={colors.primary} neutral>
+            <SvgIcon name={item.typeLabel === 'Trả bill' ? 'receipt' : out ? 'arrowOut' : 'arrowIn'} size={22} color={colors.primary} strokeWidth={1.8} />
+          </IconTile>
         )
       }
       title={item.title}
@@ -92,5 +94,4 @@ const styles = StyleSheet.create({
   loading: { paddingVertical: 28 },
   notice: { borderRadius: 12, padding: 14 },
   noticeText: { fontSize: 14 },
-  payIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
 });

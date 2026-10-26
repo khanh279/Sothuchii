@@ -7,6 +7,8 @@ import {
   isFundLinkedExpense,
   desiredLinkedExpense,
   fundBalance,
+  fundBulkNames,
+  fundContributors,
   fundMembers,
   fundLastActivity,
   fundPeriodTotals,
@@ -487,12 +489,32 @@ describe('fundMembers — người thuộc một quỹ', () => {
     expect(fundMembers(data, 'f3')).toEqual([]);
   });
 
-  it('người của khoản thu "Thêm nhiều thành viên" (bulk) không vào danh sách chọn', () => {
-    const withBulk = {
-      ...data,
-      contribs: [...data.contribs, { id: 'c3', fundId: 'f1', title: 'Đóng quỹ', date: '2025-10-04', bulk: true, people: [{ name: 'Người 1', amount: 100 }, { name: 'Người 2', amount: 100 }] }],
-    } as Parameters<typeof fundMembers>[0];
-    expect(fundMembers(withBulk, 'f1')).toEqual(['Tôi', 'An', 'Chi']);
+  const withBulk = {
+    ...data,
+    contribs: [
+      ...data.contribs,
+      { id: 'c3', fundId: 'f1', title: 'Đóng quỹ', date: '2025-10-04', bulk: true, people: [{ name: 'Người 1', amount: 100 }, { name: 'Lan', amount: 100 }, { name: 'Người 3', amount: 100 }, { name: 'An', amount: 100 }] },
+    ],
+  } as Parameters<typeof fundMembers>[0];
+
+  it('khoản thu "Thêm nhiều thành viên" (bulk): người đã nhập tên (Lan) có trong danh sách, người chưa nhập tên ("Người 1", "Người 3") thì không', () => {
+    expect(fundMembers(withBulk, 'f1')).toEqual(['Tôi', 'An', 'Lan', 'Chi']);
+  });
+
+  it('khoản thu thường: tên "Người 1" do người dùng tự đặt vẫn tính là thành viên', () => {
+    const manual = { ...data, contribs: [...data.contribs, { id: 'c4', fundId: 'f1', title: 'x', date: '2025-10-04', people: [{ name: 'Người 1', amount: 100 }] }] } as Parameters<typeof fundMembers>[0];
+    expect(fundMembers(manual, 'f1')).toContain('Người 1');
+  });
+
+  it('fundContributors: người đã đóng quỹ (kể cả người đã nhập tên ở khoản thu nhiều thành viên), "Tôi" đứng đầu; không gồm người chỉ ứng / chi, người chưa nhập tên, quỹ khác', () => {
+    expect(fundContributors(withBulk, 'f1')).toEqual(['Tôi', 'An', 'Lan']);
+    expect(fundContributors(withBulk, 'f2')).toEqual(['Bình']);
+    expect(fundContributors(withBulk, 'f3')).toEqual([]);
+  });
+
+  it('fundBulkNames: chỉ người đã nhập tên của khoản thu nhiều thành viên trong đúng quỹ, không trùng', () => {
+    expect(fundBulkNames(withBulk, 'f1')).toEqual(['Lan', 'An']);
+    expect(fundBulkNames(withBulk, 'f2')).toEqual([]);
   });
 });
 
