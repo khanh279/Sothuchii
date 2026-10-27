@@ -43,6 +43,12 @@ jobs:
 
       - run: npx expo export --platform web --output-dir dist
 
+      # Cài lên màn hình chính như một app thường: chèn manifest, icon (public/manifest.json, public/icons) và các thẻ meta vào mọi file HTML.
+      - name: Chèn thẻ cài lên màn hình chính
+        run: node scripts/add-install-tags.js dist "/${REPO_NAME}"
+        env:
+          REPO_NAME: ${{ github.event.repository.name }}
+
       # .nojekyll: Pages không bỏ qua thư mục bắt đầu bằng "_" (_expo). 404.html: mở thẳng một đường dẫn con vẫn vào app.
       - name: Chuẩn bị cho Pages
         run: |

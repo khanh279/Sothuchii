@@ -63,9 +63,10 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="chi-tieu/nhap" />
             <Stack.Screen name="chi-tieu/chi-tiet" />
-            <Stack.Screen name="lich-su" />
+            <Stack.Screen name="chi-tieu/ca-nhan" />
             <Stack.Screen name="giao-dich" />
             <Stack.Screen name="quy/lich-su" />
+            <Stack.Screen name="quy/lich-su-quy" />
             <Stack.Screen name="quy/chi-tieu" />
             <Stack.Screen name="quy/thu-quy" />
             <Stack.Screen name="quy/chi-tiet" />
@@ -78,13 +79,15 @@ export default function RootLayout() {
             <Stack.Screen name="chia-bill/nguoi" />
             <Stack.Screen name="chia-bill/chi-tiet" />
             <Stack.Screen name="chia-bill/thanh-toan" />
+            <Stack.Screen name="chia-bill/gop" />
             <Stack.Screen name="chia-bill/sua" />
-            <Stack.Screen name="cong-no/lich-su" />
             <Stack.Screen name="cong-no/ghi-nhan" />
             <Stack.Screen name="cong-no/sua" />
             <Stack.Screen name="cong-no/chi-tiet" />
             <Stack.Screen name="cong-no/vay" />
             <Stack.Screen name="cong-no/giao-dich" />
+            <Stack.Screen name="cong-no/no-bill" />
+            <Stack.Screen name="cong-no/chuyen-tien-bill" />
           </Stack>
           </KeyboardAvoid>
         </ChromeProvider>

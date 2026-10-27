@@ -6,7 +6,8 @@ import { LockableScrollView } from '@/components/lockable-scroll-view';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { EmptyState, ScreenTitle, SecondaryButton } from '@/components/design';
+import { EmptyState, PrimaryButton, ScreenTitle, SecondaryButton, TitleAction } from '@/components/design';
+import { SheetFrame, SheetHeader, useSheetClose } from '@/components/sheet-frame';
 import { PageLayout } from '@/constants/layout';
 import { SvgIcon } from '@/components/svg-icon';
 import { SwipeRow } from '@/components/swipe-row';
@@ -30,7 +31,7 @@ type Editing = { mode: 'add' } | { mode: 'edit'; id: string };
 /**
  * Tab "Quỹ nhóm": tiêu đề và nút "+ Giao dịch quỹ" (menu Thu quỹ / Chi tiêu quỹ, mở đúng form đóng quỹ / chi quỹ có sẵn cho quỹ chọn
  * trong tờ nổi), rồi danh sách quỹ dạng thẻ nhỏ (tên, số dư, ngày cập nhật gần nhất): chạm một quỹ để mở lịch sử và chi tiết của quỹ đó
- * (màn Lịch sử quỹ có sẵn); tạo quỹ mới, đổi tên, xoá bằng cách vuốt dòng.
+ * (màn Lịch sử quỹ có sẵn); đổi tên, xoá bằng cách vuốt dòng. Nút "+ Quỹ mới" ở góc phải tiêu đề mở thẻ tạo quỹ ở giữa màn hình.
  */
 export default function FundListScreen() {
   const { ref: scrollRef, props: scrollProps } = useChromeScroll();
@@ -75,8 +76,21 @@ export default function FundListScreen() {
       return 'Đã xóa quỹ';
     });
 
+  // Nút "+ Quỹ mới" nằm ở góc phải ngang với tiêu đề; bấm mở thẻ tạo quỹ ở giữa màn hình.
   const title = (
-    <ScreenTitle title="Quỹ nhóm" topInset={insets.top} />
+    <ScreenTitle
+      title="Quỹ nhóm"
+      topInset={insets.top}
+      right={
+        <TitleAction
+          label="Quỹ mới"
+          onPress={() => {
+            setOpenId(null);
+            setEditing({ mode: 'add' });
+          }}
+        />
+      }
+    />
   );
 
   if (error) {
@@ -104,7 +118,7 @@ export default function FundListScreen() {
     <View style={styles.flex}>
       {title}
       <LockableScrollView ref={scrollRef} {...scrollProps} contentContainerStyle={styles.list} onScrollBeginDrag={() => setOpenId(null)} keyboardShouldPersistTaps="handled">
-        {data.funds.length === 0 && editing?.mode !== 'add' && <EmptyState text="Chưa có quỹ nào. Tạo quỹ mới để bắt đầu ghi nhận thu và chi của nhóm." icon="check" />}
+        {data.funds.length === 0 && <EmptyState text="Chưa có quỹ nào. Tạo quỹ mới để bắt đầu ghi nhận thu và chi của nhóm." icon="check" />}
 
         {data.funds.map((fund) => {
           const position = fundPosition(data, fund.id);
@@ -157,18 +171,59 @@ export default function FundListScreen() {
           );
         })}
 
-        {editing?.mode === 'add' && (
-          <NameForm label="Tên quỹ mới" initial="" busy={busy} onSave={save} onCancel={() => setEditing(null)} style={{ backgroundColor: colors.surface, borderRadius: 16 }} />
-        )}
-
-        <SecondaryButton
-          label="+ Quỹ mới"
-          onPress={() => {
-            setOpenId(null);
-            setEditing({ mode: 'add' });
-          }}
-        />
       </LockableScrollView>
+
+      {editing?.mode === 'add' && <AddFundSheet busy={busy} onSave={save} onClose={() => setEditing(null)} />}
+    </View>
+  );
+}
+
+/** Thẻ tạo quỹ mới hiện Ở GIỮA màn hình: ô nhập tên (tối đa `FUND_NAME_MAX` ký tự), Lưu và Hủy; Hủy / chạm nền thì thẻ mờ dần rồi đóng. */
+function AddFundSheet({ busy, onSave, onClose }: { busy: boolean; onSave: (name: string) => void; onClose: () => void }) {
+  return (
+    <SheetFrame placement="center" onClose={onClose}>
+      <SheetHeader title="Thêm quỹ mới" />
+      <AddFundForm busy={busy} onSave={onSave} />
+    </SheetFrame>
+  );
+}
+
+/**
+ * Biểu mẫu tạo quỹ trong tờ đáy: ô nhập tên lớn (viền đổi màu khi đang nhập, đếm ký tự tới `FUND_NAME_MAX`), rồi hai nút bằng nhau: Hủy và Tạo quỹ
+ * (nút Tạo quỹ mờ khi chưa có tên). Không tự bật bàn phím khi mở để bàn phím không che tờ; chạm vào ô để nhập.
+ */
+function AddFundForm({ busy, onSave }: { busy: boolean; onSave: (name: string) => void }) {
+  const colors = useColors();
+  const hide = useSheetClose();
+  const [name, setName] = useState('');
+  const [focused, setFocused] = useState(false);
+  const ready = name.trim().length > 0 && !busy;
+  return (
+    <View style={styles.addForm}>
+      <View style={styles.addField}>
+        <AppText weight="medium" color={colors.muted} style={styles.label}>
+          Tên quỹ
+        </AppText>
+        <TextInput
+          value={name}
+          onChangeText={setName}
+          maxLength={FUND_NAME_MAX}
+          placeholder="Ví dụ: Quỹ ăn trưa"
+          placeholderTextColor={colors.muted}
+          returnKeyType="done"
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          onSubmitEditing={() => ready && onSave(name)}
+          style={[styles.addInput, { backgroundColor: colors.bg, borderColor: focused ? colors.primary : colors.line, color: colors.ink, fontFamily: AppFonts.semibold }]}
+        />
+        <AppText color={colors.muted} style={styles.addCounter}>
+          {name.length}/{FUND_NAME_MAX}
+        </AppText>
+      </View>
+      <View style={styles.addButtons}>
+        <SecondaryButton label="Hủy" onPress={() => hide()} style={styles.addAction} />
+        <PrimaryButton label="Tạo quỹ" onPress={() => onSave(name)} disabled={!ready} style={styles.addAction} />
+      </View>
     </View>
   );
 }
@@ -235,6 +290,12 @@ const styles = StyleSheet.create({
   balanceCol: { alignItems: 'flex-end', justifyContent: 'center', maxWidth: '50%' },
   balanceLabel: { fontSize: 11, lineHeight: 18 },
   form: { padding: 14 },
+  addForm: { paddingTop: 4, paddingBottom: 8, gap: 14 },
+  addField: { gap: 2 },
+  addInput: { height: 52, borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 14, fontSize: 18 },
+  addCounter: { alignSelf: 'flex-end', fontSize: 12, lineHeight: 16, marginTop: 4 },
+  addButtons: { flexDirection: 'row', gap: 12 },
+  addAction: { flex: 1 },
   label: { fontSize: 13, marginBottom: 4 },
   input: { height: 46, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, fontSize: 18 },
   buttons: { flexDirection: 'row', gap: 8, marginTop: 12 },

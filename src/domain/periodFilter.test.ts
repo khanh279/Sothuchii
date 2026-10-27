@@ -1,7 +1,14 @@
 import { isInPeriod } from './expenses';
-import { periodHeading, periodRange, periodRangeLabel } from './periodFilter';
+import { periodHeading, periodRange, periodRangeLabel, periodCompactHeading } from './periodFilter';
 
 describe('nhãn bộ lọc thời gian', () => {
+  it('ô chọn gọn: kỳ Tháng ghi gọn T10/2026, các kỳ khác như periodHeading', () => {
+    expect(periodCompactHeading({ mode: 'month', month: '2026-10' })).toBe('T10/2026');
+    expect(periodCompactHeading({ mode: 'month', month: '2026-02' })).toBe('T2/2026');
+    expect(periodCompactHeading({ mode: 'year', year: 2026 })).toBe(periodHeading({ mode: 'year', year: 2026 }));
+    expect(periodCompactHeading({ mode: 'all' })).toBe('Tất cả');
+  });
+
   it('tháng: đủ ngày đầu/cuối, đúng tháng 28/29/30/31 ngày', () => {
     expect(periodRange({ mode: 'month', month: '2026-10' })).toEqual({ from: '2026-10-01', to: '2026-10-31' });
     expect(periodRange({ mode: 'month', month: '2026-04' })).toEqual({ from: '2026-04-01', to: '2026-04-30' });

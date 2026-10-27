@@ -2,6 +2,15 @@
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 
+## Bản web và cài lên màn hình chính
+
+Mỗi lần đẩy lên `main`, GitHub Actions xuất bản bản web lên GitHub Pages (xem `.github/workflows/pages.yml`). Bản web cài được như một app thường:
+
+- **iPhone (Safari)**: mở trang → nút Chia sẻ → **Thêm vào MH chính**.
+- **Android (Chrome)**: menu ⋮ → **Cài đặt ứng dụng** (hoặc **Thêm vào màn hình chính**).
+
+Icon, tên và chế độ toàn màn hình lấy từ `public/manifest.json` và `public/icons/`; các thẻ `<head>` tương ứng được chèn vào mọi trang HTML bằng `scripts/add-install-tags.js` sau khi xuất bản. Icon được tạo từ `assets/images/icon.png`.
+
 ## Get started
 
 1. Install dependencies

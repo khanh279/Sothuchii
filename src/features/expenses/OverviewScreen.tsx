@@ -1,4 +1,3 @@
-import { router } from 'expo-router';
 import { useMemo } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,6 +14,7 @@ import { DebtSplitCard, DebtStatCard } from '@/features/debts/DebtOverviewCards'
 import { useDebtData } from '@/features/debts/hooks';
 import { PageLayout } from '@/constants/layout';
 import { PeriodBar } from '@/features/expenses/PeriodBar';
+import { SettingsMenuButton } from '@/features/expenses/SettingsMenuButton';
 import { FundStatCard } from '@/features/funds/FundOverviewCard';
 import { RecentTransactions } from '@/features/expenses/RecentTransactions';
 import { SpentCard } from '@/features/expenses/SpentCard';
@@ -48,13 +48,15 @@ export default function OverviewScreen() {
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
       {/* Phần tử đầu tiên là ô chọn kỳ và được ghim lại khi cuộn (sticky). */}
       <ScrollView ref={scrollRef} {...scrollProps} stickyHeaderIndices={[0]} contentContainerStyle={{ paddingBottom: PageLayout.bottomClearance + insets.bottom }}>
-        <PeriodBar title="Tổng quan" view={view} onChange={setView} today={today} onSettings={() => router.push('/thiet-lap')} />
+        <PeriodBar title="Tổng quan" view={view} onChange={setView} today={today} />
         <View style={styles.body}>
           {message ? (
             <View style={[styles.notice, { backgroundColor: colors.dangerSoft }]}>
               <AppText color={colors.danger} style={styles.noticeText}>
                 {message}
               </AppText>
+              {/* Thẻ Tổng chi tiêu (có nút Cài đặt ở góc) không hiện khi lỗi: giữ một nút Cài đặt ở đây để vẫn vào được Thiết lập (sao lưu / khôi phục). */}
+              <SettingsMenuButton variant="plain" />
             </View>
           ) : (
             <SpentCard

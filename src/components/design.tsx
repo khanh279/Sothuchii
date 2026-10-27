@@ -121,6 +121,8 @@ interface CardHeadProps extends SectionHeaderProps {
   /** Bên phải, sát mép khung: dòng trên (ví dụ "7 khoản chi") và dòng dưới (ví dụ số tiền). */
   rightTop?: string;
   rightBottom?: ReactNode;
+  /** Thay dòng phụ bên trái bằng một phần tử tuỳ ý (ví dụ ghi chú kỳ bấm được `PeriodNote`); có thì bỏ qua `subtitle`. */
+  subtitleNode?: ReactNode;
   /** true: dòng phụ bên trái và dòng dưới bên phải luôn trên MỘT dòng, hết chỗ thì thu nhỏ chữ thay vì cắt bằng "…". */
   fit?: boolean;
 }
@@ -129,7 +131,7 @@ interface CardHeadProps extends SectionHeaderProps {
  * Đầu thẻ dùng chung cho mọi thẻ ở tab Chi tiêu, Chia bill, Công nợ: tiêu đề (cùng cỡ chữ) và bên dưới là thời gian đang xem; bên phải sát mép
  * là thông tin tóm tắt (dòng trên số lượng, dòng dưới số tiền). Không có đệm riêng: thẻ chứa nó tự đặt lề.
  */
-export function CardHead({ title, subtitle, actionLabel, onAction, rightTop, rightBottom, fit }: CardHeadProps) {
+export function CardHead({ title, subtitle, subtitleNode, actionLabel, onAction, rightTop, rightBottom, fit }: CardHeadProps) {
   const fitProps = fit ? ({ adjustsFontSizeToFit: true, minimumFontScale: 0.7 } as const) : {};
   const colors = useColors();
   return (
@@ -138,11 +140,11 @@ export function CardHead({ title, subtitle, actionLabel, onAction, rightTop, rig
         <AppText weight="bold" style={styles.cardHeadTitle} numberOfLines={1}>
           {title}
         </AppText>
-        {!!subtitle && (
+        {subtitleNode ?? (!!subtitle && (
           <AppText color={colors.muted} style={styles.caption} numberOfLines={1} {...fitProps}>
             {subtitle}
           </AppText>
-        )}
+        ))}
       </View>
       {(!!rightTop || !!rightBottom) && (
         <View style={styles.cardHeadRight}>

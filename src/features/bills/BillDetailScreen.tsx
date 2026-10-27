@@ -14,7 +14,10 @@ import { computeSplit, describeSplitProblem } from '@/domain/bills';
 import { rowStatus } from '@/domain/billForm';
 import { TRANSFER_STATE_LABEL, billTransferStatuses, type BillTransferStatus, type TransferPayState } from '@/domain/billPayment';
 import { findBillById } from '@/domain/billHistory';
+import { buildBillPairsFor } from '@/domain/billPairs';
 import { resolveCategory } from '@/domain/expenses';
+import { PAY_ACTION_BAR_CLEARANCE } from '@/components/pay-action-bar';
+import { BillPayFlow } from '@/features/bills/BillPayFlow';
 import { saveBillImage, shareBillImage, type ExportResult } from '@/features/bills/billImageExport';
 import { useDebtData } from '@/features/debts/hooks';
 import { useExpenseSettings } from '@/features/expenses/hooks';
@@ -37,7 +40,7 @@ export default function BillDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { settings } = useExpenseSettings();
-  const { bills, pays, loaded, error } = useDebtData();
+  const { bills, pays, loaded, error, reload } = useDebtData();
 
   const toast = useToast();
   const shotRef = useRef<HostInstance>(null);
@@ -49,6 +52,9 @@ export default function BillDetailScreen() {
   const statuses = bill ? (billTransferStatuses(bills, pays).get(bill.id) ?? []) : [];
   /** Chỉ xuất ảnh khi bill hợp lệ và chia được (bill lỗi mức cố định chỉ hiện cảnh báo). */
   const canExport = loaded && !error && !!bill && !!category && !!split && !split.bad;
+  // Khoản còn phải thanh toán của riêng bill này (đã trừ các khoản trả thực tế); còn khoản nào thì hiện nút Thanh toán ở đáy.
+  const pairs = bill ? buildBillPairsFor(bills, pays, [bill.id]) : [];
+  const canPay = loaded && !error && !!bill && pairs.length > 0;
 
   async function runExport(kind: 'save' | 'share') {
     if (exporting) return;
@@ -69,12 +75,13 @@ export default function BillDetailScreen() {
   else if (!split) body = null;
   else {
     body = (
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom + (canPay ? PAY_ACTION_BAR_CLEARANCE : 0) }]}>
+        <View>
         {/* Khung được chụp khi Lưu ảnh / Chia sẻ: nền trang ở góc bo để ảnh không có góc trong suốt. */}
         <View ref={shotRef} collapsable={false} style={{ backgroundColor: colors.bg }}>
           <View style={[styles.card, { backgroundColor: colors.surface }]}>
             <View style={styles.part}>
-              <View style={styles.infoTop}>
+              <View style={[styles.infoTop, canExport && styles.infoTopWithActions]}>
                 <CategoryIcon category={category} />
                 <View style={styles.flex}>
                   <AppText weight="semibold" style={styles.title} numberOfLines={2}>
@@ -146,12 +153,14 @@ export default function BillDetailScreen() {
           </View>
         </View>
 
+        {/* Hai nút nằm NGOÀI khung được chụp (góc phải trên của thẻ bill) nên không lọt vào ảnh xuất. */}
         {canExport && (
-          <View style={styles.actions}>
+          <View style={styles.cornerActions}>
             <ExportIcon icon="download" label="Lưu ảnh" busy={exporting === 'save'} disabled={!!exporting} onPress={() => void runExport('save')} />
             <ExportIcon icon="share" label="Chia sẻ" busy={exporting === 'share'} disabled={!!exporting} onPress={() => void runExport('share')} />
           </View>
         )}
+        </View>
       </ScrollView>
     );
   }
@@ -161,6 +170,7 @@ export default function BillDetailScreen() {
       <Stack.Screen options={{ title: 'Chi tiết bill', headerShown: false }} />
       <ScreenTitle title="Chi tiết bill" topInset={insets.top} />
       {body}
+      {bill && <BillPayFlow billIds={[bill.id]} pairs={pairs} visible={canPay} reload={reload} />}
     </View>
   );
 }
@@ -188,7 +198,7 @@ function ExportIcon({ icon, label, busy, disabled, onPress }: { icon: IconName; 
       disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [styles.exportButton, { backgroundColor: colors.primarySoft, opacity: disabled && !busy ? 0.5 : pressed ? 0.8 : 1 }]}>
-      {busy ? <ActivityIndicator size="small" color={colors.primary} /> : <SvgIcon name={icon} size={22} color={colors.primary} strokeWidth={2} />}
+      {busy ? <ActivityIndicator size="small" color={colors.primary} /> : <SvgIcon name={icon} size={18} color={colors.primary} strokeWidth={2} />}
     </Pressable>
   );
 }
@@ -239,8 +249,11 @@ const styles = StyleSheet.create({
   flex: { flex: 1, minWidth: 0 },
   content: { paddingHorizontal: 16, paddingTop: 4, gap: 16 },
   loading: { marginTop: 48 },
-  actions: { flexDirection: 'row', justifyContent: 'center', gap: 36 },
-  exportButton: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  /** Góc phải trên của thẻ bill. */
+  cornerActions: { position: 'absolute', top: 12, right: 12, flexDirection: 'row', gap: 8 },
+  exportButton: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  /** Chừa chỗ bên phải cho hai nút ở góc (2 × 36 + khoảng cách 8 + lề). */
+  infoTopWithActions: { paddingRight: 84 },
   notice: { borderRadius: 16, padding: 16 },
   noticeText: { fontSize: 15 },
   card: { borderRadius: AppRadius.card, overflow: 'hidden' },

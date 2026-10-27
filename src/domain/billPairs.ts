@@ -49,13 +49,24 @@ interface Acc {
   billIds: string[];
 }
 
+const byOldest = (a: Bill, b: Bill): number => String(a.date).localeCompare(String(b.date)) || (a.createdAt || 0) - (b.createdAt || 0);
+
 /** Các cặp còn khoản phải thanh toán trong kỳ, nhiều tiền nhất trước. Cặp đã thanh toán xong thì không có. */
 export function buildBillPairs(bills: readonly Bill[], pays: readonly Pay[], period: Period): BillPair[] {
-  const statuses = billTransferStatuses(bills, pays);
+  return pairsOf(billTransferStatuses(bills, pays), bills.filter((bill) => isInPeriod(bill.date, period)).sort(byOldest));
+}
+
+/**
+ * Như `buildBillPairs` nhưng cho MỘT TẬP bill được chọn (gộp bill), không theo kỳ. Trạng thái thanh toán vẫn tính trên TẤT CẢ bill và khoản trả
+ * (đúng quy tắc phân bổ bill cũ trước), rồi chỉ cộng các khoản chuyển của những bill được chọn.
+ */
+export function buildBillPairsFor(bills: readonly Bill[], pays: readonly Pay[], ids: readonly string[]): BillPair[] {
+  const picked = new Set(ids);
+  return pairsOf(billTransferStatuses(bills, pays), bills.filter((bill) => picked.has(bill.id)).sort(byOldest));
+}
+
+function pairsOf(statuses: ReturnType<typeof billTransferStatuses>, ordered: readonly Bill[]): BillPair[] {
   const accs = new Map<string, Acc>();
-  const ordered = bills
-    .filter((bill) => isInPeriod(bill.date, period))
-    .sort((a, b) => String(a.date).localeCompare(String(b.date)) || (a.createdAt || 0) - (b.createdAt || 0));
   for (const bill of ordered) {
     for (const status of statuses.get(bill.id) ?? []) {
       if (!status.from || !status.to || status.from === status.to) continue;

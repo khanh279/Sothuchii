@@ -5,7 +5,7 @@ import type { Period } from '@/types/expense';
 import { todayStr } from '@/utils/date';
 
 /**
- * Kỳ xem DÙNG CHUNG của các tab Tổng quan, Chi tiêu, Chia bill và mục Giao dịch của Công nợ: chọn ở Tổng quan, các tab còn lại chỉ đọc.
+ * Kỳ xem DÙNG CHUNG của các tab Tổng quan, Chi tiêu, Chia bill và mục Giao dịch của Công nợ: đổi được ở Tổng quan, trang Tất cả giao dịch và trang quỹ (đổi ở đâu thì mọi nơi đổi theo); các tab còn lại chỉ đọc.
  * Một giá trị duy nhất trong bộ nhớ phiên chạy (không lưu xuống máy, không phải dữ liệu nghiệp vụ), có đăng ký lắng nghe để mọi tab đang
  * mở cập nhật cùng lúc khi kỳ đổi. Mặc định là tháng hiện tại (`initialPeriodView`).
  */

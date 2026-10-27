@@ -37,6 +37,15 @@ export function periodHeading(period: Period): string {
   }
 }
 
+/** Tên kỳ trong ô chọn GỌN (cạnh tiêu đề màn hình): kỳ Tháng ghi gọn "T10/2026"; các kỳ khác như `periodHeading`. Bảng chọn thời gian vẫn dùng `periodHeading` ("Tháng 10, 2026"). */
+export function periodCompactHeading(period: Period): string {
+  if (period.mode === 'month') {
+    const [year, month] = period.month.split('-');
+    return `T${Number(month)}/${year}`;
+  }
+  return periodHeading(period);
+}
+
 /**
  * Khoảng ngày dưới tên kỳ: cùng năm thì rút gọn "01/10 – 31/10/2026", khác năm thì đủ hai đầu dd/MM/yyyy.
  * "Tất cả" không có khoảng ngày nên chỉ ghi "Toàn bộ thời gian" (không bịa ngày).

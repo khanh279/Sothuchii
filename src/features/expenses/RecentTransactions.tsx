@@ -68,7 +68,7 @@ export function RecentTransactions({ pays, paysLoaded, paysError }: Props) {
   const { list, settings, loaded, error } = useTransactionFeed({ window, pays, paysLoaded, paysError, limit: RECENT_LIMIT });
 
   return (
-    <SectionCard title="Giao dịch gần đây" subtitle="Chi tiêu cá nhân và giao dịch" actionLabel="Xem tất cả" onAction={() => router.push('/giao-dich')}>
+    <SectionCard title="Giao dịch gần đây" actionLabel="Xem tất cả" onAction={() => router.push('/giao-dich')}>
       {error ? (
         <View style={[styles.notice, { backgroundColor: colors.dangerSoft }]}>
           <AppText color={colors.danger} style={styles.noticeText}>

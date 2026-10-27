@@ -9,6 +9,8 @@ interface Props {
   visible: boolean;
   label?: string;
   onPress: () => void;
+  /** Hiện nhưng mờ và không bấm được (ví dụ chưa chọn đủ bill để gộp). */
+  disabled?: boolean;
   /** Khoảng từ đáy màn hình tới đáy nút (chưa gồm vùng an toàn); mặc định nằm trên thanh điều hướng nổi của các tab. */
   bottom?: number;
 }
@@ -20,7 +22,7 @@ const BOTTOM_OFFSET = 84;
  * Nút hành động cố định ở cuối màn hình (mặc định "Thanh toán"), hiện / ẩn bằng mờ dần khi `visible` đổi (KHÔNG trượt dọc: trang đang trượt ngang vào màn hình, nút trượt lên thêm sẽ làm cả trang trông bị chéo). Khi ẩn không nhận chạm
  * và bị loại khỏi trình đọc màn hình. Chỉ là nút: không biết gì về cách tính tiền.
  */
-export function PayActionBar({ visible, label = 'Thanh toán', onPress, bottom = BOTTOM_OFFSET }: Props) {
+export function PayActionBar({ visible, label = 'Thanh toán', onPress, disabled, bottom = BOTTOM_OFFSET }: Props) {
   const insets = useSafeAreaInsets();
   const [progress] = useState(() => new Animated.Value(visible ? 1 : 0));
 
@@ -35,7 +37,7 @@ export function PayActionBar({ visible, label = 'Thanh toán', onPress, bottom =
       importantForAccessibility={visible ? 'auto' : 'no-hide-descendants'}
       style={[styles.wrap, { bottom: bottom + insets.bottom, opacity: progress }]}
     >
-      <PrimaryButton label={label} onPress={onPress} disabled={!visible} />
+      <PrimaryButton label={label} onPress={onPress} disabled={!visible || !!disabled} />
     </Animated.View>
   );
 }

@@ -1,11 +1,9 @@
-import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
-import { SvgIcon } from '@/components/svg-icon';
 import { AppRadius } from '@/constants/palette';
+import { SettingsMenuButton } from '@/features/expenses/SettingsMenuButton';
 import { periodTitle, type BudgetSummary } from '@/domain/expenses';
-import { LanguageSheet } from '@/features/expenses/LanguageSheet';
 import { useColors } from '@/hooks/use-colors';
 import type { Period } from '@/types/expense';
 import { formatGrouped, formatVnd } from '@/utils/format';
@@ -22,21 +20,17 @@ interface Props {
 
 /**
  * Thẻ "Tổng chi tiêu" nổi bật ở đầu Tổng quan (nền navy, chữ trắng): tổng chi của kỳ đang chọn, số khoản chi, trung bình/ngày và ngân sách
- * nếu có. Thẻ CHỈ để xem (không bấm được); nút Cài đặt nằm trong ô chọn thời gian ở đầu trang. Chỉ dùng số liệu chi tiêu cá nhân sẵn có.
+ * nếu có. Thẻ CHỈ để xem (không bấm được); nút bánh răng Cài đặt (menu Thiết lập / đổi ngôn ngữ) nằm ở góc phải trên của thẻ. Chỉ dùng số liệu chi tiêu cá nhân sẵn có.
  */
 export function SpentCard({ period, loaded, total, count, average, budget }: Props) {
   const colors = useColors();
-  const [languageOpen, setLanguageOpen] = useState(false);
 
   return (
     <View style={[styles.card, { backgroundColor: colors.heroBg }]}>
-      {/* Góc phải trên của thẻ: nút trái đất (chọn ngôn ngữ). */}
+      {/* Góc phải trên của thẻ: nút bánh răng Cài đặt (menu Thiết lập / đổi ngôn ngữ). */}
       <View style={styles.corner}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Ngôn ngữ" hitSlop={6} onPress={() => setLanguageOpen(true)} style={[styles.cornerButton, { backgroundColor: colors.heroTrack }]}>
-          <SvgIcon name="globe" size={18} color={colors.heroInk} strokeWidth={1.9} />
-        </Pressable>
+        <SettingsMenuButton variant="hero" />
       </View>
-      {languageOpen && <LanguageSheet onClose={() => setLanguageOpen(false)} />}
       <View style={styles.hero} accessible accessibilityLabel={`Tổng chi tiêu ${periodTitle(period)}: ${formatVnd(total)}`}>
         <View>
           <AppText weight="medium" color={colors.heroSoft} style={styles.label}>
@@ -110,8 +104,7 @@ export function SpentCard({ period, loaded, total, count, average, budget }: Pro
 
 const styles = StyleSheet.create({
   card: { borderRadius: AppRadius.hero, overflow: 'hidden' },
-  corner: { position: 'absolute', top: 12, right: 12, zIndex: 1, flexDirection: 'row', gap: 8 },
-  cornerButton: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  corner: { position: 'absolute', top: 14, right: 14, zIndex: 1 },
   hero: { paddingTop: 20, paddingHorizontal: 20, paddingBottom: 18, gap: 12 },
   label: { fontSize: 13.5, lineHeight: 20 },
   statsRule: { height: 1, marginTop: 2 },
