@@ -50,7 +50,9 @@ for (const file of htmlFiles(dist)) {
     skipped++;
     continue;
   }
-  html = html.replace('</head>', `${tags}</head>`).replace('<html lang="en">', '<html lang="vi">');
+  // Trang chưa có <title> thì đặt tên ứng dụng (tiêu đề tab trình duyệt, và tên dự phòng khi thêm vào màn hình chính).
+  const title = html.includes('<title') ? '' : '<title>Sổ Thu Chi</title>';
+  html = html.replace('</head>', `${title}${tags}</head>`).replace('<html lang="en">', '<html lang="vi">');
   fs.writeFileSync(file, html);
   changed++;
 }
