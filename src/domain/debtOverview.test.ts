@@ -1,7 +1,7 @@
 import type { Bill } from '@/types/bill';
 import type { Pay } from '@/types/pay';
 
-import { buildDebtOverview, buildLoanPeople } from './debtOverview';
+import { buildDebtOverview, buildDebtPeopleSplit, buildLoanPeople } from './debtOverview';
 
 // DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng. Tiền là ĐỒNG.
 const p = (name: string, paid: number) => ({ name, paid, w: 1 });
@@ -99,5 +99,17 @@ describe('buildLoanPeople — nợ vay theo người, toàn thời gian', () => 
   it('người chỉ có nợ bill (không có vay) không xuất hiện; vay về 0 cũng bị bỏ', () => {
     expect(buildLoanPeople([B1, B2], [])).toEqual([]);
     expect(buildLoanPeople([], [pay('L', 'Tôi', 'An', 30_000, { kind: 'vay' }), pay('R', 'An', 'Tôi', 30_000, { kind: 'vay' })])).toEqual([]);
+  });
+});
+
+describe('buildDebtPeopleSplit — nợ theo người kèm phần nợ vay / nợ bill', () => {
+  it('mỗi người một dòng: tổng = nợ vay + nợ bill, khớp tổng của buildDebtOverview; người bù nhau về 0 bị bỏ', () => {
+    const people = buildDebtPeopleSplit([B1, B2], [LOAN]);
+    const overview = buildDebtOverview([B1, B2], [LOAN], { mode: 'all' }).people.filter((person) => person.tone !== 'mid');
+    expect(people.map((person) => [person.name, person.total])).toEqual(overview.map((person) => [person.name, person.total]));
+    for (const person of people) expect(person.total).toBe(person.loan + person.bill);
+    const an = people.find((person) => person.name === 'An');
+    expect(an).toMatchObject({ loan: 50_000, bill: -30_000, total: 20_000, tone: 'get' }); // vay An nợ tôi 50, bill tôi nợ An 30
+    expect(people.find((person) => person.name === 'Chi')).toMatchObject({ loan: 0, bill: 20_000, tone: 'get' });
   });
 });

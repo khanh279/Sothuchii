@@ -10,54 +10,47 @@ import { SelectableCard } from '@/components/selectable-card';
 import { SvgIcon } from '@/components/svg-icon';
 import { PageLayout } from '@/constants/layout';
 import { AppRadius } from '@/constants/palette';
-import { BILL_OWNER_NAME } from '@/domain/bills';
-import { buildBillPairs, type BillPair } from '@/domain/billPairs';
-import { buildLoanPeople, type DebtPersonRow } from '@/domain/debtOverview';
+import { buildDebtPeopleSplit, type DebtPersonSplit } from '@/domain/debtOverview';
+import { isNearZero } from '@/domain/ledger';
 import { useDebtData } from '@/features/debts/hooks';
 import { useColors } from '@/hooks/use-colors';
-import type { Period } from '@/types/expense';
 import { formatVnd } from '@/utils/format';
 
 /**
- * Trang "Chi tiết nợ & bill" (mở từ nút ở thẻ "Các khoản nợ & bill" của tab Nợ & bill): sắp xếp theo hướng nợ — thẻ "Nợ tôi" (người khác phải trả tôi) rồi thẻ "Tôi nợ" (tôi phải trả),
- * mỗi thẻ có tổng bên phải tiêu đề và hai nhóm "Nợ vay" (sổ chuyển tiền, theo người) / "Nợ bill" (các cặp cần thanh toán bill); chỉ hiện các khoản liên quan đến "Tôi" (khoản bù nhau và bill giữa hai người khác không hiện).
- * Toàn thời gian, không có ô chọn kỳ. Chạm một người mở công nợ của họ, chạm một cặp bill mở trang thanh toán. Không có logic tính nợ riêng: dùng lại các hàm domain.
+ * Trang "Chi tiết nợ & bill" (mở từ nút ở thẻ "Các khoản nợ & bill" của tab Nợ & bill): nợ THEO NGƯỜI, toàn thời gian. Hai thẻ — "Nợ tôi" (người khác phải trả tôi) rồi "Tôi nợ" (tôi phải trả) —
+ * mỗi thẻ có tổng bên phải tiêu đề và mỗi người một dòng: tên, tổng nợ (nợ vay + nợ bill, đúng con số ở thẻ Nợ của tab) và dòng phụ cho biết nợ gồm những gì. Chạm một người mở chi tiết nợ với người đó
+ * (hai ngăn Nợ vay / Nợ bill, thanh toán). Người hai sổ bù nhau về 0 không hiện. Không có logic tính nợ riêng: dùng `buildDebtPeopleSplit`.
  */
-/** Trang này luôn xem TẤT CẢ thời gian, không theo kỳ dùng chung và không có ô chọn kỳ. */
-const ALL_TIME: Period = { mode: 'all' };
 
-/** Một nhóm con trong thẻ: nhãn nhỏ + số lượng, rồi các dòng; không có dòng nào thì không hiện. */
-function Group({ title, count, unit, children }: { title: string; count: number; unit: string; children: ReactNode }) {
-  const colors = useColors();
-  if (count === 0) return null;
-  return (
-    <View style={styles.group}>
-      <View style={styles.groupHead}>
-        <AppText weight="semibold" color={colors.muted} style={styles.groupTitle}>
-          {title}
-        </AppText>
-        <AppText color={colors.muted} style={styles.groupCount}>
-          {count} {unit}
-        </AppText>
-      </View>
-      {children}
-    </View>
-  );
+/** Dòng phụ: phần nợ vay / nợ bill còn khác 0 của người này, có dấu (+ họ nợ tôi, − tôi nợ họ). */
+function breakdownText(person: DebtPersonSplit): string {
+  const part = (label: string, value: number) => `${label} ${value > 0 ? '+' : '−'}${formatVnd(Math.abs(value))}`;
+  return [!isNearZero(person.loan) && part('Nợ vay', person.loan), !isNearZero(person.bill) && part('Nợ bill', person.bill)].filter(Boolean).join(' · ');
 }
 
-/** Dòng một người (nợ vay): tên, số tiền có dấu, mũi tên. */
-function PersonRow({ person, onOpen }: { person: DebtPersonRow; onOpen: (name: string) => void }) {
+/** Dòng một người: tên + dòng phụ bên trái, tổng nợ có dấu / màu và mũi tên bên phải. */
+function PersonRow({ person, onOpen }: { person: DebtPersonSplit; onOpen: (name: string) => void }) {
   const colors = useColors();
-  const tint = person.tone === 'get' ? colors.success : person.tone === 'owe' ? colors.danger : colors.ink;
-  const sign = person.tone === 'get' ? '+' : person.tone === 'owe' ? '−' : '';
+  const get = person.tone === 'get';
+  const note = breakdownText(person);
   return (
-    <SelectableCard selected={false} onPress={() => onOpen(person.name)} accessibilityLabel={`Công nợ với ${person.name}, ${formatVnd(Math.abs(person.total))}`}>
+    <SelectableCard
+      selected={false}
+      onPress={() => onOpen(person.name)}
+      accessibilityLabel={`Chi tiết nợ với ${person.name}, ${get ? 'nợ tôi' : 'tôi nợ'} ${formatVnd(Math.abs(person.total))}`}>
       <View style={styles.row}>
-        <AppText weight="semibold" style={[styles.flex, styles.rowName]} numberOfLines={1}>
-          {person.name}
-        </AppText>
-        <AppText weight="bold" color={tint} style={styles.amount}>
-          {sign}
+        <View style={styles.flex}>
+          <AppText weight="semibold" style={styles.rowName} numberOfLines={1}>
+            {person.name}
+          </AppText>
+          {!!note && (
+            <AppText color={colors.muted} style={styles.rowNote} numberOfLines={1}>
+              {note}
+            </AppText>
+          )}
+        </View>
+        <AppText weight="bold" color={get ? colors.success : colors.danger} style={styles.amount}>
+          {get ? '+' : '−'}
           {formatVnd(Math.abs(person.total))}
         </AppText>
         <SvgIcon name="chevronRight" size={14} color={colors.muted} strokeWidth={1.5} />
@@ -66,45 +59,29 @@ function PersonRow({ person, onOpen }: { person: DebtPersonRow; onOpen: (name: s
   );
 }
 
-/** Dòng một cặp bill (luôn có "Tôi"): tên người kia và số tiền còn phải thanh toán. */
-function PairRow({ pair, onOpen }: { pair: BillPair; onOpen: (key: string) => void }) {
+/** Thẻ lớn của một hướng nợ: tiêu đề + tổng bên phải (có dấu, màu), rồi danh sách người; trống thì hiện trạng thái trống. */
+function DirectionCard({ title, tone, people, onOpen }: { title: string; tone: 'get' | 'owe'; people: readonly DebtPersonSplit[]; onOpen: (name: string) => void }) {
   const colors = useColors();
-  const iOwe = pair.from === BILL_OWNER_NAME;
-  const owedToMe = pair.to === BILL_OWNER_NAME;
-  const tint = owedToMe ? colors.success : colors.danger;
-  return (
-    <SelectableCard selected={false} onPress={() => onOpen(pair.key)} accessibilityLabel={`Thanh toán ${pair.from} trả ${pair.to} ${formatVnd(pair.remaining)}`}>
-      <View style={styles.row}>
-        <AppText weight="semibold" style={[styles.flex, styles.rowName]} numberOfLines={1}>
-          {iOwe ? pair.to : pair.from}
-        </AppText>
-        <AppText weight="bold" color={tint} style={styles.amount}>
-          {owedToMe ? '+' : '−'}
-          {formatVnd(pair.remaining)}
-        </AppText>
-        <SvgIcon name="chevronRight" size={14} color={colors.muted} strokeWidth={1.5} />
-      </View>
-    </SelectableCard>
-  );
-}
-
-/** Thẻ lớn: tiêu đề + tổng bên phải (có dấu, màu), rồi các nhóm con; thẻ không có khoản nào hiện trạng thái trống. */
-function DirectionCard({ title, total, tone, empty, children }: { title: string; total?: number; tone?: 'get' | 'owe'; empty: boolean; children: ReactNode }) {
-  const colors = useColors();
+  const total = people.reduce((sum, person) => sum + Math.abs(person.total), 0);
+  const body: ReactNode =
+    people.length === 0 ? <EmptyState text="Không có khoản nào" icon="check" /> : people.map((person) => <PersonRow key={person.name} person={person} onOpen={onOpen} />);
   return (
     <View style={[styles.card, { backgroundColor: colors.surface }]}>
       <View style={styles.cardHead}>
-        <AppText weight="bold" style={styles.cardTitle}>
-          {title}
-        </AppText>
-        {total !== undefined && tone && (
-          <AppText weight="bold" color={tone === 'get' ? colors.success : colors.danger} style={styles.cardTotal}>
-            {tone === 'get' ? '+' : '−'}
-            {formatVnd(total)}
+        <View style={styles.flex}>
+          <AppText weight="bold" style={styles.cardTitle}>
+            {title}
           </AppText>
-        )}
+          <AppText color={colors.muted} style={styles.cardNote}>
+            {people.length} người
+          </AppText>
+        </View>
+        <AppText weight="bold" color={tone === 'get' ? colors.success : colors.danger} style={styles.cardTotal}>
+          {tone === 'get' ? '+' : '−'}
+          {formatVnd(total)}
+        </AppText>
       </View>
-      {empty ? <EmptyState text="Không có khoản nào" icon="check" /> : children}
+      {body}
     </View>
   );
 }
@@ -114,27 +91,10 @@ export default function DebtBillDetailScreen() {
   const insets = useSafeAreaInsets();
   const { bills, pays, loaded, error } = useDebtData();
 
-  const people = useMemo(() => buildLoanPeople(bills, pays), [bills, pays]);
-  const pairs = useMemo(() => buildBillPairs(bills, pays, ALL_TIME), [bills, pays]);
-  const sums = useMemo(() => {
-    const owedLoans = people.filter((person) => person.tone === 'get');
-    const oweLoans = people.filter((person) => person.tone === 'owe');
-    const owedPairs = pairs.filter((pair) => pair.to === BILL_OWNER_NAME);
-    const owePairs = pairs.filter((pair) => pair.from === BILL_OWNER_NAME);
-    return {
-      owedLoans,
-      oweLoans,
-      owedPairs,
-      owePairs,
-      owedTotal: owedLoans.reduce((sum, person) => sum + Math.abs(person.total), 0) + owedPairs.reduce((sum, pair) => sum + pair.remaining, 0),
-      oweTotal: oweLoans.reduce((sum, person) => sum + Math.abs(person.total), 0) + owePairs.reduce((sum, pair) => sum + pair.remaining, 0),
-    };
-  }, [people, pairs]);
-
-  const openPerson = (name: string) => router.push({ pathname: '/cong-no/vay', params: { name } });
-  const openPair = (key: string) => router.push({ pathname: '/chia-bill/thanh-toan', params: { pair: key } });
-  const loanRows = (list: readonly DebtPersonRow[]) => list.map((person) => <PersonRow key={person.name} person={person} onOpen={openPerson} />);
-  const pairRows = (list: readonly BillPair[]) => list.map((pair) => <PairRow key={pair.key} pair={pair} onOpen={openPair} />);
+  const people = useMemo(() => buildDebtPeopleSplit(bills, pays), [bills, pays]);
+  const owedToMe = useMemo(() => people.filter((person) => person.tone === 'get'), [people]);
+  const iOwe = useMemo(() => people.filter((person) => person.tone === 'owe'), [people]);
+  const open = (name: string) => router.push({ pathname: '/cong-no/chi-tiet', params: { name, mode: 'all' } });
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
@@ -150,22 +110,8 @@ export default function DebtBillDetailScreen() {
         <ActivityIndicator style={styles.loading} color={colors.primary} />
       ) : (
         <LockableScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]}>
-          <DirectionCard title="Nợ tôi" total={sums.owedTotal} tone="get" empty={sums.owedLoans.length + sums.owedPairs.length === 0}>
-            <Group title="Nợ vay" count={sums.owedLoans.length} unit="người">
-              {loanRows(sums.owedLoans)}
-            </Group>
-            <Group title="Nợ bill" count={sums.owedPairs.length} unit="khoản">
-              {pairRows(sums.owedPairs)}
-            </Group>
-          </DirectionCard>
-          <DirectionCard title="Tôi nợ" total={sums.oweTotal} tone="owe" empty={sums.oweLoans.length + sums.owePairs.length === 0}>
-            <Group title="Nợ vay" count={sums.oweLoans.length} unit="người">
-              {loanRows(sums.oweLoans)}
-            </Group>
-            <Group title="Nợ bill" count={sums.owePairs.length} unit="khoản">
-              {pairRows(sums.owePairs)}
-            </Group>
-          </DirectionCard>
+          <DirectionCard title="Nợ tôi" tone="get" people={owedToMe} onOpen={open} />
+          <DirectionCard title="Tôi nợ" tone="owe" people={iOwe} onOpen={open} />
         </LockableScrollView>
       )}
     </View>
@@ -178,16 +124,14 @@ const styles = StyleSheet.create({
   loading: { marginTop: 48 },
   notice: { marginHorizontal: PageLayout.paddingX, padding: 16, borderRadius: 16 },
   noticeText: { fontSize: 15 },
-  card: { borderRadius: AppRadius.card, padding: 16, gap: 12 },
-  cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  card: { borderRadius: AppRadius.card, padding: 16, gap: 8 },
+  cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 4 },
   cardTitle: { fontSize: 17, lineHeight: 24 },
+  cardNote: { fontSize: 12.5, lineHeight: 17 },
   cardTotal: { fontSize: 17, lineHeight: 24 },
-  group: { gap: 6 },
-  groupHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  groupTitle: { fontSize: 13, lineHeight: 18 },
-  groupCount: { fontSize: 12.5, lineHeight: 17 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   flex: { flex: 1, minWidth: 0 },
   rowName: { fontSize: 15.5, lineHeight: 23 },
+  rowNote: { fontSize: 12.5, lineHeight: 17 },
   amount: { fontSize: 17, lineHeight: 23 },
 });

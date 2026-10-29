@@ -77,3 +77,23 @@ export function buildDebtOverview(bills: readonly Bill[], pays: readonly Pay[], 
     })),
   };
 }
+
+export interface DebtPersonSplit extends DebtPersonRow {
+  /** Phần nợ vay và phần nợ bill của người này (có dấu: dương = họ nợ tôi, âm = tôi nợ họ); `total` = tổng hai phần. */
+  loan: Vnd;
+  bill: Vnd;
+}
+
+/**
+ * Nợ THEO NGƯỜI, toàn thời gian, kèm phần nợ vay / nợ bill của từng người: chỉ người còn nợ ròng (hai sổ bù nhau về 0 thì bỏ). Lớn nhất trước.
+ * Cùng con số `total` với `buildDebtOverview().people`; chỉ thêm hai phần để trang "Chi tiết nợ & bill" hiện được nợ gồm những gì.
+ */
+export function buildDebtPeopleSplit(bills: readonly Bill[], pays: readonly Pay[]): DebtPersonSplit[] {
+  return allDebts(debtEvents(bills, pays))
+    .list.map((person) => {
+      const total = roundVnd(person.loan + person.bill);
+      return { name: person.name, total, tone: isNearZero(total) ? ('mid' as const) : toneOf(total), loan: roundVnd(person.loan), bill: roundVnd(person.bill) };
+    })
+    .filter((person) => person.tone !== 'mid')
+    .sort((a, b) => Math.abs(b.total) - Math.abs(a.total) || a.name.localeCompare(b.name));
+}
