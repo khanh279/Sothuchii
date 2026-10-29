@@ -297,12 +297,16 @@ export interface AdvanceInput {
   date: DateStr;
   /** ĐỒNG, được phép 0 (giao việc nhưng chưa cấp tiền). */
   amount: Vnd;
+  /** Quỹ hết tiền: người ứng tiền túi để `person` chi hộ (khác `person`; không lấy tiền khỏi quỹ, quỹ nợ người này). Bỏ trống = quỹ tự giao ứng. */
+  funder?: string;
 }
 
 /** Giao tiền ứng trước cho một người: tạo hồ sơ ứng trước (dòng tiền quỹ đã xuất, chưa phải chi phí). Trả về mã hồ sơ. */
 export function createAdvance(input: AdvanceInput, now: number = Date.now()): Promise<string> {
   const person = String(input.person ?? '').trim();
   if (!person) return Promise.reject(new FundInputError('Chọn người nhận tiền ứng.'));
+  const funder = String(input.funder ?? '').trim();
+  if (funder && funder === person) return Promise.reject(new FundInputError('Người ứng tiền phải khác người nhận tiền ứng.'));
   if (!Number.isFinite(input.amount) || Math.round(input.amount) < 0) return Promise.reject(new FundInputError('Số tiền giao không hợp lệ.'));
   // Giao ứng MỚI phải có số tiền khác 0 (sửa hồ sơ đã có vẫn cho số 0).
   if (Math.round(input.amount) === 0) return Promise.reject(new FundInputError('Nhập số tiền lớn hơn 0.'));
@@ -311,10 +315,13 @@ export function createAdvance(input: AdvanceInput, now: number = Date.now()): Pr
     const advances = arrayOf(raw.advances);
     if (input.clientId && advances.some((item) => isRecord(item) && String(item.id) === input.clientId)) return { next: raw, result: input.clientId };
     // Giao tiền ứng lấy tiền khỏi quỹ: kiểm tra lại số dư ngay lúc ghi.
-    const give = checkAdvanceGive(normalizeFundData(raw), input.fundId, input.amount);
-    if (!give.ok) throw new FundInputError(give.message);
+    // Người ứng tiền túi (`funder`) thì không lấy tiền khỏi quỹ nên không kiểm tra số dư.
+    if (!funder) {
+      const give = checkAdvanceGive(normalizeFundData(raw), input.fundId, input.amount);
+      if (!give.ok) throw new FundInputError(give.message);
+    }
     const id = input.clientId || `a_${newExpenseId(now)}`;
-    const record = { id, fundId: input.fundId, person, title: input.title, date: input.date, amount: Math.round(input.amount) };
+    const record = { id, fundId: input.fundId, person, title: input.title, date: input.date, amount: Math.round(input.amount), ...(funder ? { funder } : {}) };
     return { next: { ...raw, advances: [...advances, record] }, result: id };
   });
 }
@@ -364,7 +371,7 @@ export function updateAdvance(id: string, input: AdvanceUpdate): Promise<boolean
     if (!isRecord(current)) return { next: raw, result: false };
     const amount = Math.round(input.amount);
     // Chỉ khi TĂNG số tiền giao mới kiểm tra số dư; giảm hoặc sửa nội dung / ngày luôn được.
-    if (amount > (Number(current.amount) || 0)) {
+    if (!current.funder && amount > (Number(current.amount) || 0)) {
       const give = checkAdvanceGive(normalizeFundData(raw), String(current.fundId), amount, id);
       if (!give.ok) throw new FundInputError(give.message);
     }
@@ -399,6 +406,8 @@ export interface FundTxnInput {
   /** Hoàn tiền: bắt buộc `advanceId`. Thanh toán: `expenseId` (khoản cá nhân ứng) hoặc `advanceId` (phần chi vượt tiền ứng). */
   advanceId?: string;
   expenseId?: string;
+  /** Thanh toán theo `advanceId`: trả cho NGƯỜI ỨNG TIỀN của hồ sơ (`advance.funder`) thay vì người nhận ứng. */
+  toFunder?: boolean;
 }
 
 /** Ghi giao dịch hoàn tiền / thanh toán. Chỉ đổi dòng tiền và công nợ: không tạo khoản chi, không đổi tổng chi. Trả về mã giao dịch. */
@@ -422,10 +431,11 @@ export function saveFundTxn(input: FundTxnInput, now: number = Date.now()): Prom
       fundId = expense?.fundId ?? '';
       person = expense?.payer ?? '';
     } else if (input.advanceId) {
-      check = checkPayout(data, { advanceId: input.advanceId }, input.amount);
+      const toFunder = !!input.toFunder;
+      check = checkPayout(data, { advanceId: input.advanceId, toFunder }, input.amount);
       const advance = data.advances?.find((a) => a.id === input.advanceId);
       fundId = advance?.fundId ?? '';
-      person = advance?.person ?? '';
+      person = toFunder ? (advance?.funder ?? '') : (advance?.person ?? '');
     } else throw new FundInputError('Chọn khoản cần thanh toán.');
     if (!check.ok) throw new FundInputError(check.message);
     const id = input.clientId || `t_${newExpenseId(now)}`;
@@ -466,7 +476,7 @@ export function refundAdvancesForPerson(input: PersonRefundInput, now: number = 
       const advance = data.advances?.find((item) => item.id === part.advanceId);
       if (!advance) return;
       const summary = advanceSummary(data, advance);
-      if (summary.spent === 0 && summary.paidExtra === 0 && part.amount >= summary.held) removedIds.add(advance.id);
+      if (!advance.funder && summary.spent === 0 && summary.paidExtra === 0 && part.amount >= summary.held) removedIds.add(advance.id);
       else added.push({ id: `${input.clientId || `t_${newExpenseId(now)}`}-${index}`, fundId: advance.fundId, kind: 'refund', person: advance.person, amount: part.amount, date: input.date, advanceId: advance.id });
     });
     const advances = arrayOf(raw.advances).filter((item) => !(isRecord(item) && removedIds.has(String(item.id))));
@@ -499,8 +509,10 @@ export function updateFundTxn(id: string, input: FundTxnUpdate): Promise<boolean
       if (!advanceId) throw new FundInputError('Chọn hồ sơ ứng trước.');
       check = checkRefund(data, advanceId, input.amount);
     } else if (expenseId) check = checkPayout(data, { expenseId }, input.amount);
-    else if (advanceId) check = checkPayout(data, { advanceId }, input.amount);
-    else throw new FundInputError('Chọn khoản cần thanh toán.');
+    else if (advanceId) {
+      const funder = data.advances?.find((a) => a.id === advanceId)?.funder?.trim();
+      check = checkPayout(data, { advanceId, toFunder: !!funder && String(current.person ?? '').trim() === funder }, input.amount);
+    } else throw new FundInputError('Chọn khoản cần thanh toán.');
     if (!check.ok) throw new FundInputError(check.message);
     const updated = txns.map((item) => (item === current ? { ...item, amount: check.amount, date: input.date } : item));
     return { next: { ...raw, fundTxns: updated }, result: true };

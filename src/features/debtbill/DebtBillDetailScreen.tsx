@@ -13,7 +13,6 @@ import { AppRadius } from '@/constants/palette';
 import { BILL_OWNER_NAME } from '@/domain/bills';
 import { buildBillPairs, type BillPair } from '@/domain/billPairs';
 import { buildLoanPeople, type DebtPersonRow } from '@/domain/debtOverview';
-import { TransferNames } from '@/features/bills/TransferNames';
 import { useDebtData } from '@/features/debts/hooks';
 import { useColors } from '@/hooks/use-colors';
 import type { Period } from '@/types/expense';
@@ -21,13 +20,11 @@ import { formatVnd } from '@/utils/format';
 
 /**
  * Trang "Chi tiết nợ & bill" (mở từ nút ở thẻ "Các khoản nợ & bill" của tab Nợ & bill): sắp xếp theo hướng nợ — thẻ "Nợ tôi" (người khác phải trả tôi) rồi thẻ "Tôi nợ" (tôi phải trả),
- * mỗi thẻ có tổng bên phải tiêu đề và hai nhóm "Nợ vay" (sổ chuyển tiền, theo người) / "Nợ bill" (các cặp cần thanh toán bill); thẻ "Khác" chỉ hiện khi có khoản bù nhau hoặc cặp không có "Tôi".
+ * mỗi thẻ có tổng bên phải tiêu đề và hai nhóm "Nợ vay" (sổ chuyển tiền, theo người) / "Nợ bill" (các cặp cần thanh toán bill); chỉ hiện các khoản liên quan đến "Tôi" (khoản bù nhau và bill giữa hai người khác không hiện).
  * Toàn thời gian, không có ô chọn kỳ. Chạm một người mở công nợ của họ, chạm một cặp bill mở trang thanh toán. Không có logic tính nợ riêng: dùng lại các hàm domain.
  */
 /** Trang này luôn xem TẤT CẢ thời gian, không theo kỳ dùng chung và không có ô chọn kỳ. */
 const ALL_TIME: Period = { mode: 'all' };
-
-const isMine = (pair: BillPair) => pair.from === BILL_OWNER_NAME || pair.to === BILL_OWNER_NAME;
 
 /** Một nhóm con trong thẻ: nhãn nhỏ + số lượng, rồi các dòng; không có dòng nào thì không hiện. */
 function Group({ title, count, unit, children }: { title: string; count: number; unit: string; children: ReactNode }) {
@@ -69,24 +66,20 @@ function PersonRow({ person, onOpen }: { person: DebtPersonRow; onOpen: (name: s
   );
 }
 
-/** Dòng một cặp bill: có "Tôi" thì ghi tên người kia, không thì "A → B"; số tiền còn phải thanh toán. */
+/** Dòng một cặp bill (luôn có "Tôi"): tên người kia và số tiền còn phải thanh toán. */
 function PairRow({ pair, onOpen }: { pair: BillPair; onOpen: (key: string) => void }) {
   const colors = useColors();
   const iOwe = pair.from === BILL_OWNER_NAME;
   const owedToMe = pair.to === BILL_OWNER_NAME;
-  const tint = owedToMe ? colors.success : iOwe ? colors.danger : colors.ink;
+  const tint = owedToMe ? colors.success : colors.danger;
   return (
     <SelectableCard selected={false} onPress={() => onOpen(pair.key)} accessibilityLabel={`Thanh toán ${pair.from} trả ${pair.to} ${formatVnd(pair.remaining)}`}>
       <View style={styles.row}>
-        {iOwe || owedToMe ? (
-          <AppText weight="semibold" style={[styles.flex, styles.rowName]} numberOfLines={1}>
-            {iOwe ? pair.to : pair.from}
-          </AppText>
-        ) : (
-          <TransferNames from={pair.from} to={pair.to} style={styles.rowName} />
-        )}
+        <AppText weight="semibold" style={[styles.flex, styles.rowName]} numberOfLines={1}>
+          {iOwe ? pair.to : pair.from}
+        </AppText>
         <AppText weight="bold" color={tint} style={styles.amount}>
-          {owedToMe ? '+' : iOwe ? '−' : ''}
+          {owedToMe ? '+' : '−'}
           {formatVnd(pair.remaining)}
         </AppText>
         <SvgIcon name="chevronRight" size={14} color={colors.muted} strokeWidth={1.5} />
@@ -133,8 +126,6 @@ export default function DebtBillDetailScreen() {
       oweLoans,
       owedPairs,
       owePairs,
-      otherLoans: people.filter((person) => person.tone !== 'get' && person.tone !== 'owe'),
-      otherPairs: pairs.filter((pair) => !isMine(pair)),
       owedTotal: owedLoans.reduce((sum, person) => sum + Math.abs(person.total), 0) + owedPairs.reduce((sum, pair) => sum + pair.remaining, 0),
       oweTotal: oweLoans.reduce((sum, person) => sum + Math.abs(person.total), 0) + owePairs.reduce((sum, pair) => sum + pair.remaining, 0),
     };
@@ -175,16 +166,6 @@ export default function DebtBillDetailScreen() {
               {pairRows(sums.owePairs)}
             </Group>
           </DirectionCard>
-          {sums.otherLoans.length + sums.otherPairs.length > 0 && (
-            <DirectionCard title="Khác" empty={false}>
-              <Group title="Bù nhau" count={sums.otherLoans.length} unit="người">
-                {loanRows(sums.otherLoans)}
-              </Group>
-              <Group title="Bill giữa người khác" count={sums.otherPairs.length} unit="khoản">
-                {pairRows(sums.otherPairs)}
-              </Group>
-            </DirectionCard>
-          )}
         </LockableScrollView>
       )}
     </View>

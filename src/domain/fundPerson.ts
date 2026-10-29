@@ -12,12 +12,13 @@ import type { DateStr } from '@/types/expense';
 import type { FundData } from '@/types/fund';
 import type { Vnd } from '@/types/money';
 
-export type PersonItemKind = 'advance' | 'advanceSpend' | 'personalSpend' | 'refund' | 'payout';
+export type PersonItemKind = 'advance' | 'advanceSpend' | 'personalSpend' | 'funded' | 'refund' | 'payout';
 
 export const PERSON_ITEM_LABEL: Record<PersonItemKind, string> = {
   advance: 'Quỹ giao ứng',
   advanceSpend: 'Chi từ tiền ứng',
   personalSpend: 'Cá nhân ứng chi',
+  funded: 'Cá nhân ứng cho người khác chi',
   refund: 'Hoàn tiền ứng',
   payout: 'Quỹ trả cá nhân',
 };
@@ -33,6 +34,7 @@ export const PERSON_ITEM_SIDE: Record<PersonItemKind, PersonDebtSide> = {
   advanceSpend: 'held',
   refund: 'held',
   personalSpend: 'owed',
+  funded: 'owed',
   payout: 'owed',
 };
 
@@ -67,6 +69,10 @@ export function buildPersonFundDetail(data: Data, fundId: string | 'all', person
   const advanceIds = new Set(advances.map((advance) => advance.id));
   const items: PersonFundItem[] = [];
 
+  // Người ứng tiền cho người khác chi: quỹ nợ họ đủ số tiền ứng (người nhận ứng giữ tiền như hồ sơ thường).
+  for (const advance of data.advances ?? []) {
+    if (inFund(advance, fundId) && advance.funder?.trim() === who) items.push({ kind: 'funded', id: advance.id, title: advance.title || `Ứng cho ${advance.person}`, date: advance.date, amount: advance.amount });
+  }
   for (const advance of advances) items.push({ kind: 'advance', id: advance.id, title: advance.title || 'Giao tiền ứng', date: advance.date, amount: advance.amount });
   for (const expense of data.expenses) {
     if (!inFund(expense, fundId)) continue;

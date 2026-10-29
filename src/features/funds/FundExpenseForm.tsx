@@ -80,25 +80,36 @@ function KindFields({
   locked,
   person,
   members,
+  funded,
+  funder,
   spendKey,
   spendOptions,
   onKind,
+  onFunded,
   onSpend,
   onPerson,
   onPersonPick,
+  onFunder,
+  onFunderPick,
 }: {
   kind: ExpenseKind;
-  /** true: ô Hình thức chi chỉ hiển thị, không mở ra để chọn (quỹ hết tiền). */
+  /** true: quỹ hết tiền — ô Hình thức chi chỉ còn các lựa chọn cá nhân ứng tiền (tự chi / ứng cho người khác chi) và chi từ tiền người đang giữ ứng. */
   locked?: boolean;
   person: string;
   members?: readonly string[];
+  /** Chỉ khi `locked`: đang chọn "Cá nhân ứng tiền cho người khác chi" (`funder` = người ứng tiền túi, `person` = người nhận tiền ứng để chi). */
+  funded: boolean;
+  funder: string;
   /** Hồ sơ ứng trước đang chọn cho "Quỹ giao tiền A chi" (null = không chọn). */
   spendKey: string | null;
   spendOptions: readonly { key: string; name: string }[];
   onKind: (kind: ExpenseKind) => void;
+  onFunded: () => void;
   onSpend: (advanceId: string) => void;
   onPerson: () => void;
   onPersonPick: (name: string) => void;
+  onFunder: () => void;
+  onFunderPick: (name: string) => void;
 }) {
   const colors = useColors();
   /** Biểu tượng riêng của "Quỹ giao tiền A chi" (hoá đơn), khác biểu tượng người của "Cá nhân ứng chi trước". */
@@ -113,11 +124,15 @@ function KindFields({
         <FormLabel>Hình thức chi</FormLabel>
         <InlineSelect
           accessibilityLabel="Hình thức chi"
-          disabled={locked}
-          selectedKey={spendKey ? `spend:${spendKey}` : kind}
-          onSelect={(key) => (key.startsWith('spend:') ? onSpend(key.slice('spend:'.length)) : onKind(key as ExpenseKind))}
+          selectedKey={spendKey ? `spend:${spendKey}` : locked && funded ? FUNDED_KEY : kind}
+          onSelect={(key) => {
+            if (key === FUNDED_KEY) onFunded();
+            else if (key.startsWith('spend:')) onSpend(key.slice('spend:'.length));
+            else onKind(key as ExpenseKind);
+          }}
           options={[
-            ...KIND_OPTIONS.map((option) => ({
+            // Quỹ hết tiền: không còn chi trực tiếp; "Cá nhân ứng tiền cho người khác chi" thay cho "Quỹ giao tiền ứng trước" (quỹ không có tiền để giao).
+            ...KIND_OPTIONS.filter((option) => !locked || option.kind === 'personal').map((option) => ({
               key: option.kind as string,
               name: option.label,
               icon: (
@@ -126,16 +141,40 @@ function KindFields({
                 </View>
               ),
             })),
+            ...(locked ? [{ key: FUNDED_KEY, name: 'Cá nhân ứng tiền cho người khác chi', icon: receiptBadge }] : []),
             ...spendOptions.map((option) => ({ key: `spend:${option.key}`, name: option.name, icon: receiptBadge })),
           ]}
         />
-        {/* Quỹ hết tiền: dòng cảnh báo đỏ nhỏ, đủ MỘT hàng, ngay dưới ô Hình thức chi (ô đang bị khoá ở "Cá nhân ứng chi"). */}
+        {/* Quỹ hết tiền: dòng cảnh báo đỏ nhỏ, đủ MỘT hàng, ngay dưới ô Hình thức chi. */}
         {locked && (
           <AppText color={colors.danger} style={styles.noCash} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} accessibilityRole="alert">
             {NO_CASH_LINE}
           </AppText>
         )}
       </View>
+      {locked && funded && !spendKey && (
+        <View style={formStyles.field}>
+          <FormLabel>Người ứng tiền</FormLabel>
+          {members ? (
+            <PersonSelect members={members} value={funder} onChange={onFunderPick} accessibilityLabel="Người ứng tiền" />
+          ) : (
+            <Pressable
+              style={[formStyles.pickCurrent, { backgroundColor: colors.bg, borderColor: colors.line }]}
+              onPress={onFunder}
+              accessibilityRole="button"
+              accessibilityLabel={`Người ứng tiền: ${funder || 'chưa chọn'}`}
+            >
+              <View style={[styles.fundBadge, { backgroundColor: colors.primarySoft }]}>
+                <SvgIcon name="person" size={16} color={colors.primary} strokeWidth={2} />
+              </View>
+              <AppText weight="semibold" color={funder ? colors.ink : colors.muted} style={formStyles.pickName} numberOfLines={1}>
+                {funder || 'Chọn người'}
+              </AppText>
+              <SvgIcon name="chevronRight" size={16} color={colors.muted} strokeWidth={2} />
+            </Pressable>
+          )}
+        </View>
+      )}
       {kind !== 'direct' && !spendKey && (
         <View style={formStyles.field}>
           <FormLabel>{kind === 'personal' ? 'Người chi' : 'Người nhận tiền ứng'}</FormLabel>
@@ -166,6 +205,9 @@ function KindFields({
 /** Dòng cảnh báo một hàng dưới ô Hình thức chi khi quỹ hết tiền. */
 const NO_CASH_LINE = 'Số dư quỹ là 0 đ. Khoản chi sẽ do cá nhân ứng tiền chi trước';
 
+/** Khoá lựa chọn "Cá nhân ứng tiền cho người khác chi" trong ô Hình thức chi (không phải một `ExpenseKind`). */
+const FUNDED_KEY = 'funded';
+
 /** Form chi quỹ: hình thức chi, số tiền (ĐỒNG, nhập thẳng), nội dung, ngày. Chi vượt số dư vẫn lưu nhưng có cảnh báo. */
 export function FundExpenseForm({
   fund,
@@ -195,18 +237,31 @@ export function FundExpenseForm({
   const [pickerOpen, setPickerOpen] = useState(false);
   // Hình thức do người dùng tự chọn; chưa chọn thì theo số dư quỹ hiện tại (hết tiền → cá nhân ứng chi, còn tiền → chi trực tiếp). Không tự đổi sau khi đã chọn.
   const [pickedKind, setPickedKind] = useState<ExpenseKind | null>(null);
+  /** Quỹ hết tiền: đã chọn "Cá nhân ứng tiền cho người khác chi" — `funder` ứng tiền túi, `person` nhận tiền ứng để chi. */
+  const [fundedPicked, setFundedPicked] = useState(false);
+  const [funder, setFunder] = useState('');
+  const [funderOpen, setFunderOpen] = useState(false);
   /** Đã chọn "Quỹ giao tiền A chi": tên người A mà khoản chi này tính vào tiền ứng của họ. */
   const [advanceSpendId, setAdvanceSpendId] = useState<string | null>(null);
   const spendOptions = (heldPersons ?? []).map((name) => ({ key: name, name: `Quỹ giao tiền ${name} chi` }));
   function pickSpend(spendPerson: string) {
+    setFundedPicked(false);
     setAdvanceSpendId(spendPerson);
     setPickedKind('direct');
     setSplitIntent(false);
     setShortfall(false);
     setError('');
   }
+  function pickFunded() {
+    setAdvanceSpendId(null);
+    setFundedPicked(true);
+    setSplitIntent(false);
+    setShortfall(false);
+    setError('');
+  }
   /** Đổi hình thức chi: xoá các ý định / cảnh báo của hình thức cũ. */
   function pickKind(next: ExpenseKind) {
+    setFundedPicked(false);
     setAdvanceSpendId(null);
     setPickedKind(next);
     setSplitIntent(false);
@@ -215,7 +270,8 @@ export function FundExpenseForm({
   }
   /** Quỹ hết tiền (số dư ≤ 0) khi THÊM MỚI: chỉ có "Cá nhân ứng chi", ô Hình thức chi bị khoá, không mở ra để chọn hình thức khác. */
   const lockKind = !existing && !existingAdvance && cash <= 0;
-  const kind: ExpenseKind = lockKind ? 'personal' : (pickedKind ?? defaultExpenseKind(cash));
+  const funded = lockKind && fundedPicked && !advanceSpendId;
+  const kind: ExpenseKind = lockKind ? (funded ? 'advance' : 'personal') : (pickedKind ?? defaultExpenseKind(cash));
   /** Vừa bị chặn vì số dư không đủ: hiện hai hình thức còn lại để người dùng tự chọn. */
   /** Thẻ thông báo nổi "Không đủ số dư quỹ" (hiện khi bấm ghi chi tiêu trực tiếp vượt số dư). */
   const [shortfall, setShortfall] = useState(false);
@@ -295,7 +351,11 @@ export function FundExpenseForm({
       mode === 'advance'
         ? !who
           ? 'Chọn người nhận tiền ứng.'
-          : !date
+          : funded && !funder
+            ? 'Chọn người ứng tiền.'
+            : funded && funder === who
+              ? 'Người ứng tiền phải khác người nhận tiền ứng.'
+              : !date
             ? 'Chọn ngày giao.'
             : amount < 0 || (adding && amount === 0)
               ? amount < 0
@@ -310,7 +370,7 @@ export function FundExpenseForm({
       return;
     }
     // Kiểm tra số dư trước khi gửi (tầng lưu trữ kiểm tra lại lần nữa với số dư mới nhất, nên số dư đổi sau khi mở form vẫn không lọt).
-    if (mode === 'advance' && amount > giveMax && amount > (existingAdvance?.amount ?? 0)) {
+    if (mode === 'advance' && !funded && amount > giveMax && amount > (existingAdvance?.amount ?? 0)) {
       setError('Số tiền giao vượt quá số dư quỹ');
       return;
     }
@@ -339,7 +399,7 @@ export function FundExpenseForm({
         }
         toast.show('Đã lưu thay đổi');
       } else if (mode === 'advance') {
-        await createAdvanceSynced({ clientId, fundId: fund.id, person: who, title: title.trim(), date, amount });
+        await createAdvanceSynced({ clientId, fundId: fund.id, person: who, title: title.trim(), date, amount, ...(funded ? { funder } : {}) });
         toast.show('Đã ghi nhận giao tiền ứng');
       } else {
         const result = await saveFundExpenseSynced({
@@ -367,6 +427,8 @@ export function FundExpenseForm({
         setShortfall(false);
         setSplitIntent(false);
         setPerson('');
+        setFunder('');
+        setFundedPicked(false);
         setClientId(newExpenseId(Date.now()));
       }
       if (existing || existingAdvance) onChanged();
@@ -428,13 +490,21 @@ export function FundExpenseForm({
             locked={lockKind}
             person={person}
             members={members}
+            funded={funded}
+            funder={funder}
             spendKey={advanceSpendId}
             spendOptions={spendOptions}
             onKind={pickKind}
+            onFunded={pickFunded}
             onSpend={pickSpend}
             onPerson={() => setPersonOpen(true)}
             onPersonPick={(name) => {
               setPerson(name);
+              setError('');
+            }}
+            onFunder={() => setFunderOpen(true)}
+            onFunderPick={(name) => {
+              setFunder(name);
               setError('');
             }}
           />
@@ -484,7 +554,7 @@ export function FundExpenseForm({
           />
         </View>
 
-        {givingAdvance && (
+        {givingAdvance && !funded && (
           <AppText color={colors.muted} style={styles.hint}>
             Số tiền tối đa có thể giao: {formatVnd(giveMax)}
           </AppText>
@@ -571,6 +641,19 @@ export function FundExpenseForm({
             }}
           />
         )}
+        {funderOpen && (
+          <PersonPicker
+            title="Chọn người ứng tiền"
+            selected={funder || null}
+            names={members && members.length > 0 ? members : undefined}
+            onClose={() => setFunderOpen(false)}
+            onPick={(name) => {
+              setFunder(name);
+              setError('');
+              setFunderOpen(false);
+            }}
+          />
+        )}
       </View>
     );
   }
@@ -588,13 +671,21 @@ export function FundExpenseForm({
           locked={lockKind}
           person={person}
           members={members}
+          funded={funded}
+          funder={funder}
           spendKey={advanceSpendId}
           spendOptions={spendOptions}
           onKind={pickKind}
+          onFunded={pickFunded}
           onSpend={pickSpend}
           onPerson={() => setPersonOpen(true)}
           onPersonPick={(name) => {
             setPerson(name);
+            setError('');
+          }}
+          onFunder={() => setFunderOpen(true)}
+          onFunderPick={(name) => {
+            setFunder(name);
             setError('');
           }}
         />
@@ -636,7 +727,7 @@ export function FundExpenseForm({
         <DateField value={date} onPress={() => setCalendarOpen(true)} />
       </View>
 
-      {givingAdvance && (
+      {givingAdvance && !funded && (
         <AppText color={colors.muted} style={styles.hint}>
           Số tiền tối đa có thể giao: {formatVnd(giveMax)}
         </AppText>
@@ -691,6 +782,19 @@ export function FundExpenseForm({
               setContinueAfterPerson(false);
               void save(false, { person: name });
             }
+          }}
+        />
+      )}
+      {funderOpen && (
+        <PersonPicker
+          title="Chọn người ứng tiền"
+          selected={funder || null}
+          names={members && members.length > 0 ? members : undefined}
+          onClose={() => setFunderOpen(false)}
+          onPick={(name) => {
+            setFunder(name);
+            setError('');
+            setFunderOpen(false);
           }}
         />
       )}

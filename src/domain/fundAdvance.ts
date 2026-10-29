@@ -54,6 +54,8 @@ export interface AdvanceSummary {
   paidExtra: Vnd;
   /** given − spent − refunded + paidExtra (xem đầu file). */
   balance: Vnd;
+  /** Hồ sơ do cá nhân ứng tiền (`advance.funder`): số quỹ còn nợ người ứng đó (amount − đã trả cho họ); 0 nếu quỹ tự giao ứng. */
+  funderOwed: Vnd;
   /** Cá nhân còn giữ (≥ 0) và quỹ còn nợ cá nhân (≥ 0) của hồ sơ này. */
   held: Vnd;
   owed: Vnd;
@@ -67,11 +69,16 @@ export function advanceSummary(data: Data, advance: Advance): AdvanceSummary {
   const txns = txnsOf(data).filter((t) => t.advanceId === advance.id);
   const spent = sum(expenses.map((e) => e.amount));
   const refunded = sum(txns.filter((t) => t.kind === 'refund').map((t) => t.amount));
-  const paidExtra = sum(txns.filter((t) => t.kind === 'payout').map((t) => t.amount));
+  // Khoản quỹ trả cho NGƯỜI ỨNG TIỀN (`funder`) thuộc công nợ với người đó, không phải phần chi vượt tiền ứng của người nhận.
+  const funder = advance.funder?.trim();
+  const payouts = txns.filter((t) => t.kind === 'payout');
+  const funderPaid = funder ? sum(payouts.filter((t) => t.person.trim() === funder).map((t) => t.amount)) : 0;
+  const paidExtra = sum(payouts.map((t) => t.amount)) - funderPaid;
   const balance = advance.amount - spent - refunded + paidExtra;
   const active = spent > 0 || refunded > 0 || paidExtra > 0;
   const state: AdvanceState = !active ? 'unsettled' : balance === 0 ? 'settled' : 'partial';
-  return { advance, given: advance.amount, spent, refunded, paidExtra, balance, held: Math.max(0, balance), owed: Math.max(0, -balance), state, expenses, txns };
+  const funderOwed = funder ? Math.max(0, advance.amount - funderPaid) : 0;
+  return { advance, given: advance.amount, spent, refunded, paidExtra, balance, funderOwed, held: Math.max(0, balance), owed: Math.max(0, -balance), state, expenses, txns };
 }
 
 export function advanceById(data: Data, id: string): Advance | null {
@@ -148,7 +155,8 @@ export function fundPosition(data: Data, fundId: string | 'all'): FundPosition {
   const spent = sum(expenses.map((e) => e.amount));
   // Chi trực tiếp = các khoản chi trực tiếp + phần QUỸ chi của các khoản cá nhân ứng đã chia nguồn tiền (đây là tiền thật rời quỹ).
   const directSpent = sum(expenses.filter((e) => expenseKind(e) === 'direct').map((e) => e.amount)) + sum(expenses.map(expenseFundPart));
-  const given = sum(advances.map((a) => a.amount));
+  // Hồ sơ do cá nhân ứng tiền (`funder`) không lấy tiền khỏi quỹ nên không tính vào tiền đã giao.
+  const given = sum(advances.filter((a) => !a.funder?.trim()).map((a) => a.amount));
   const refunds = sum(txns.filter((t) => t.kind === 'refund').map((t) => t.amount));
   const payouts = sum(txns.filter((t) => t.kind === 'payout').map((t) => t.amount));
 
@@ -157,7 +165,7 @@ export function fundPosition(data: Data, fundId: string | 'all'): FundPosition {
   for (const advance of advances) {
     const summary = advanceSummary(data, advance);
     held += summary.held;
-    owed += summary.owed;
+    owed += summary.owed + summary.funderOwed;
   }
   for (const expense of expenses) if (expenseKind(expense) === 'personal') owed += personalDebt(data, expense).remaining;
 
@@ -193,7 +201,7 @@ export function checkRefund(data: Data, advanceId: string, amount: number): Chec
 export const PAYOUT_NO_CASH_MESSAGE = 'Số dư của quỹ hiện không đủ để quyết toán khoản nợ.';
 
 /** Quỹ trả tiền cho cá nhân: > 0, không vượt số quỹ còn nợ và không vượt tiền thực tế đang có trong quỹ (của khoản chi cá nhân ứng, hoặc của phần chi vượt tiền ứng). */
-export function checkPayout(data: Data, target: { expenseId: string } | { advanceId: string }, amount: number): Check {
+export function checkPayout(data: Data, target: { expenseId: string } | { advanceId: string; toFunder?: boolean }, amount: number): Check {
   const value = positiveInt(amount);
   if (value <= 0) return { ok: false, message: 'Nhập số tiền lớn hơn 0.' };
   let owed = 0;
@@ -206,7 +214,8 @@ export function checkPayout(data: Data, target: { expenseId: string } | { advanc
   } else {
     const advance = advanceById(data, target.advanceId);
     if (!advance) return { ok: false, message: 'Không tìm thấy hồ sơ ứng trước.' };
-    owed = advanceSummary(data, advance).owed;
+    const summary = advanceSummary(data, advance);
+    owed = target.toFunder ? summary.funderOwed : summary.owed;
     fundId = advance.fundId;
   }
   if (owed <= 0) return { ok: false, message: 'Không còn khoản nào quỹ phải trả.' };
@@ -253,6 +262,7 @@ export function fundPersonBalances(data: Data, fundId: string | 'all'): PersonFu
     const entry = row(advance.person);
     entry.owed += summary.owed;
     entry.held += summary.held;
+    if (advance.funder?.trim()) row(advance.funder).owed += summary.funderOwed;
   }
   return [...map.values()].filter((entry) => entry.owed > 0 || entry.held > 0).sort((a, b) => b.owed - a.owed || b.held - a.held || a.person.localeCompare(b.person));
 }
@@ -275,6 +285,8 @@ export interface FundPayTarget {
   fundId: string;
   expenseId?: string;
   advanceId?: string;
+  /** true: khoản quỹ nợ NGƯỜI ỨNG TIỀN của hồ sơ (`advance.funder`), không phải nợ người nhận ứng. */
+  toFunder?: boolean;
   /** Tên khoản gốc (nội dung khoản chi cá nhân ứng, hoặc tên hồ sơ ứng trước). */
   title: string;
   /** Số còn phải thanh toán (> 0): quỹ còn nợ ('payout') hoặc cá nhân còn giữ ('refund'). */
@@ -298,7 +310,13 @@ export function fundPersonTargets(data: Data, fundId: string | 'all', person: st
       targets.push({ key: `payout:e:${expense.id}`, kind: 'payout', fundId: expense.fundId, expenseId: expense.id, title: expense.title, remaining, date: expense.date });
   }
   for (const advance of advancesOf(data)) {
-    if (!inFund(advance, fundId) || advance.person.trim() !== who) continue;
+    if (!inFund(advance, fundId)) continue;
+    if (advance.funder?.trim() === who) {
+      const owedToFunder = advanceSummary(data, advance).funderOwed;
+      if (owedToFunder > 0)
+        targets.push({ key: `payout:f:${advance.id}`, kind: 'payout', fundId: advance.fundId, advanceId: advance.id, toFunder: true, title: advance.title, remaining: owedToFunder, date: advance.date });
+    }
+    if (advance.person.trim() !== who) continue;
     const summary = advanceSummary(data, advance);
     if (summary.owed > 0)
       targets.push({
@@ -369,7 +387,7 @@ export function planAdvanceRefund(data: Data, fundId: string | 'all', person: st
   // Ưu tiên 1: lần giao CHƯA CHI đồng nào mà số hoàn đủ trả hết số còn giữ → hoàn hết lần đó (nơi ghi sẽ xoá lần giao), mới → cũ.
   for (const advance of advances) {
     const summary = advanceSummary(data, advance);
-    if (summary.spent !== 0 || summary.paidExtra !== 0 || summary.held <= 0 || summary.held > left) continue;
+    if (advance.funder || summary.spent !== 0 || summary.paidExtra !== 0 || summary.held <= 0 || summary.held > left) continue;
     parts.push({ advanceId: advance.id, amount: summary.held });
     taken.add(advance.id);
     left -= summary.held;

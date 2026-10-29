@@ -101,6 +101,7 @@ export function normalizeFundData(raw: unknown, context: NormalizeContext = {}):
   const advances: Advance[] = [];
   for (const item of Array.isArray(source.advances) ? source.advances : []) {
     if (!isRecord(item) || !item.id) continue;
+    const funder = typeof item.funder === 'string' ? item.funder.trim() : '';
     advances.push({
       id: String(item.id),
       fundId: fundOf(item.fundId),
@@ -108,6 +109,7 @@ export function normalizeFundData(raw: unknown, context: NormalizeContext = {}):
       title: String(item.title || ''),
       date: String(item.date || today),
       amount: Math.max(0, Number(item.amount) || 0),
+      ...(funder ? { funder } : {}),
     });
   }
 

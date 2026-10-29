@@ -48,6 +48,7 @@ export function useFundPay(reload: () => Promise<void> | void) {
         kind: item.kind,
         expenseId: item.kind === 'payout' ? item.expenseId : undefined,
         advanceId: item.expenseId && item.kind === 'payout' ? undefined : item.advanceId,
+        toFunder: item.toFunder,
         amount,
         date: todayStr(),
       });

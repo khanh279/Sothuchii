@@ -71,6 +71,11 @@ export interface Advance {
   title: string;
   date: DateStr;
   amount: Vnd;
+  /**
+   * Chỉ khi quỹ HẾT TIỀN: người bỏ tiền túi ra để đưa `person` chi hộ quỹ ("cá nhân ứng tiền cho người khác chi"). Khác `person`. Tiền này KHÔNG lấy từ quỹ nên không làm giảm
+   * tiền thực tế của quỹ; quỹ nợ `funder` đủ `amount` (đến khi thanh toán), còn `person` giữ tiền như hồ sơ ứng thường (chi, hoàn lại phần thừa cho quỹ). Thiếu = quỹ tự giao ứng.
+   */
+  funder?: string;
 }
 
 /**

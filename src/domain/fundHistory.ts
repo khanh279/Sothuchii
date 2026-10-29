@@ -35,6 +35,8 @@ export interface FundHistoryEntry {
   person?: string;
   /** Hồ sơ ứng trước liên quan (để mở chi tiết hồ sơ). */
   advanceId?: string;
+  /** Chỉ với dòng giao ứng do CÁ NHÂN ứng tiền túi (quỹ hết tiền): người ứng tiền. Dòng này không làm đổi tiền mặt của quỹ. */
+  funder?: string;
   /** Chỉ với dòng quỹ trả cá nhân: khoản chi cá nhân ứng gốc mà lần trả này thuộc về (để biết khoản đó đã thanh toán xong chưa). */
   expenseId?: string;
   /** Chỉ với dòng ĐÃ GỘP (`mergePayoutEntries`): mã mọi bản ghi cùng loại được gộp (giao dịch trả, khoản chi từ ứng hoặc lần giao ứng) và mọi khoản chi gốc của chúng. */
@@ -161,9 +163,10 @@ export function buildFundHistory(
       title: a.title || 'Giao tiền ứng',
       fundId: a.fundId,
       amount: refunded > 0 ? remaining : a.amount,
-      meta: `Giao ${a.person} ứng`,
+      meta: a.funder ? `${a.funder} ứng cho ${a.person} chi` : `Giao ${a.person} ứng`,
       person: a.person,
       advanceId: a.id,
+      ...(a.funder ? { funder: a.funder } : {}),
     });
   }
   for (const t of data.txns ?? []) {
@@ -295,6 +298,7 @@ export function historyMembers(days: readonly FundHistoryDay[]): string[] {
  * (tiền do cá nhân đang giữ) — hai loại này xem ở thẻ Công nợ quỹ. Với khoản chia nguồn, số tiền hiện là PHẦN QUỸ CHI (phần làm đổi số dư thực tế).
  */
 export function cashMovementEntry(entry: FundHistoryEntry, expenseMode: FundExpenseMode | undefined): FundHistoryEntry | null {
+  if (entry.kind === 'advance' && entry.funder) return null; // tiền của cá nhân ứng, không phải tiền mặt của quỹ
   if (entry.kind !== 'expense') return entry;
   if (!expenseMode) return entry;
   if (expenseMode === 'personal' && entry.split) return { ...entry, amount: entry.split.fund };
