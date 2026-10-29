@@ -20,6 +20,17 @@ import type { Pay } from '@/types/pay';
 
 const clean = (name: unknown): string => String(name || '').trim();
 
+/**
+ * Nhãn (`pay.lbl`) của khoản trả ghi từ BILL GỘP / chi tiết bill: loại này có `bills` = các bill được chọn và CHỈ trừ vào các khoản "A phải chuyển cho B" của đúng những bill đó
+ * (bill cũ trước, bill mới sau trong số được chọn), không tràn sang bill khác. Các khoản trả khác (kể cả khoản cũ có `bills` / `lbl` như "Thanh toán bill") giữ nguyên quy tắc "bill cũ trước" trên mọi bill.
+ */
+export const MERGED_PAY_LABEL = 'Thanh toán bill gộp';
+
+/** Mã các bill mà khoản trả này nhắm tới; `null` nếu là khoản trả thường. */
+function targetBills(pay: Pay): ReadonlySet<string> | null {
+  return pay.lbl === MERGED_PAY_LABEL && pay.bills?.length ? new Set(pay.bills) : null;
+}
+
 /** Khóa của một cặp có chiều: `from` phải chuyển cho `to`. */
 export const transferPairKey = (from: string, to: string): string => `${from}\u0001${to}`;
 
@@ -81,7 +92,9 @@ export function allocateBillPayments(bills: readonly Bill[], pays: readonly Pay[
     const pay = item.pay!;
     let amount = +pay.amt || 0;
     const takes: BillPaymentTake[] = [];
-    for (const slot of queues.get(transferPairKey(clean(pay.from), clean(pay.to))) ?? []) {
+    // Khoản trả nhắm bill cụ thể chỉ trừ vào khoản chuyển của các bill đó (hàng đợi đã theo thứ tự bill cũ → mới).
+    const target = targetBills(pay);
+    for (const slot of (queues.get(transferPairKey(clean(pay.from), clean(pay.to))) ?? []).filter((item) => !target || target.has(item.bill.id))) {
       if (amount <= 0) break;
       const take = Math.min(slot.left, amount);
       if (take > 0) takes.push({ slot, amount: take });

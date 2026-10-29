@@ -4,15 +4,18 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'reac
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { PersonAmountRow, ScreenTitle, StatusBadge } from '@/components/design';
+import { PersonAmountRow, ScreenTitle, StatusBadge, type StatusTone } from '@/components/design';
 import { PAY_ACTION_BAR_CLEARANCE } from '@/components/pay-action-bar';
 import { SvgIcon } from '@/components/svg-icon';
 import { AppRadius } from '@/constants/palette';
 import { billTotal } from '@/domain/billHistory';
 import { rowStatus } from '@/domain/billForm';
 import { mergeBills } from '@/domain/billMerge';
+import { TRANSFER_STATE_LABEL, type TransferPayState } from '@/domain/billPayment';
 import { buildBillPairsFor } from '@/domain/billPairs';
 import { BillPayFlow } from '@/features/bills/BillPayFlow';
+import { TransferAmountText } from '@/features/bills/TransferAmountText';
+import { TransferNames } from '@/features/bills/TransferNames';
 import { useDebtData } from '@/features/debts/hooks';
 import { useColors } from '@/hooks/use-colors';
 import { formatVnDate } from '@/utils/date';
@@ -32,7 +35,9 @@ export default function MergedBillScreen() {
   const ids = useMemo(() => (idsParam ?? '').split(',').filter(Boolean), [idsParam]);
 
   const merged = useMemo(() => mergeBills(bills, ids), [bills, ids]);
-  const pairs = useMemo(() => buildBillPairsFor(bills, pays, ids), [bills, pays, ids]);
+  // Mọi cặp của các bill đã chọn, gồm cả cặp đã trả xong (hiện gạch ngang); chỉ cặp còn nợ mới thanh toán được.
+  const allPairs = useMemo(() => buildBillPairsFor(bills, pays, ids, true), [bills, pays, ids]);
+  const pairs = useMemo(() => allPairs.filter((pair) => pair.remaining > 0), [allPairs]);
   const canPay = loaded && !error && pairs.length > 0;
 
   let body;
@@ -102,26 +107,33 @@ export default function MergedBillScreen() {
         <Band />
         <View style={styles.part}>
           <AppText weight="bold" style={styles.sectionTitle}>
-            Còn phải thanh toán
+            Cần chuyển
           </AppText>
-          {pairs.length === 0 ? (
+          {allPairs.length === 0 ? (
             <AppText color={colors.muted} style={styles.sub}>
-              Đã thanh toán xong tất cả các bill đã chọn.
+              Không có khoản nào cần chuyển giữa các bill đã chọn.
             </AppText>
           ) : (
-            pairs.map((pair, index) => (
-              <View key={pair.key} style={[styles.pairRow, index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line }]} accessible accessibilityLabel={`${pair.from} trả ${pair.to} ${formatVnd(pair.remaining)}`}>
-                <View style={styles.flex}>
-                  <AppText weight="semibold" style={styles.billTitle} numberOfLines={2}>
-                    {pair.from} → {pair.to}
-                  </AppText>
-                  {pair.partial && <StatusBadge label="Thanh toán một phần" tone="warn" />}
+            allPairs.map((pair, index) => {
+              const done = pair.remaining <= 0;
+              const state: TransferPayState = done ? 'paid' : pair.partial ? 'partial' : 'unpaid';
+              return (
+                <View key={pair.key} style={[styles.pairBlock, index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line }]} accessible accessibilityLabel={`${pair.from} trả ${pair.to} ${formatVnd(pair.amount)}, ${TRANSFER_STATE_LABEL[state]}`}>
+                  <View style={styles.pairTop}>
+                    <TransferNames from={pair.from} to={pair.to} done={done} style={styles.billTitle} />
+                    <TransferAmountText from={pair.from} to={pair.to} amount={pair.amount} done={done} style={styles.billAmount} />
+                  </View>
+                  <View style={styles.pairBottom}>
+                    <StatusBadge label={TRANSFER_STATE_LABEL[state]} tone={STATE_TONE[state]} />
+                    {state === 'partial' && (
+                      <AppText color={colors.muted} style={styles.sub}>
+                        {`Đã trả ${formatVnd(pair.amount - pair.remaining)} · Còn thiếu ${formatVnd(pair.remaining)}`}
+                      </AppText>
+                    )}
+                  </View>
                 </View>
-                <AppText weight="bold" style={styles.billAmount}>
-                  {formatVnd(pair.remaining)}
-                </AppText>
-              </View>
-            ))
+              );
+            })
           )}
         </View>
       </View>
@@ -155,6 +167,9 @@ function Notice({ text }: { text: string }) {
   );
 }
 
+/** Màu nhãn trạng thái: đã thanh toán xanh lá, chưa thanh toán đỏ, một phần vàng cam (như chi tiết bill). */
+const STATE_TONE: Record<TransferPayState, StatusTone> = { paid: 'get', unpaid: 'owe', partial: 'warn' };
+
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   flex: { flex: 1, minWidth: 0 },
@@ -174,5 +189,8 @@ const styles = StyleSheet.create({
   billRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10 },
   billTitle: { fontSize: 15.5, lineHeight: 21 },
   billAmount: { fontSize: 15.5, lineHeight: 21 },
-  pairRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
+  pairBlock: { paddingVertical: 10, gap: 6 },
+  pairTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  pairBottom: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
+  done: { textDecorationLine: 'line-through' },
 });

@@ -52,6 +52,15 @@ export function billSettled(statuses: readonly BillTransferStatus[] | undefined)
   return (statuses ?? []).every((status) => status.state === 'paid');
 }
 
+/**
+ * Trạng thái 3 mức của cả bill ở danh sách: "paid" khi mọi khoản chuyển đã hoàn thành (xem `billSettled`); "partial" (Thanh toán một phần) khi bill ĐÃ CÓ giao dịch thanh toán
+ * nhưng chưa xong (ít nhất một khoản chuyển đã được trừ một phần hoặc trả xong, còn khoản khác chưa); "unpaid" khi chưa khoản nào được trả.
+ */
+export function billPayState(statuses: readonly BillTransferStatus[] | undefined): TransferPayState {
+  if (billSettled(statuses)) return 'paid';
+  return (statuses ?? []).some((status) => status.state !== 'unpaid') ? 'partial' : 'unpaid';
+}
+
 export const TRANSFER_STATE_LABEL: Record<TransferPayState, string> = {
   paid: 'Đã thanh toán',
   unpaid: 'Chưa thanh toán',

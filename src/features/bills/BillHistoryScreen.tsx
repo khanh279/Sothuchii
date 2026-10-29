@@ -12,7 +12,7 @@ import { TOAST_BOTTOM_HISTORY, useToast } from '@/components/toast';
 import { PageLayout } from '@/constants/layout';
 import { buildBillPairs } from '@/domain/billPairs';
 import { deleteBillSynced } from '@/data/billService';
-import { billSettled, billTransferStatuses } from '@/domain/billPayment';
+import { billPayState, billTransferStatuses } from '@/domain/billPayment';
 import { billPeopleNames, buildBillHistory, filterBillsByPerson } from '@/domain/billHistory';
 import { MIN_MERGE_BILLS } from '@/domain/billMerge';
 import { describeBillError } from '@/features/bills/hooks';
@@ -53,7 +53,7 @@ export default function BillHistoryScreen({ tab }: { tab?: BillHistoryTabMode } 
 
   // Trạng thái thanh toán chung của từng bill (đọc từ khoản trả thực tế, theo quy tắc phân bổ có sẵn): hiện ở nhãn mỗi bill.
   const transfers = useMemo(() => billTransferStatuses(bills, pays), [bills, pays]);
-  const settledOf = (id: string) => billSettled(transfers.get(id));
+  const stateOf = (id: string) => billPayState(transfers.get(id));
   // Phần B (chỉ ở tab): các cặp còn phải thanh toán; chạm một cặp để mở trang thanh toán. Phạm vi cặp = bill của kỳ có khoản chuyển giữa hai người.
   const pairs = useMemo(() => (tab ? buildBillPairs(bills, pays, period) : []), [tab, bills, pays, period]);
   // Lọc theo tên người: tên lấy từ các bill của kỳ; người đã chọn mà không còn trong kỳ thì coi như không lọc.
@@ -144,7 +144,7 @@ export default function BillHistoryScreen({ tab }: { tab?: BillHistoryTabMode } 
             subtitleNode={tab ? undefined : <PeriodNote view={shared.view} onChange={shared.setView} today={today} />}
             period={period}
             history={history}
-            settledOf={settledOf}
+            stateOf={stateOf}
             rowProps={rowProps}
             onRemove={(id) => void remove(id)}
             showMyShare={!!tab}

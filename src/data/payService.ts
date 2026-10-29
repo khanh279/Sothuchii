@@ -8,6 +8,7 @@
 import { loadBills, newBillId } from '@/data/billRepository';
 import { syncBillExpenses } from '@/data/billSync';
 import { PayInputError, appendPays, deletePayGroup, deletePays, loadPays, replacePayGroup, setPayNotes, updatePay, type PayPatch } from '@/data/payRepository';
+import { MERGED_PAY_LABEL } from '@/domain/billAllocation';
 import { billPairKey, buildBillPairs, buildBillPairsFor } from '@/domain/billPairs';
 import { checkPairPayment, pairAmountDraft, personBillRows } from '@/domain/billPerson';
 import { debtPaymentMessage, planDebtPayment, type DebtPayOption } from '@/domain/debtPay';
@@ -141,7 +142,8 @@ export async function recordBillPairPaymentSynced(from: string, to: string, peri
 /**
  * Thanh toán một phần hoặc toàn bộ cho cặp `from` → `to` của một BILL GỘP (tập bill `billIds`): như `recordBillPairPaymentSynced` nhưng phạm vi là các bill
  * được chọn thay vì một kỳ. Số còn phải thanh toán tính lại từ dữ liệu hiện có ngay lúc ghi (`buildBillPairsFor`). Vẫn chỉ ghi ĐÚNG MỘT khoản trả sổ bill giữa hai
- * người đó; khoản trả được trừ vào các bill của cặp theo quy tắc chung "bill cũ trước" (không riêng bill được chọn).
+ * người đó, kèm nhãn `MERGED_PAY_LABEL` và danh sách bill của cặp trong số được chọn (`bills`): khoản trả CHỈ trừ vào các khoản "from phải chuyển cho to" của những bill đó, bill cũ
+ * trước, bill mới sau (xem `allocateBillPayments`), không tràn sang bill cũ hơn không được chọn.
  */
 export async function recordMergedPaymentSynced(from: string, to: string, billIds: readonly string[], amount: Vnd): Promise<SyncedPayChange<RecordResult>> {
   const [bills, pays] = await Promise.all([loadBills(), loadPays()]);
@@ -150,8 +152,9 @@ export async function recordMergedPaymentSynced(from: string, to: string, billId
   if (pair.from !== from || pair.to !== to) throw new PayInputError('Khoản cần thanh toán đã thay đổi, hãy mở lại bảng thanh toán.');
   const check = checkPairPayment(pair.remaining, amount);
   if (!check.ok) throw new PayInputError(check.message);
-  const draft = pairAmountDraft(pair, check.amount);
-  if (!draft) return { value: NOTHING, syncFailed: false };
+  const base = pairAmountDraft(pair, check.amount);
+  if (!base) return { value: NOTHING, syncFailed: false };
+  const draft = { ...base, lbl: MERGED_PAY_LABEL, bills: [...pair.billIds] };
   await recordDrafts([draft]);
   return thenSync({ recorded: true, message: paymentMessage(draft) });
 }

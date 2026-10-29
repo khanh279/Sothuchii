@@ -9,6 +9,7 @@ import { HistoryCard } from '@/components/history-card';
 import { SvgIcon } from '@/components/svg-icon';
 import { computeSplit } from '@/domain/bills';
 import { billTotal, type buildBillHistory } from '@/domain/billHistory';
+import { TRANSFER_STATE_LABEL, type TransferPayState } from '@/domain/billPayment';
 import { dayHeading, periodTitle, resolveCategory } from '@/domain/expenses';
 import { useExpenseSettings } from '@/features/expenses/hooks';
 import { useColors } from '@/hooks/use-colors';
@@ -18,6 +19,9 @@ import { formatVnDate, todayStr } from '@/utils/date';
 import { AppRadius } from '@/constants/palette';
 import { formatVnd } from '@/utils/format';
 
+/** Màu nhãn: đã thanh toán xanh lá, chưa thanh toán đỏ, một phần vàng cam (như chi tiết bill). */
+const STATE_TONE: Record<TransferPayState, 'get' | 'owe' | 'warn'> = { paid: 'get', unpaid: 'owe', partial: 'warn' };
+
 type RowProps = ReturnType<typeof import('@/hooks/use-single-open-row').useSingleOpenRow>['rowProps'];
 
 interface Props {
@@ -25,8 +29,8 @@ interface Props {
   period: Period;
   /** Kết quả `buildBillHistory` (đã lọc theo phạm vi cần hiện). */
   history: ReturnType<typeof buildBillHistory>;
-  /** Bill đã thanh toán hết chưa (nhãn trên mỗi dòng). */
-  settledOf: (id: string) => boolean;
+  /** Trạng thái thanh toán của bill (nhãn trên mỗi dòng): đã thanh toán / thanh toán một phần (đã có giao dịch trả, chưa xong) / chưa thanh toán. */
+  stateOf: (id: string) => TransferPayState;
   rowProps: RowProps;
   onRemove: (id: string) => void;
   /** Dòng phụ của mỗi bill: "Phần tôi …" (tab, trang thanh toán) hay "Tổng bill" (màn Lịch sử bill). */
@@ -52,17 +56,17 @@ function useSlide(active: boolean): Animated.Value {
 }
 
 /** Phần của người dùng ("Tôi", người đầu tiên) trong bill: số tiền họ phải chịu; bill chưa chia được thì chỉ ghi nhãn tổng. */
-function myShareText(bill: Bill): string {
+function myShareText(bill: Bill): string | undefined {
   const split = computeSplit(bill.people);
   const mine = split.bad ? undefined : split.rows[0];
-  return mine ? `Phần tôi ${formatVnd(mine.share)}` : 'Tổng bill';
+  return mine ? `Phần tôi ${formatVnd(mine.share)}` : undefined;
 }
 
 /**
  * Thẻ danh sách bill gom theo ngày (đầu thẻ `CardHead` + các dòng `HistoryCard`: chạm mở chi tiết, vuốt để Sửa / Xóa). Dùng chung cho tab Chia bill,
  * màn Lịch sử bill và trang Thanh toán bill, để ba nơi hiển thị giống hệt nhau.
  */
-export function BillListCard({ title, period, history, settledOf, rowProps, onRemove, showMyShare = true, people, selection, subtitleNode }: Props) {
+export function BillListCard({ title, period, history, stateOf, rowProps, onRemove, showMyShare = true, people, selection, subtitleNode }: Props) {
   const colors = useColors();
   const today = todayStr();
   const { settings } = useExpenseSettings();
@@ -136,11 +140,11 @@ export function BillListCard({ title, period, history, settledOf, rowProps, onRe
                           accessibilityLabel={`${bill.title || 'Không tên'}, ${category.name}, ${formatVnd(billTotal(bill))}`}
                           icon={<CategoryIcon category={category} />}
                           title={bill.title || 'Không tên'}
-                          subtitle={`${formatVnDate(bill.date)} · ${bill.people.length} người`}
-                          badge={settledOf(bill.id) ? 'Đã thanh toán' : 'Chưa thanh toán'}
-                          badgeTone={settledOf(bill.id) ? 'get' : 'owe'}
+                          subtitle={`${formatVnDate(bill.date)} · ${bill.people.map((person) => person.name).join(', ')}`}
+                          badge={TRANSFER_STATE_LABEL[stateOf(bill.id)]}
+                          badgeTone={STATE_TONE[stateOf(bill.id)]}
                           amount={formatVnd(billTotal(bill))}
-                          meta={showMyShare ? myShareText(bill) : 'Tổng bill'}
+                          meta={showMyShare ? myShareText(bill) : undefined}
                         />
                       </View>
                     </View>

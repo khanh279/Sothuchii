@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { AppText } from '@/components/app-text';
 import { PayActionBar } from '@/components/pay-action-bar';
 import { PaymentPanel } from '@/components/payment-panel';
 import { PaymentSheet } from '@/components/payment-sheet';
@@ -10,6 +9,8 @@ import { SvgIcon } from '@/components/svg-icon';
 import { useToast } from '@/components/toast';
 import { recordMergedPaymentSynced } from '@/data/payService';
 import type { BillPair } from '@/domain/billPairs';
+import { TransferAmountText } from '@/features/bills/TransferAmountText';
+import { TransferNames } from '@/features/bills/TransferNames';
 import { describeDebtError } from '@/features/debts/hooks';
 import { useColors } from '@/hooks/use-colors';
 import { formatVnd } from '@/utils/format';
@@ -29,7 +30,7 @@ interface Props {
 
 /**
  * Luồng thanh toán dùng chung cho chi tiết bill và bill gộp: nút Thanh toán cố định ở đáy trang; một cặp thì mở bảng thanh toán (toàn bộ / một phần) ngay,
- * nhiều cặp thì chọn cặp trước. Ghi bằng `recordMergedPaymentSynced`; số còn phải trả tính lại ngay lúc ghi nên không ghi quá.
+ * nhiều cặp thì chọn cặp trước. Ghi bằng `recordMergedPaymentSynced`: khoản trả CHỈ trừ vào các khoản của đúng cặp trong `billIds`, bill cũ trước, bill mới sau; số còn phải trả tính lại ngay lúc ghi nên không ghi quá.
  */
 export function BillPayFlow({ billIds, pairs, scope, visible, reload }: Props) {
   const toast = useToast();
@@ -86,12 +87,8 @@ function PairChoices({ pairs, onPick }: { pairs: readonly BillPair[]; onPick: (k
           accessibilityLabel={`${pair.from} trả ${pair.to} ${formatVnd(pair.remaining)}`}
           onPress={() => hide(() => onPick(pair.key))}
           style={({ pressed }) => [styles.choice, index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line }, { opacity: pressed ? 0.7 : 1 }]}>
-          <AppText weight="semibold" style={styles.name} numberOfLines={2}>
-            {pair.from} → {pair.to}
-          </AppText>
-          <AppText weight="bold" style={styles.amount}>
-            {formatVnd(pair.remaining)}
-          </AppText>
+          <TransferNames from={pair.from} to={pair.to} style={styles.name} />
+          <TransferAmountText from={pair.from} to={pair.to} amount={pair.remaining} style={styles.amount} />
           <SvgIcon name="chevronRight" size={16} color={colors.muted} strokeWidth={2} />
         </Pressable>
       ))}
@@ -102,6 +99,6 @@ function PairChoices({ pairs, onPick }: { pairs: readonly BillPair[]; onPick: (k
 const styles = StyleSheet.create({
   choices: { paddingTop: 6 },
   choice: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  name: { flex: 1, minWidth: 0, fontSize: 15.5, lineHeight: 21 },
+  name: { fontSize: 15.5, lineHeight: 21 },
   amount: { fontSize: 15.5, lineHeight: 21 },
 });

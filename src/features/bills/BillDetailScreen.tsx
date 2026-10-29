@@ -19,6 +19,8 @@ import { resolveCategory } from '@/domain/expenses';
 import { PAY_ACTION_BAR_CLEARANCE } from '@/components/pay-action-bar';
 import { BillPayFlow } from '@/features/bills/BillPayFlow';
 import { saveBillImage, shareBillImage, type ExportResult } from '@/features/bills/billImageExport';
+import { TransferAmountText } from '@/features/bills/TransferAmountText';
+import { TransferNames } from '@/features/bills/TransferNames';
 import { useDebtData } from '@/features/debts/hooks';
 import { useExpenseSettings } from '@/features/expenses/hooks';
 import { useColors } from '@/hooks/use-colors';
@@ -88,7 +90,10 @@ export default function BillDetailScreen() {
                     {bill.title || 'Không tên'}
                   </AppText>
                   <AppText color={colors.muted} style={styles.sub}>
-                    {formatVnDate(bill.date)} · {bill.people.length} người
+                    {formatVnDate(bill.date)}
+                  </AppText>
+                  <AppText color={colors.muted} style={styles.sub}>
+                    {bill.people.map((person) => person.name).join(', ')}
                   </AppText>
                 </View>
               </View>
@@ -214,12 +219,8 @@ function TransferRow({ transfer, first }: { transfer: BillTransferStatus; first:
       accessible
       accessibilityLabel={`${transfer.from} trả ${transfer.to} ${formatVnd(transfer.amount)}, ${TRANSFER_STATE_LABEL[transfer.state]}`}>
       <View style={styles.transferTop}>
-        <AppText weight="semibold" color={done ? colors.muted : undefined} style={[styles.transferName, done && styles.done]} numberOfLines={2}>
-          {transfer.from} → {transfer.to}
-        </AppText>
-        <AppText weight="bold" color={done ? colors.muted : undefined} style={[styles.transferAmount, done && styles.done]}>
-          {formatVnd(transfer.amount)}
-        </AppText>
+        <TransferNames from={transfer.from} to={transfer.to} done={done} style={styles.transferName} />
+        <TransferAmountText from={transfer.from} to={transfer.to} amount={transfer.amount} done={done} style={styles.transferAmount} />
       </View>
       <View style={styles.transferBottom}>
         <StatusBadge label={TRANSFER_STATE_LABEL[transfer.state]} tone={STATE_TONE[transfer.state]} />
@@ -270,7 +271,7 @@ const styles = StyleSheet.create({
   share: { fontSize: 16, lineHeight: 24 },
   transfer: { paddingVertical: 12, gap: 8 },
   transferTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  transferName: { flex: 1, fontSize: 15.5, lineHeight: 21 },
+  transferName: { fontSize: 15.5, lineHeight: 21 },
   transferAmount: { fontSize: 16, lineHeight: 22 },
   transferBottom: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
   transferNote: { fontSize: 12.5, lineHeight: 17, flexShrink: 1 },

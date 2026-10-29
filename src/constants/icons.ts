@@ -26,6 +26,7 @@ export const Icons = {
   refund: '<path d="M4 12a8 8 0 1 0 2.6-5.9"/><path d="M4 4v4.5h4.5"/>',
   /** Thẻ: chi từ tiền ứng. */
   card: '<rect x="3" y="5.5" width="18" height="13" rx="3"/><path d="M3 10h18M7 15h3"/>',
+  arrowRight: '<path d="M5 12h14M13.5 6.5 19 12l-5.5 5.5"/>',
   arrowOut: '<circle cx="12" cy="12" r="9"/><path d="M8 12h8M13 8.8l3 3.2-3 3.2"/>',
   arrowIn: '<circle cx="12" cy="12" r="9"/><path d="M16 12H8M11 8.8 8 12l3 3.2"/>',
   swapCircle: '<circle cx="12" cy="12" r="9"/><path d="M8 10h8M13.4 7.6 16 10M16 14H8M10.6 16.4 8 14"/>',

@@ -143,6 +143,9 @@ export interface PayDraft {
   led?: Ledger;
   /** Ghi chú riêng của khoản (ví dụ "Trả dư"); thiếu thì để trống. */
   note?: string;
+  /** Chỉ khoản trả từ bill gộp / chi tiết bill: nhãn `MERGED_PAY_LABEL` và các bill được chọn (xem `billAllocation`). */
+  lbl?: string;
+  bills?: string[];
 }
 
 /**

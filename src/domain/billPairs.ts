@@ -23,7 +23,9 @@ export interface BillPair {
   /** Người trả → người nhận của số còn phải thanh toán. */
   from: string;
   to: string;
-  /** Còn phải thanh toán (> 0, đã bù trừ hai chiều). */
+  /** Số tiền ban đầu của cặp (đã bù trừ hai chiều, CHƯA trừ khoản đã trả). */
+  amount: Vnd;
+  /** Còn phải thanh toán (đã bù trừ hai chiều; > 0, chỉ bằng 0 với cặp đã trả xong khi hỏi `includeSettled`). */
   remaining: Vnd;
   /** Đã thanh toán một phần (đã có khoản trả được phân bổ nhưng chưa hết). */
   partial: boolean;
@@ -43,6 +45,8 @@ export function billPairKey(a: string, b: string): string {
 interface Acc {
   low: string;
   high: string;
+  /** Số tiền ban đầu có dấu: dương theo chiều low → high. */
+  amount: number;
   /** Còn lại có dấu: dương theo chiều low → high. */
   remaining: number;
   paid: number;
@@ -60,12 +64,12 @@ export function buildBillPairs(bills: readonly Bill[], pays: readonly Pay[], per
  * Như `buildBillPairs` nhưng cho MỘT TẬP bill được chọn (gộp bill), không theo kỳ. Trạng thái thanh toán vẫn tính trên TẤT CẢ bill và khoản trả
  * (đúng quy tắc phân bổ bill cũ trước), rồi chỉ cộng các khoản chuyển của những bill được chọn.
  */
-export function buildBillPairsFor(bills: readonly Bill[], pays: readonly Pay[], ids: readonly string[]): BillPair[] {
+export function buildBillPairsFor(bills: readonly Bill[], pays: readonly Pay[], ids: readonly string[], includeSettled = false): BillPair[] {
   const picked = new Set(ids);
-  return pairsOf(billTransferStatuses(bills, pays), bills.filter((bill) => picked.has(bill.id)).sort(byOldest));
+  return pairsOf(billTransferStatuses(bills, pays), bills.filter((bill) => picked.has(bill.id)).sort(byOldest), includeSettled);
 }
 
-function pairsOf(statuses: ReturnType<typeof billTransferStatuses>, ordered: readonly Bill[]): BillPair[] {
+function pairsOf(statuses: ReturnType<typeof billTransferStatuses>, ordered: readonly Bill[], includeSettled = false): BillPair[] {
   const accs = new Map<string, Acc>();
   for (const bill of ordered) {
     for (const status of statuses.get(bill.id) ?? []) {
@@ -76,9 +80,10 @@ function pairsOf(statuses: ReturnType<typeof billTransferStatuses>, ordered: rea
       const sign = status.from === low ? 1 : -1;
       let acc = accs.get(key);
       if (!acc) {
-        acc = { low, high, remaining: 0, paid: 0, billIds: [] };
+        acc = { low, high, amount: 0, remaining: 0, paid: 0, billIds: [] };
         accs.set(key, acc);
       }
+      acc.amount += sign * status.amount;
       acc.remaining += sign * status.remaining;
       acc.paid += sign * status.paid;
       if (!acc.billIds.includes(bill.id)) acc.billIds.push(bill.id);
@@ -87,12 +92,21 @@ function pairsOf(statuses: ReturnType<typeof billTransferStatuses>, ordered: rea
   const pairs: BillPair[] = [];
   for (const [key, acc] of accs) {
     const net = roundVnd(acc.remaining);
-    if (Math.abs(net) < DEBT_ZERO) continue;
+    const gross = roundVnd(acc.amount);
+    if (Math.abs(net) < DEBT_ZERO) {
+      // Cặp đã trả xong: chỉ hiện khi được hỏi (để gạch ngang ở bill gộp); chiều theo số tiền ban đầu.
+      if (includeSettled && Math.abs(gross) >= DEBT_ZERO) {
+        const grossLowPays = gross > 0;
+        pairs.push({ key, from: grossLowPays ? acc.low : acc.high, to: grossLowPays ? acc.high : acc.low, amount: Math.abs(gross), remaining: 0, partial: false, billIds: acc.billIds });
+      }
+      continue;
+    }
     const lowPays = net > 0;
     pairs.push({
       key,
       from: lowPays ? acc.low : acc.high,
       to: lowPays ? acc.high : acc.low,
+      amount: Math.abs(gross),
       remaining: Math.abs(net),
       partial: Math.abs(roundVnd(acc.paid)) >= DEBT_ZERO,
       billIds: acc.billIds,
