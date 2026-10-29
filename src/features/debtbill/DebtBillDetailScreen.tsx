@@ -1,10 +1,10 @@
 import { Stack, router } from 'expo-router';
-import { useMemo, type ReactNode } from 'react';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { EmptyState, ScreenTitle } from '@/components/design';
+import { ChipRow, EmptyState, ScreenTitle } from '@/components/design';
 import { LockableScrollView } from '@/components/lockable-scroll-view';
 import { SelectableCard } from '@/components/selectable-card';
 import { SvgIcon } from '@/components/svg-icon';
@@ -17,71 +17,94 @@ import { useColors } from '@/hooks/use-colors';
 import { formatVnd } from '@/utils/format';
 
 /**
- * Trang "Chi tiết nợ & bill" (mở từ nút ở thẻ "Các khoản nợ & bill" của tab Nợ & bill): nợ THEO NGƯỜI, toàn thời gian. Hai thẻ — "Nợ tôi" (người khác phải trả tôi) rồi "Tôi nợ" (tôi phải trả) —
- * mỗi thẻ có tổng bên phải tiêu đề và mỗi người một dòng: tên, tổng nợ (nợ vay + nợ bill, đúng con số ở thẻ Nợ của tab) và dòng phụ cho biết nợ gồm những gì. Chạm một người mở chi tiết nợ với người đó
- * (hai ngăn Nợ vay / Nợ bill, thanh toán). Người hai sổ bù nhau về 0 không hiện. Không có logic tính nợ riêng: dùng `buildDebtPeopleSplit`.
+ * Trang "Chi tiết nợ & bill" (mở từ nút ở thẻ "Các khoản nợ & bill" của tab Nợ & bill): nợ THEO NGƯỜI, toàn thời gian, vẫn TÁCH RIÊNG nợ vay và nợ bill. Hai thẻ — "Nợ tôi" (người khác phải trả tôi)
+ * rồi "Tôi nợ" (tôi phải trả) — mỗi thẻ có tổng bên phải tiêu đề và hai nhóm "Nợ vay" / "Nợ bill"; trong nhóm, mỗi người một dòng với số nợ CỦA RIÊNG sổ đó. Một người có cả hai loại nợ cùng chiều thì
+ * có mặt ở cả hai nhóm; hai sổ trái chiều thì mỗi sổ nằm ở thẻ của chiều đó. Chạm một người mở chi tiết nợ với người đó (hai ngăn Nợ vay / Nợ bill, thanh toán). Dùng `buildDebtPeopleSplit`.
  */
 
-/** Dòng phụ: phần nợ vay / nợ bill còn khác 0 của người này, có dấu (+ họ nợ tôi, − tôi nợ họ). */
-function breakdownText(person: DebtPersonSplit): string {
-  const part = (label: string, value: number) => `${label} ${value > 0 ? '+' : '−'}${formatVnd(Math.abs(value))}`;
-  return [!isNearZero(person.loan) && part('Nợ vay', person.loan), !isNearZero(person.bill) && part('Nợ bill', person.bill)].filter(Boolean).join(' · ');
+type Book = 'loan' | 'bill';
+
+/** Thẻ lọc dưới tiêu đề: xem cả hai loại nợ hoặc chỉ một loại. */
+type Filter = 'all' | Book;
+const FILTERS: { value: Filter; label: string }[] = [
+  { value: 'all', label: 'Tất cả' },
+  { value: 'loan', label: 'Nợ vay' },
+  { value: 'bill', label: 'Nợ bill' },
+];
+
+/** Một dòng người trong một nhóm: tên và số nợ của riêng sổ `book` (luôn là số dương; chiều do thẻ quyết định). */
+interface BookLine {
+  name: string;
+  amount: number;
 }
 
-/** Dòng một người: tên + dòng phụ bên trái, tổng nợ có dấu / màu và mũi tên bên phải. */
-function PersonRow({ person, onOpen }: { person: DebtPersonSplit; onOpen: (name: string) => void }) {
+/** Những người còn nợ ở sổ `book` theo chiều `dir` (+1 họ nợ tôi, −1 tôi nợ họ), lớn nhất trước. */
+function linesOf(people: readonly DebtPersonSplit[], book: Book, dir: 1 | -1): BookLine[] {
+  return people
+    .filter((person) => !isNearZero(person[book]) && Math.sign(person[book]) === dir)
+    .map((person) => ({ name: person.name, amount: Math.abs(person[book]) }))
+    .sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name));
+}
+
+/** Một nhóm con trong thẻ (Nợ vay / Nợ bill): nhãn nhỏ + số người, rồi các dòng; không có dòng nào thì không hiện. */
+function Group({ title, lines, tone, onOpen }: { title: string; lines: readonly BookLine[]; tone: 'get' | 'owe'; onOpen: (name: string) => void }) {
   const colors = useColors();
-  const get = person.tone === 'get';
-  const note = breakdownText(person);
+  if (lines.length === 0) return null;
   return (
-    <SelectableCard
-      selected={false}
-      onPress={() => onOpen(person.name)}
-      accessibilityLabel={`Chi tiết nợ với ${person.name}, ${get ? 'nợ tôi' : 'tôi nợ'} ${formatVnd(Math.abs(person.total))}`}>
-      <View style={styles.row}>
-        <View style={styles.flex}>
-          <AppText weight="semibold" style={styles.rowName} numberOfLines={1}>
-            {person.name}
-          </AppText>
-          {!!note && (
-            <AppText color={colors.muted} style={styles.rowNote} numberOfLines={1}>
-              {note}
-            </AppText>
-          )}
-        </View>
-        <AppText weight="bold" color={get ? colors.success : colors.danger} style={styles.amount}>
-          {get ? '+' : '−'}
-          {formatVnd(Math.abs(person.total))}
+    <View style={styles.group}>
+      <View style={styles.groupHead}>
+        <AppText weight="semibold" color={colors.muted} style={styles.groupTitle}>
+          {title}
         </AppText>
-        <SvgIcon name="chevronRight" size={14} color={colors.muted} strokeWidth={1.5} />
+        <AppText color={colors.muted} style={styles.groupCount}>
+          {lines.length} người
+        </AppText>
       </View>
-    </SelectableCard>
+      {lines.map((line) => (
+        <SelectableCard
+          key={line.name}
+          selected={false}
+          onPress={() => onOpen(line.name)}
+          accessibilityLabel={`${title} với ${line.name}, ${tone === 'get' ? 'nợ tôi' : 'tôi nợ'} ${formatVnd(line.amount)}`}>
+          <View style={styles.row}>
+            <AppText weight="semibold" style={[styles.flex, styles.rowName]} numberOfLines={1}>
+              {line.name}
+            </AppText>
+            <AppText weight="bold" color={tone === 'get' ? colors.success : colors.danger} style={styles.amount}>
+              {tone === 'get' ? '+' : '−'}
+              {formatVnd(line.amount)}
+            </AppText>
+            <SvgIcon name="chevronRight" size={14} color={colors.muted} strokeWidth={1.5} />
+          </View>
+        </SelectableCard>
+      ))}
+    </View>
   );
 }
 
-/** Thẻ lớn của một hướng nợ: tiêu đề + tổng bên phải (có dấu, màu), rồi danh sách người; trống thì hiện trạng thái trống. */
-function DirectionCard({ title, tone, people, onOpen }: { title: string; tone: 'get' | 'owe'; people: readonly DebtPersonSplit[]; onOpen: (name: string) => void }) {
+/** Thẻ lớn của một hướng nợ: tiêu đề + tổng bên phải (nợ vay + nợ bill, có dấu / màu), rồi hai nhóm tách riêng; trống thì hiện trạng thái trống. */
+function DirectionCard({ title, tone, loans, bills, onOpen }: { title: string; tone: 'get' | 'owe'; loans: readonly BookLine[]; bills: readonly BookLine[]; onOpen: (name: string) => void }) {
   const colors = useColors();
-  const total = people.reduce((sum, person) => sum + Math.abs(person.total), 0);
-  const body: ReactNode =
-    people.length === 0 ? <EmptyState text="Không có khoản nào" icon="check" /> : people.map((person) => <PersonRow key={person.name} person={person} onOpen={onOpen} />);
+  const total = [...loans, ...bills].reduce((sum, line) => sum + line.amount, 0);
   return (
     <View style={[styles.card, { backgroundColor: colors.surface }]}>
       <View style={styles.cardHead}>
-        <View style={styles.flex}>
-          <AppText weight="bold" style={styles.cardTitle}>
-            {title}
-          </AppText>
-          <AppText color={colors.muted} style={styles.cardNote}>
-            {people.length} người
-          </AppText>
-        </View>
+        <AppText weight="bold" style={styles.cardTitle}>
+          {title}
+        </AppText>
         <AppText weight="bold" color={tone === 'get' ? colors.success : colors.danger} style={styles.cardTotal}>
           {tone === 'get' ? '+' : '−'}
           {formatVnd(total)}
         </AppText>
       </View>
-      {body}
+      {loans.length + bills.length === 0 ? (
+        <EmptyState text="Không có khoản nào" icon="check" />
+      ) : (
+        <>
+          <Group title="Nợ vay" lines={loans} tone={tone} onOpen={onOpen} />
+          <Group title="Nợ bill" lines={bills} tone={tone} onOpen={onOpen} />
+        </>
+      )}
     </View>
   );
 }
@@ -92,8 +115,8 @@ export default function DebtBillDetailScreen() {
   const { bills, pays, loaded, error } = useDebtData();
 
   const people = useMemo(() => buildDebtPeopleSplit(bills, pays), [bills, pays]);
-  const owedToMe = useMemo(() => people.filter((person) => person.tone === 'get'), [people]);
-  const iOwe = useMemo(() => people.filter((person) => person.tone === 'owe'), [people]);
+  const [filter, setFilter] = useState<Filter>('all');
+  const lines = (book: Book, dir: 1 | -1): BookLine[] => (filter === 'all' || filter === book ? linesOf(people, book, dir) : []);
   const open = (name: string) => router.push({ pathname: '/cong-no/chi-tiet', params: { name, mode: 'all' } });
 
   return (
@@ -110,8 +133,9 @@ export default function DebtBillDetailScreen() {
         <ActivityIndicator style={styles.loading} color={colors.primary} />
       ) : (
         <LockableScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]}>
-          <DirectionCard title="Nợ tôi" tone="get" people={owedToMe} onOpen={open} />
-          <DirectionCard title="Tôi nợ" tone="owe" people={iOwe} onOpen={open} />
+          <ChipRow options={FILTERS} value={filter} onChange={setFilter} />
+          <DirectionCard title="Nợ tôi" tone="get" loans={lines('loan', 1)} bills={lines('bill', 1)} onOpen={open} />
+          <DirectionCard title="Tôi nợ" tone="owe" loans={lines('loan', -1)} bills={lines('bill', -1)} onOpen={open} />
         </LockableScrollView>
       )}
     </View>
@@ -124,14 +148,16 @@ const styles = StyleSheet.create({
   loading: { marginTop: 48 },
   notice: { marginHorizontal: PageLayout.paddingX, padding: 16, borderRadius: 16 },
   noticeText: { fontSize: 15 },
-  card: { borderRadius: AppRadius.card, padding: 16, gap: 8 },
-  cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 4 },
+  card: { borderRadius: AppRadius.card, padding: 16, gap: 12 },
+  group: { gap: 6 },
+  groupHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  groupTitle: { fontSize: 13, lineHeight: 18 },
+  groupCount: { fontSize: 12.5, lineHeight: 17 },
+  cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   cardTitle: { fontSize: 17, lineHeight: 24 },
-  cardNote: { fontSize: 12.5, lineHeight: 17 },
   cardTotal: { fontSize: 17, lineHeight: 24 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   flex: { flex: 1, minWidth: 0 },
   rowName: { fontSize: 15.5, lineHeight: 23 },
-  rowNote: { fontSize: 12.5, lineHeight: 17 },
   amount: { fontSize: 17, lineHeight: 23 },
 });
