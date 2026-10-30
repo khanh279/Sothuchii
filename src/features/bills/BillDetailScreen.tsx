@@ -1,6 +1,6 @@
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View, type HostInstance } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, View, type HostInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
@@ -18,6 +18,10 @@ import { buildBillPairsFor } from '@/domain/billPairs';
 import { resolveCategory } from '@/domain/expenses';
 import { PAY_ACTION_BAR_CLEARANCE } from '@/components/pay-action-bar';
 import { BillPayFlow } from '@/features/bills/BillPayFlow';
+import { SHARE_BASE_URL } from '@/constants/share';
+import { billShareUrl } from '@/domain/billShare';
+import { shareText } from '@/utils/share-text';
+import { PhotoSection } from '@/features/photos/PhotoViews';
 import { saveBillImage, shareBillImage, type ExportResult } from '@/features/bills/billImageExport';
 import { TransferAmountText } from '@/features/bills/TransferAmountText';
 import { TransferNames } from '@/features/bills/TransferNames';
@@ -57,6 +61,18 @@ export default function BillDetailScreen() {
   // Khoản còn phải thanh toán của riêng bill này (đã trừ các khoản trả thực tế); còn khoản nào thì hiện nút Thanh toán ở đáy.
   const pairs = bill ? buildBillPairsFor(bills, pays, [bill.id]) : [];
   const canPay = loaded && !error && !!bill && pairs.length > 0;
+
+  /** Chia sẻ liên kết XEM bill chỉ đọc (dữ liệu nằm trong địa chỉ, không qua máy chủ): mở bảng chia sẻ hoặc sao chép liên kết. */
+  async function shareLink() {
+    if (!bill) return;
+    const base = Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin + window.location.pathname.split('/chia-bill')[0] : SHARE_BASE_URL;
+    try {
+      const how = await shareText(billShareUrl(base, { title: bill.title, date: bill.date, people: bill.people }));
+      if (how === 'copied') toast.show('Đã sao chép liên kết xem bill');
+    } catch {
+      toast.show('Không mở được bảng chia sẻ.');
+    }
+  }
 
   async function runExport(kind: 'save' | 'share') {
     if (exporting) return;
@@ -163,9 +179,11 @@ export default function BillDetailScreen() {
           <View style={styles.cornerActions}>
             <ExportIcon icon="download" label="Lưu ảnh" busy={exporting === 'save'} disabled={!!exporting} onPress={() => void runExport('save')} />
             <ExportIcon icon="share" label="Chia sẻ" busy={exporting === 'share'} disabled={!!exporting} onPress={() => void runExport('share')} />
+            <ExportIcon icon="link" label="Chia sẻ liên kết xem bill" busy={false} disabled={!!exporting} onPress={() => void shareLink()} />
           </View>
         )}
         </View>
+        <PhotoSection ids={bill.ph} />
       </ScrollView>
     );
   }
@@ -254,7 +272,7 @@ const styles = StyleSheet.create({
   cornerActions: { position: 'absolute', top: 12, right: 12, flexDirection: 'row', gap: 8 },
   exportButton: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   /** Chừa chỗ bên phải cho hai nút ở góc (2 × 36 + khoảng cách 8 + lề). */
-  infoTopWithActions: { paddingRight: 84 },
+  infoTopWithActions: { paddingRight: 128 },
   notice: { borderRadius: 16, padding: 16 },
   noticeText: { fontSize: 15 },
   card: { borderRadius: AppRadius.card, overflow: 'hidden' },

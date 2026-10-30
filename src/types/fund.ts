@@ -58,6 +58,8 @@ export interface FundExpense {
    * Phần còn lại `amount − fundPart` là cá nhân (`payer`) ứng và quỹ còn nợ họ. Một bản ghi duy nhất nên tổng chi chỉ tính một lần; thiếu = không chia.
    */
   fundPart?: Vnd;
+  /** Mã các ảnh đính kèm (xem `domain/photos`); thiếu = không có ảnh. */
+  ph?: string[];
 }
 
 /**

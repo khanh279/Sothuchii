@@ -12,6 +12,7 @@ import type { DateStr, ExpenseRef, Period } from '@/types/expense';
 import type { Advance, Contribution, Fund, FundData, FundExpense, FundTotals, FundTxn } from '@/types/fund';
 import type { Vnd } from '@/types/money';
 import { todayStr } from '@/utils/date';
+import { normalizePhotoIds } from '@/domain/photos';
 
 /** Tên người dùng tự nhập khi đóng quỹ để chỉ phần của chính mình; so khớp sau khi cắt khoảng trắng, phân biệt hoa thường. */
 export const FUND_OWNER_NAME = 'Tôi';
@@ -95,6 +96,8 @@ export function normalizeFundData(raw: unknown, context: NormalizeContext = {}):
     if (typeof item.advanceId === 'string' && item.advanceId) expense.advanceId = item.advanceId;
     const fundPart = Math.round(Number(item.fundPart) || 0);
     if (expense.mode === 'personal' && fundPart > 0 && fundPart < expense.amount) expense.fundPart = fundPart;
+    const ph = normalizePhotoIds(item.ph);
+    if (ph) expense.ph = ph;
     expenses.push(expense);
   }
 

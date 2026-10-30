@@ -24,6 +24,8 @@ import {
   type RestorePlan,
 } from '@/domain/backup';
 import { normalizePeople } from '@/domain/people';
+import { photoIdsOfRaw } from '@/domain/photos';
+import { putPhoto, readPhotoDataUrl } from '@/data/photoStore';
 import { isValidMonthKey } from '@/utils/date';
 
 const isRecord = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
@@ -55,18 +57,47 @@ export async function createBackupDocument(now: number = Date.now()): Promise<Ba
   }
   const fund = await loadJsonStrict<unknown>(StorageKeys.fund);
   const people = await loadJsonStrict<unknown>(StorageKeys.people);
+  const bills = await loadArray(StorageKeys.bills);
+  const pays = await loadArray(StorageKeys.pays);
+  // Ảnh đính kèm đang được dùng đi kèm file sao lưu (đọc từ kho ảnh; ảnh không đọc được thì bỏ qua).
+  const photoIds = photoIdsOfRaw([
+    ...Object.values(months).flatMap((month) => (isRecord(month) ? Object.values(month) : [])),
+    ...(isRecord(fund) && Array.isArray(fund.expenses) ? fund.expenses : []),
+    ...bills,
+    ...pays,
+  ]);
+  const photos: Record<string, string> = {};
+  for (const id of photoIds) {
+    const dataUrl = await readPhotoDataUrl(id);
+    if (dataUrl) photos[id] = dataUrl;
+  }
   return buildBackup(
     {
       people: normalizePeople(people),
       settings: settings ?? {},
       months,
       fund: fund ?? null,
-      bills: await loadArray(StorageKeys.bills),
-      pays: await loadArray(StorageKeys.pays),
+      bills,
+      pays,
       names: await loadArray(StorageKeys.billNames),
+      photos,
     },
     now,
   );
+}
+
+/** Mọi mã ảnh đang được dữ liệu dùng (chi tiêu cá nhân, quỹ nhóm, bill, giao dịch). Ném lỗi nếu có phần dữ liệu hỏng (để người gọi không xoá nhầm ảnh). */
+export async function usedPhotoIds(): Promise<string[]> {
+  const items: unknown[] = [];
+  for (const key of await monthKeys()) {
+    const value = await loadJsonStrict<unknown>(key);
+    if (value !== undefined && !isRecord(value)) throw new StorageCorruptError(key);
+    if (value) items.push(...Object.values(value));
+  }
+  const fund = await loadJsonStrict<unknown>(StorageKeys.fund);
+  if (isRecord(fund) && Array.isArray(fund.expenses)) items.push(...fund.expenses);
+  items.push(...(await loadArray(StorageKeys.bills)), ...(await loadArray(StorageKeys.pays)));
+  return photoIdsOfRaw(items);
 }
 
 export async function createBackupText(now: number = Date.now()): Promise<string> {
@@ -135,6 +166,8 @@ export async function restoreFromText(text: string): Promise<RestoreResult> {
     }
     return { ok: false, error: 'Chưa lưu được. Bộ nhớ có thể đã đầy; dữ liệu cũ được giữ nguyên.' };
   }
+  // Ảnh đính kèm trong file được ghi vào kho ảnh; ảnh nào ghi lỗi thì bỏ qua (dữ liệu chữ đã khôi phục xong).
+  for (const [id, dataUrl] of Object.entries(plan.photos ?? {})) await putPhoto(id, dataUrl).catch(() => undefined);
   // Như PWA: thêm tên đã dùng trong dữ liệu vừa khôi phục vào Danh sách người. Lỗi ở bước này không huỷ khôi phục.
   await refreshPeopleFromData().catch(() => undefined);
   return { ok: true, sections: plan.sections, message: describeRestore(plan.sections) };

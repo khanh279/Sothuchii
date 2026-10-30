@@ -5,6 +5,7 @@ import { AppText } from '@/components/app-text';
 import { PrimaryButton, SecondaryButton } from '@/components/design';
 import { MoneyTextInput } from '@/components/money-input';
 import { PaymentSummary, usePaymentSheet } from '@/components/payment-sheet';
+import { ReceiveQrInline, type ReceiveQr } from '@/components/receive-qr-sheet';
 import { SheetFrame, SheetHeader, useSheetClose } from '@/components/sheet-frame';
 import { AppFonts } from '@/constants/fonts';
 import { PayInputError } from '@/data/payRepository';
@@ -52,6 +53,8 @@ interface Props {
    * Không truyền = chỉ hai nút như cũ (nơi chưa hỗ trợ trả theo từng khoản).
    */
   onSelectItems?: () => void;
+  /** Người kia trả tiền cho mình: thẻ xác nhận có nút "Mã QR nhận tiền" với đúng số tiền đang xác nhận. */
+  receiveQr?: ReceiveQr;
   /** Gọi sau khi ghi thành công (đóng tờ, làm mới dữ liệu…). */
   onDone: () => void;
   onFailure: (error: unknown) => void;
@@ -69,7 +72,7 @@ type Step = { kind: 'confirm'; amount: number; id: string } | { kind: 'partial' 
  * Việc ghi giao dịch và cách phân bổ do `onPay` của từng nghiệp vụ quyết định. Chống ghi trùng: khi đang ghi thì bỏ qua mọi lần bấm xác nhận thêm
  * (khoá bằng ref nên không phụ thuộc lần render). Ghi xong thì `onDone` (nơi dùng gỡ mọi tờ ngay).
  */
-export function PaymentPanel({ remaining, choices, payer, receiver, note, warning, onSelectItems, onPay, onDone, onFailure }: Props) {
+export function PaymentPanel({ remaining, choices, payer, receiver, note, warning, onSelectItems, receiveQr, onPay, onDone, onFailure }: Props) {
   const colors = useColors();
   const sheet = usePaymentSheet();
   const [step, setStep] = useState<Step | null>(null);
@@ -143,7 +146,13 @@ export function PaymentPanel({ remaining, choices, payer, receiver, note, warnin
   if (step?.kind === 'confirm') {
     const noteText = typeof note === 'function' ? note(step.id) : (note ?? '');
     stepSheet = (
-      <StepCard title="Xác nhận thanh toán" message={message} problem={problem} busy={busy} onConfirm={() => void run(step.amount, step.id)}>
+      <StepCard
+        title="Xác nhận thanh toán"
+        message={message}
+        problem={problem}
+        busy={busy}
+        onConfirm={() => void run(step.amount, step.id)}
+        footer={receiveQr && <ReceiveQrInline qr={receiveQr} amount={step.amount} />}>
         <AppText weight="display" style={styles.stepAmount}>
           {formatVnd(step.amount)}
         </AppText>
@@ -156,7 +165,7 @@ export function PaymentPanel({ remaining, choices, payer, receiver, note, warnin
     );
   } else if (step?.kind === 'partial' && partial) {
     stepSheet = (
-      <PartialStep message={message} placeholder={partial.placeholder ?? 'Nhập số tiền'} problem={problem} busy={busy} onEdit={() => setProblem('')} onSubmit={submitPartial} />
+      <PartialStep message={message} placeholder={partial.placeholder ?? 'Nhập số tiền'} problem={problem} busy={busy} receiveQr={receiveQr} onEdit={() => setProblem('')} onSubmit={submitPartial} />
     );
   }
 
@@ -195,11 +204,11 @@ export function PaymentPanel({ remaining, choices, payer, receiver, note, warnin
  * Thẻ XÁC NHẬN thanh toán giữa màn hình dùng khi trang tự tính số tiền (thanh toán các khoản đã chọn): giống hệt bước xác nhận của "Thanh toán toàn bộ" — tiêu đề "Xác nhận thanh toán",
  * dòng "A trả B", số tiền lớn, ghi chú nhỏ, hai nút Huỷ / Xác nhận. Huỷ / chạm nền / Back thì `onCancel`.
  */
-export function PaymentConfirmSheet({ message, amountText, note, busy, onConfirm, onCancel }: { message: string; amountText: string; note?: string; busy: boolean; onConfirm: () => void; onCancel: () => void }) {
+export function PaymentConfirmSheet({ message, amountText, amount, note, receiveQr, busy, onConfirm, onCancel }: { message: string; amountText: string; amount: number; note?: string; receiveQr?: ReceiveQr; busy: boolean; onConfirm: () => void; onCancel: () => void }) {
   const colors = useColors();
   return (
     <SheetFrame placement="center" onClose={onCancel}>
-      <StepCard title="Xác nhận thanh toán" message={message} problem="" busy={busy} onConfirm={onConfirm}>
+      <StepCard title="Xác nhận thanh toán" message={message} problem="" busy={busy} onConfirm={onConfirm} footer={receiveQr && <ReceiveQrInline qr={receiveQr} amount={amount} />}>
         <AppText weight="display" style={styles.stepAmount}>
           {amountText}
         </AppText>
@@ -247,49 +256,32 @@ function Choices({
           </AppText>
         </Pressable>
       )}
-      {/* Có nút chọn khoản: "Thanh toán toàn bộ" là nút chính cả hàng, hai nút viền navy ngang nhau bên dưới (nhãn tối đa hai dòng); không thì giữ hai nút xếp dọc. */}
-      {onSelect ? (
-        <View style={styles.pairRow}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Chọn các khoản thanh toán"
-            disabled={busy}
-            // Tờ đáy trượt xuống (đóng cả luồng thanh toán) rồi trang vào chế độ tích chọn; không có tờ bao quanh thì vào thẳng.
-            onPress={() => (sheet ? hide(onSelect) : onSelect())}
-            style={({ pressed }) => [styles.pairButton, { borderColor: colors.primary, backgroundColor: colors.surface, opacity: busy ? 0.5 : pressed ? 0.85 : 1 }]}
-          >
-            <AppText weight="bold" color={colors.primary} style={styles.pairLabel} numberOfLines={2}>
-              Chọn các khoản thanh toán
-            </AppText>
-          </Pressable>
-          {partial && (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={partial.label}
-              disabled={busy}
-              onPress={() => onPick({ kind: 'partial' }, hide)}
-              style={({ pressed }) => [styles.pairButton, { borderColor: colors.primary, backgroundColor: colors.surface, opacity: busy ? 0.5 : pressed ? 0.85 : 1 }]}
-            >
-              <AppText weight="bold" color={colors.primary} style={styles.pairLabel} numberOfLines={2}>
-                {partial.label}
-              </AppText>
-            </Pressable>
-          )}
-        </View>
-      ) : (
-        partial && (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={partial.label}
-            disabled={busy}
-            onPress={() => onPick({ kind: 'partial' }, hide)}
-            style={({ pressed }) => [styles.button, styles.partialButton, { borderColor: colors.primary, backgroundColor: colors.surface, opacity: busy ? 0.5 : pressed ? 0.85 : 1 }]}
-          >
-            <AppText weight="bold" color={colors.primary} style={styles.partialLabel} numberOfLines={1}>
-              {partial.label}
-            </AppText>
-          </Pressable>
-        )
+      {onSelect && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Chọn các khoản thanh toán"
+          disabled={busy}
+          // Tờ đáy trượt xuống (đóng cả luồng thanh toán) rồi trang vào chế độ tích chọn; không có tờ bao quanh thì vào thẳng.
+          onPress={() => (sheet ? hide(onSelect) : onSelect())}
+          style={({ pressed }) => [styles.button, styles.partialButton, { borderColor: colors.primary, backgroundColor: colors.surface, opacity: busy ? 0.5 : pressed ? 0.85 : 1 }]}
+        >
+          <AppText weight="bold" color={colors.primary} style={styles.partialLabel} numberOfLines={1}>
+            Chọn các khoản thanh toán
+          </AppText>
+        </Pressable>
+      )}
+      {partial && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={partial.label}
+          disabled={busy}
+          onPress={() => onPick({ kind: 'partial' }, hide)}
+          style={({ pressed }) => [styles.button, styles.partialButton, { borderColor: colors.primary, backgroundColor: colors.surface, opacity: busy ? 0.5 : pressed ? 0.85 : 1 }]}
+        >
+          <AppText weight="bold" color={colors.primary} style={styles.partialLabel} numberOfLines={1}>
+            {partial.label}
+          </AppText>
+        </Pressable>
       )}
     </View>
   );
@@ -302,6 +294,7 @@ function StepCard({
   problem,
   busy,
   onConfirm,
+  footer,
   children,
 }: {
   title: string;
@@ -309,6 +302,8 @@ function StepCard({
   problem: string;
   busy: boolean;
   onConfirm: () => void;
+  /** Phần đặt dưới hai nút Huỷ / Xác nhận (ví dụ nút "Mã QR nhận tiền"). */
+  footer?: ReactNode;
   children: ReactNode;
 }) {
   const colors = useColors();
@@ -337,6 +332,7 @@ function StepCard({
         />
         <PrimaryButton label="Xác nhận" disabled={busy} onPress={onConfirm} style={styles.flex} />
       </View>
+      {!!footer && <View style={styles.stepFooter}>{footer}</View>}
     </View>
   );
 }
@@ -350,6 +346,7 @@ function PartialStep({
   placeholder,
   problem,
   busy,
+  receiveQr,
   onEdit,
   onSubmit,
 }: {
@@ -357,6 +354,7 @@ function PartialStep({
   placeholder: string;
   problem: string;
   busy: boolean;
+  receiveQr?: ReceiveQr;
   onEdit: () => void;
   onSubmit: (typedDong: number) => void;
 }) {
@@ -364,7 +362,13 @@ function PartialStep({
   /** Số đang gõ, ĐỒNG. */
   const [typed, setTyped] = useState(0);
   return (
-    <StepCard title="Thanh toán một phần" message={message} problem={problem} busy={busy} onConfirm={() => onSubmit(typed)}>
+    <StepCard
+      title="Thanh toán một phần"
+      message={message}
+      problem={problem}
+      busy={busy}
+      onConfirm={() => onSubmit(typed)}
+      footer={receiveQr && <ReceiveQrInline qr={receiveQr} amount={typed} />}>
       <View style={styles.inputWrap}>
         <MoneyTextInput
           value={typed}
@@ -393,9 +397,6 @@ const styles = StyleSheet.create({
   fullLabel: { flex: 1, fontSize: 16, textAlign: 'center' },
   partialButton: { borderWidth: 1.5, justifyContent: 'center' },
   partialLabel: { fontSize: 16 },
-  pairRow: { flexDirection: 'row', gap: 10 },
-  pairButton: { flex: 1, minHeight: 56, borderRadius: 16, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, paddingVertical: 6 },
-  pairLabel: { fontSize: 14, lineHeight: 19, textAlign: 'center' },
   step: { gap: 6 },
   stepWarning: { borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12 },
   stepWarningText: { fontSize: 14, lineHeight: 20 },
@@ -403,6 +404,7 @@ const styles = StyleSheet.create({
   stepAmount: { fontSize: 26, lineHeight: 32 },
   stepNote: { fontSize: 12, lineHeight: 16 },
   stepButtons: { flexDirection: 'row', gap: 10, marginTop: 6 },
+  stepFooter: { marginTop: 4 },
   inputWrap: { justifyContent: 'center', alignSelf: 'stretch' },
   input: { minHeight: 50, borderWidth: 1.5, borderRadius: 14, paddingLeft: 12, paddingRight: 36, fontSize: 22 },
   suffix: { position: 'absolute', right: 14, fontSize: 15 },

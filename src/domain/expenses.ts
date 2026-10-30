@@ -28,8 +28,10 @@ import type {
   ExpenseWithId,
   MonthKey,
   Period,
+  BankAccount,
 } from '@/types/expense';
 import type { Vnd } from '@/types/money';
+import { normalizeRecurring } from '@/domain/recurring';
 import { formatVnd } from '@/utils/format';
 import {
   addDays,
@@ -52,11 +54,60 @@ export const EMPTY_SETTINGS: ExpenseSettings = { budget: 0, budgets: {}, cats: [
 export function normalizeSettings(raw: unknown): ExpenseSettings {
   const obj = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const budgets = obj.budgets && typeof obj.budgets === 'object' ? (obj.budgets as Record<MonthKey, Vnd>) : {};
+  const banks = normalizeBanks(obj.banks, obj.bank);
+  const catBudgets = normalizeCatBudgets(obj.catBudgets);
+  const recurring = normalizeRecurring(obj.recurring);
+  const hiddenPaid = Array.isArray(obj.hiddenPaid) ? [...new Set(obj.hiddenPaid.filter((key): key is string => typeof key === 'string' && key.length > 0 && key.length < 120))].slice(-500) : [];
   return {
     budget: Number(obj.budget) || 0,
     budgets,
     cats: Array.isArray(obj.cats) ? (obj.cats as CustomCategory[]) : [],
+    ...(banks.length > 0 ? { banks } : {}),
+    ...(Object.keys(catBudgets).length > 0 ? { catBudgets } : {}),
+    ...(hiddenPaid.length > 0 ? { hiddenPaid } : {}),
+    ...(recurring.length > 0 ? { recurring } : {}),
   };
+}
+
+/** Đọc hạn mức theo mục: chỉ giữ số dương hữu hạn (làm tròn, không quá `MAX_AMOUNT`). */
+function normalizeCatBudgets(raw: unknown): Record<string, Vnd> {
+  const result: Record<string, Vnd> = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return result;
+  for (const [id, value] of Object.entries(raw as Record<string, unknown>)) {
+    const amount = Math.round(Number(value));
+    if (Number.isFinite(amount) && amount > 0) result[id] = Math.min(amount, MAX_AMOUNT);
+  }
+  return result;
+}
+
+/** Tình trạng một mục so với hạn mức tháng: tỷ lệ đã dùng (có thể > 1), còn lại (≥ 0) và số vượt (≥ 0). */
+export function categoryBudgetStatus(spent: Vnd, budget: Vnd): { ratio: number; remaining: Vnd; over: Vnd } {
+  if (!(budget > 0)) return { ratio: 0, remaining: 0, over: 0 };
+  return { ratio: spent / budget, remaining: Math.max(0, budget - spent), over: Math.max(0, spent - budget) };
+}
+
+/** Số tài khoản nhận tiền tối đa. */
+export const MAX_BANK_ACCOUNTS = 5;
+
+/** Đọc danh sách tài khoản nhận tiền: bỏ mục sai dạng và mục trùng (cùng ngân hàng + số tài khoản), tối đa `MAX_BANK_ACCOUNTS`; không có danh sách mới thì dùng tài khoản đơn của bản cũ (`bank`). */
+function normalizeBanks(list: unknown, legacy: unknown): BankAccount[] {
+  const items = Array.isArray(list) ? list : legacy ? [legacy] : [];
+  const result: BankAccount[] = [];
+  for (const item of items) {
+    const bank = normalizeBank(item);
+    if (bank && !result.some((other) => other.bin === bank.bin && other.account === bank.account)) result.push(bank);
+  }
+  return result.slice(0, MAX_BANK_ACCOUNTS);
+}
+
+/** Đọc tài khoản nhận tiền đã lưu; sai dạng (mã ngân hàng không đủ 6 số, số tài khoản không hợp lệ) thì coi như chưa thiết lập. */
+function normalizeBank(raw: unknown): BankAccount | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const item = raw as Record<string, unknown>;
+  const bin = typeof item.bin === 'string' ? item.bin : '';
+  const account = typeof item.account === 'string' ? item.account : '';
+  if (!/^\d{6}$/.test(bin) || !/^\d{6,19}$/.test(account)) return null;
+  return { bin, account, name: typeof item.name === 'string' ? item.name.trim().slice(0, 60) : '' };
 }
 
 /** Tháng đặt ngân sách gần nhất không sau `month`; null nếu chưa có (hàm `Ot`). */

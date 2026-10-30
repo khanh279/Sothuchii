@@ -14,6 +14,7 @@ import type { DateStr, ExpenseRef } from '@/types/expense';
 import type { Vnd } from '@/types/money';
 import { todayStr } from '@/utils/date';
 import { formatVnd } from '@/utils/format';
+import { normalizePhotoIds } from '@/domain/photos';
 
 /** Tên người dùng tự nhập để chỉ chính mình; so khớp đúng chữ (phân biệt hoa thường), như PWA. */
 export const BILL_OWNER_NAME = FUND_OWNER_NAME;
@@ -171,6 +172,8 @@ export function normalizeBills(raw: unknown, context: NormalizeBillContext = {})
       people,
     };
     if (exp) bill.exp = exp;
+    const ph = normalizePhotoIds(item.ph);
+    if (ph) bill.ph = ph;
     bills.push(bill);
   }
   return bills;

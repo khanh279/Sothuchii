@@ -10,6 +10,7 @@ import { KeyboardAnchor, KeyboardAwareScrollView } from '@/components/keyboard-a
 import { CalendarPanel } from '@/components/calendar-panel';
 import { CategoryIcon } from '@/components/category-icon';
 import { DateField } from '@/components/date-field';
+import { PhotoField } from '@/features/photos/PhotoViews';
 import { FormLabel, formStyles } from '@/components/expense-form-parts';
 import { InlineMultiSelect } from '@/components/inline-multi-select';
 import { InlineSelect } from '@/components/inline-select';
@@ -69,6 +70,8 @@ export default function BillCalcScreen({ existing = null, onFinished }: { existi
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [peopleList, setPeopleList] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  /** Mã các ảnh đính kèm (hóa đơn…); lưu cùng bill. */
+  const [photos, setPhotos] = useState<string[]>(existing?.ph ? [...existing.ph] : []);
   /** Ô cảnh báo (mức cố định lớn hơn tổng bill) chỉ hiện sau khi bấm Lưu bill mà không hợp lệ; sửa số liệu thì ẩn lại. */
   const [showProblem, setShowProblem] = useState(false);
   const touched = useRef(!!existing);
@@ -128,7 +131,7 @@ export default function BillCalcScreen({ existing = null, onFinished }: { existi
     }
     setSaving(true);
     try {
-      const saved = await saveBillSynced({ id: existing?.id, title, date, cat: catId, people });
+      const saved = await saveBillSynced({ id: existing?.id, title, date, cat: catId, people, ph: photos });
       if (existing) {
         if (saved.value === null) {
           toast.show('Không tìm thấy bill này. Có thể nó đã bị xoá.');
@@ -142,6 +145,7 @@ export default function BillCalcScreen({ existing = null, onFinished }: { existi
       // Như PWA: xoá tiền / hệ số / mức cố định và nội dung, giữ nhóm người và ngày cho lần chia sau.
       update(resetAfterSave(rows));
       setTitle('');
+      setPhotos([]);
       setCatId('food');
       setOpenRow(null);
       // Tạo mới: ở lại trang để tạo tiếp (không quay lại); chỉ sửa một bill mới quay về.
@@ -199,6 +203,8 @@ export default function BillCalcScreen({ existing = null, onFinished }: { existi
           <FormLabel>Ngày</FormLabel>
           <DateField value={date} onPress={() => setCalendarOpen(true)} />
         </View>
+
+        <PhotoField value={photos} onChange={setPhotos} />
       </View>
 
       <View style={[styles.card, { backgroundColor: colors.surface }]}>

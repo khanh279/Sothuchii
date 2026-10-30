@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from '@/components/app-text';
 import { EmptyState, ScreenTitle } from '@/components/design';
 import { PaymentConfirmSheet } from '@/components/payment-panel';
+import { useExpenseSettings } from '@/features/expenses/hooks';
 import { PayPageFrame } from '@/components/pay-page-frame';
 import { PAY_ACTION_BAR_CLEARANCE, PayActionBar } from '@/components/pay-action-bar';
 import { PaymentSheet } from '@/components/payment-sheet';
@@ -21,6 +22,7 @@ import { periodTitle } from '@/domain/expenses';
 import type { Period } from '@/types/expense';
 import { BillItemsList, signOf } from '@/features/bills/BillItemsList';
 import { BillPaymentPanel } from '@/features/bills/BillPairsPanel';
+import { PaidStack, useHiddenPaid } from '@/features/debts/PaidStack';
 import { describeDebtError, useDebtData } from '@/features/debts/hooks';
 import { useColors } from '@/hooks/use-colors';
 import { formatVnd } from '@/utils/format';
@@ -44,6 +46,7 @@ export default function BillPaymentScreen() {
   const period = ALL_TIME;
   const { bills, pays, loaded, error, reload } = useDebtData();
   const [payOpen, setPayOpen] = useState(false);
+  const { settings } = useExpenseSettings();
   // Chọn các khoản để thanh toán: tích các bill cần trả rồi thanh toán đúng những bill đó (bill cũ trước), không tràn sang bill khác.
   const [selecting, setSelecting] = useState(false);
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
@@ -51,8 +54,14 @@ export default function BillPaymentScreen() {
   const [busy, setBusy] = useState(false);
   const pair = useMemo(() => findBillPair(buildBillPairs(bills, pays, period), pairKey ?? null), [bills, pays, period, pairKey]);
   // Chỉ các khoản còn phải thanh toán (đã trả đủ thì ẩn); mỗi dòng ghi SỐ CÒN LẠI của khoản đó.
-  const items = useMemo(() => (pair ? buildBillPairItems(bills, pays, pair).filter((item) => item.remaining > 0) : []), [bills, pays, pair]);
-  const summary = summarizePicked({ pair: pair ?? null, owner: BILL_OWNER_NAME, billItems: items, pickedBills: picked, loanLines: [], pickedLoans: new Set(), loanNet: 0 });
+  const allItems = useMemo(() => (pair ? buildBillPairItems(bills, pays, pair) : []), [bills, pays, pair]);
+  const items = useMemo(() => allItems.filter((item) => item.remaining > 0), [allItems]);
+  const { hidden, hide } = useHiddenPaid();
+  const billKey = (billId: string) => `bill:${pair?.key}:${billId}`;
+  const paidItems = allItems.filter((item) => !item.offset && item.state === 'paid' && !hidden.has(billKey(item.billId)));
+  // Người kia trả tiền cho mình: thẻ xác nhận có nút "Mã QR nhận tiền" (tài khoản của mình, đúng số tiền đang xác nhận).
+  const receiveQr = pair && pair.to === BILL_OWNER_NAME ? { content: `${pair.from} tra no`, banks: settings.banks ?? [] } : undefined;
+  const summary = summarizePicked({ pair: pair ?? null, owner: BILL_OWNER_NAME, billItems: items, pickedBills: picked, loanViews: [], pickedLoans: new Set(), loanNet: 0 });
   function stopSelecting() {
     setSelecting(false);
     setConfirmOpen(false);
@@ -140,6 +149,12 @@ export default function BillPaymentScreen() {
       />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom + (pair ? PAY_ACTION_BAR_CLEARANCE : 0) }]} keyboardShouldPersistTaps="handled">
         {body}
+        {/* Mọi khoản bill đã trả xong: một thẻ riêng ở cuối, tách khỏi thẻ nợ phía trên. */}
+        {!!pair && !selecting && (
+          <PaidStack count={paidItems.length} onClear={() => hide(paidItems.map((item) => billKey(item.billId)))}>
+            <BillItemsList pair={pair} items={paidItems} />
+          </PaidStack>
+        )}
       </ScrollView>
       <PayActionBar
         visible={!!pair && loaded && !error}
@@ -152,6 +167,8 @@ export default function BillPaymentScreen() {
         <PaymentConfirmSheet
           message={`${pair.from} trả ${pair.to}`}
           amountText={formatVnd(summary.total)}
+          amount={summary.total}
+          receiveQr={receiveQr}
           note={pickedNote(summary)}
           busy={busy}
           onCancel={() => setConfirmOpen(false)}
@@ -164,6 +181,7 @@ export default function BillPaymentScreen() {
             pair={pair}
             period={period}
             onSelectItems={() => setSelecting(true)}
+            receiveQr={receiveQr}
             onPaid={async (message) => {
               if (message) toast.show(message);
               await reload();

@@ -11,6 +11,7 @@ import { resolveCategory } from '@/domain/expenses';
 import { linkedExpenseNotice } from '@/domain/linkedExpense';
 import { describeStorageError, useExpenseSettings } from '@/features/expenses/hooks';
 import { useColors } from '@/hooks/use-colors';
+import { PhotoSection } from '@/features/photos/PhotoViews';
 import type { ExpenseWithId } from '@/types/expense';
 import { formatVnDate } from '@/utils/date';
 import { formatVnd } from '@/utils/format';
@@ -71,6 +72,7 @@ export default function ExpenseDetailScreen() {
           <Field label="Nguồn" value={(expense.src && SOURCE[expense.src]) || 'Tự nhập'} />
           {!!expense.i && <Field label="Chi tiết" value={expense.i} last />}
         </Panel>
+        <PhotoSection ids={expense.ph} />
         <Notice text={notice ?? 'Vuốt dòng sang trái để sửa hoặc xóa'} tone="info" />
       </ScrollView>
     );

@@ -521,6 +521,8 @@ interface ButtonProps {
   onPress: () => void;
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
+  /** Biểu tượng đặt bên trái nhãn (tuỳ chọn, chỉ nút phụ). */
+  icon?: ReactNode;
 }
 
 /** Nút hành động chính: nền navy, chữ trắng. */
@@ -542,7 +544,7 @@ export function PrimaryButton({ label, onPress, disabled, style }: ButtonProps) 
 }
 
 /** Nút phụ: nền nhạt, chữ navy; không tranh chú ý với nút chính. */
-export function SecondaryButton({ label, onPress, disabled, style }: ButtonProps) {
+export function SecondaryButton({ label, onPress, disabled, style, icon }: ButtonProps) {
   const colors = useColors();
   return (
     <Pressable
@@ -550,8 +552,9 @@ export function SecondaryButton({ label, onPress, disabled, style }: ButtonProps
       accessibilityState={{ disabled: !!disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => [styles.button, { backgroundColor: colors.primarySoft, opacity: disabled ? 0.45 : pressed ? 0.8 : 1 }, style]}
+      style={({ pressed }) => [styles.button, !!icon && styles.buttonWithIcon, { backgroundColor: colors.primarySoft, opacity: disabled ? 0.45 : pressed ? 0.8 : 1 }, style]}
     >
+      {icon}
       <AppText weight="semibold" color={colors.primary} style={styles.buttonText}>
         {label}
       </AppText>
@@ -676,6 +679,7 @@ const styles = StyleSheet.create({
   emptyAction: { alignSelf: 'stretch', marginTop: 8 },
   button: { minHeight: 50, borderRadius: AppRadius.field, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
   buttonText: { fontSize: 15.5 },
+  buttonWithIcon: { flexDirection: 'row', gap: 8 },
   scrim: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   dialog: { width: '100%', maxWidth: 360, borderRadius: 20, padding: 20, gap: 8 },
   dialogTitle: { fontSize: 18, lineHeight: 24 },

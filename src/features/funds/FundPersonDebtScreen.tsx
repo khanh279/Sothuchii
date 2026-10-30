@@ -328,7 +328,7 @@ export default function FundPersonDebtScreen() {
       />
       {payOpen && <FundPayFlow data={data} person={person.trim()} scope={fund} side={side} reload={reload} onClose={() => setPayOpen(false)} onSelectItems={side === 'owed' ? () => setSelecting(true) : undefined} />}
       {confirmOpen && pickedTargets.length > 0 && (
-        <PaymentConfirmSheet message={`${picker} trả ${person}`} amountText={formatVnd(pickedTotal)} note={`Thanh toán ${pickedTargets.length} khoản đã chọn`} busy={paying} onCancel={() => setConfirmOpen(false)} onConfirm={() => void payPicked()} />
+        <PaymentConfirmSheet message={`${picker} trả ${person}`} amountText={formatVnd(pickedTotal)} amount={pickedTotal} note={`Thanh toán ${pickedTargets.length} khoản đã chọn`} busy={paying} onCancel={() => setConfirmOpen(false)} onConfirm={() => void payPicked()} />
       )}
     </View>
   );

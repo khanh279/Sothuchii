@@ -3,13 +3,12 @@
  * rồi thanh toán đúng những khoản đó. Chỉ tính tổng và kiểm tra hợp lệ; việc ghi do `recordMergedPaymentSynced` (nợ bill) và `recordPaymentSynced` (nợ vay) đảm nhiệm. Tiền là ĐỒNG.
  *
  * - Nợ bill: chỉ khoản CÙNG chiều với cặp (không phải bù trừ) mới chọn được; số trả = tổng số còn lại của đúng các bill đã chọn nên MỖI bill đã chọn được thanh toán đủ (không dồn sang bill khác).
- * - Nợ vay: sổ vay là sổ cộng trừ, không đánh dấu từng dòng; số phải trả là |tổng có dấu của các dòng đã chọn| (phải cùng chiều với nợ vay còn lại) và khoản trả được ghi chú tên các dòng đã chọn.
+ * - Nợ vay: chỉ khoản vay còn nợ (không phải khoản trả) mới chọn được; số trả = tổng số còn lại của các khoản đã chọn và khoản trả ghi mã các khoản đó để trừ đúng vào đó (xem `loanLineViews`).
  * - Chiều: các khoản chọn phải CÙNG chiều ("tôi trả" hoặc "người kia trả tôi") để một lần thanh toán không vừa trả vừa nhận.
  */
 
-import { isNearZero } from '@/domain/ledger';
+import { isPickableLoan, type LoanLineView } from '@/domain/loanAllocation';
 import type { BillPair, BillPairItem } from '@/domain/billPairs';
-import type { LoanLine } from '@/domain/ledger';
 import type { Vnd } from '@/types/money';
 
 export type PickDirection = 'owe' | 'get';
@@ -24,8 +23,8 @@ export interface PickedPayment {
   direction: PickDirection | null;
   /** Phần nợ bill: cặp, các bill đã chọn và số tiền (tổng số còn lại của chúng). Null nếu không chọn bill nào. */
   bill: { from: string; to: string; billIds: string[]; titles: string[]; amount: Vnd } | null;
-  /** Phần nợ vay: số tiền thanh toán và nội dung các dòng vay đã chọn (làm ghi chú của khoản trả). Null nếu không chọn dòng vay nào. */
-  loan: { amount: Vnd; titles: string[] } | null;
+  /** Phần nợ vay: số tiền thanh toán (tổng số còn lại của các khoản vay đã chọn), mã khoản gốc để ghi đích danh và nội dung (làm ghi chú của khoản trả). Null nếu không chọn khoản vay nào. */
+  loan: { amount: Vnd; ids: string[]; titles: string[] } | null;
   total: Vnd;
 }
 
@@ -47,34 +46,31 @@ export function summarizePicked(input: {
   owner: string;
   billItems: readonly BillPairItem[];
   pickedBills: ReadonlySet<string>;
-  loanLines: readonly LoanLine[];
+  /** Các khoản vay kèm trạng thái (xem `loanLineViews`) và chỉ số các khoản đã tích. */
+  loanViews: readonly LoanLineView[];
   pickedLoans: ReadonlySet<number>;
   /** Nợ vay ròng hiện tại (dương = họ nợ tôi, âm = tôi nợ họ). */
   loanNet: Vnd;
 }): PickedPayment {
   const bills = input.pair ? input.billItems.filter((item) => isPickableBill(item) && input.pickedBills.has(item.billId)) : [];
-  const lines = input.loanLines.filter((_, index) => input.pickedLoans.has(index));
+  const lines = input.loanViews.filter((view, index) => input.pickedLoans.has(index) && isPickableLoan(view));
   const count = bills.length + lines.length;
   const empty: PickedPayment = { ok: false, count, direction: null, bill: null, loan: null, total: 0 };
   if (count === 0) return empty;
 
   const billAmount = bills.reduce((sum, item) => sum + item.remaining, 0);
   const billDir: PickDirection | null = bills.length > 0 && input.pair ? (input.pair.from === input.owner ? 'owe' : 'get') : null;
-  const loanSum = lines.reduce((sum, line) => sum + line.v, 0);
-  const loanDir: PickDirection | null = lines.length === 0 || isNearZero(loanSum) ? null : loanSum < 0 ? 'owe' : 'get';
-  const loanNetDir: PickDirection | null = isNearZero(input.loanNet) ? null : input.loanNet < 0 ? 'owe' : 'get';
+  const loanAmount = lines.reduce((sum, view) => sum + view.remaining, 0);
+  const loanDir: PickDirection | null = lines.length === 0 ? null : input.loanNet < 0 ? 'owe' : 'get';
 
-  if (lines.length > 0 && !loanDir) return { ...empty, reason: 'Các khoản vay đã chọn bù nhau về 0, không có gì để thanh toán.' };
   if (billDir && loanDir && billDir !== loanDir) return { ...empty, reason: 'Chỉ chọn các khoản cùng chiều: tôi trả hoặc người kia trả tôi.' };
-  if (loanDir && loanDir !== loanNetDir) return { ...empty, reason: 'Các khoản vay đã chọn ngược chiều với nợ vay còn lại.' };
 
-  const loanAmount = lines.length > 0 ? Math.abs(loanSum) : 0;
   return {
     ok: true,
     count,
     direction: billDir ?? loanDir,
     bill: bills.length > 0 && input.pair ? { from: input.pair.from, to: input.pair.to, billIds: bills.map((item) => item.billId), titles: bills.map((item) => item.title || 'Không tên'), amount: billAmount } : null,
-    loan: lines.length > 0 ? { amount: loanAmount, titles: lines.map((line) => line.title) } : null,
+    loan: lines.length > 0 ? { amount: loanAmount, ids: lines.map((view) => view.line.id ?? ''), titles: lines.map((view) => view.line.title) } : null,
     total: billAmount + loanAmount,
   };
 }

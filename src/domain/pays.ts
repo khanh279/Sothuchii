@@ -7,6 +7,7 @@ import { isOwnerName } from '@/domain/funds';
 import { isReconciliation } from '@/domain/ledger';
 import type { ExpenseRef } from '@/types/expense';
 import type { Pay } from '@/types/pay';
+import { normalizePhotoIds } from '@/domain/photos';
 
 const isRecord = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 
@@ -37,6 +38,8 @@ export function normalizePays(raw: unknown): Pay[] {
     if (Array.isArray(item.bills)) pay.bills = item.bills.map(String);
     if (item.item) pay.item = item.item;
     if (typeof item.lbl === 'string') pay.lbl = item.lbl;
+    const ph = normalizePhotoIds(item.ph);
+    if (ph) pay.ph = ph;
     if (item.ds) pay.ds = item.ds;
     if (item.grp) pay.grp = String(item.grp);
     if (typeof item.led === 'string') pay.led = item.led;

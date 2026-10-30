@@ -4,6 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/app-text';
 import { EmptyState } from '@/components/design';
 import { PaymentPanel, type PayChoice } from '@/components/payment-panel';
+import type { ReceiveQr } from '@/components/receive-qr-sheet';
 import { SelectableCard } from '@/components/selectable-card';
 import { SvgIcon } from '@/components/svg-icon';
 import { AppRadius } from '@/constants/palette';
@@ -116,6 +117,8 @@ interface PanelProps extends DataProps {
   onFailure: (message: string) => void;
   /** Có thì tờ thanh toán có thêm nút "Chọn các khoản thanh toán" (trang vào chế độ tích chọn). */
   onSelectItems?: () => void;
+  /** Người kia trả tiền cho mình: thẻ xác nhận có nút "Mã QR nhận tiền". */
+  receiveQr?: ReceiveQr;
 }
 
 /**
@@ -138,7 +141,7 @@ export function debtPaySummary(detail: ReturnType<typeof buildDebtDetail>, name:
  * còn lại) và Thanh toán một phần (trả nợ bill trước, rồi nợ vay; phần dư ghi thành nợ vay mới). Ghi bằng `recordDebtPaymentSynced` → `planDebtPayment`
  * (quy tắc phân bổ và xử lý tiền dư giữ nguyên; hai sổ trái dấu thì không có Thanh toán, phải gộp nợ trước).
  */
-export function DebtPaymentPanel({ name, bills, pays, period, onSelectItems, onDone, onPaid, onFailure }: PanelProps) {
+export function DebtPaymentPanel({ name, bills, pays, period, onSelectItems, receiveQr, onDone, onPaid, onFailure }: PanelProps) {
   const detail = useMemo(() => buildDebtDetail(bills, pays, name, period), [bills, pays, name, period]);
   const summary = debtPaySummary(detail, name);
   if (!summary) return null;
@@ -153,6 +156,7 @@ export function DebtPaymentPanel({ name, bills, pays, period, onSelectItems, onD
       payer={summary.payer}
       receiver={summary.receiver}
       onSelectItems={onSelectItems}
+      receiveQr={receiveQr}
       onPay={async (amount, id) => {
         const option = id as DebtPayOption;
         const result = await recordDebtPaymentSynced(name, option, option === 'partial' ? amount : undefined);

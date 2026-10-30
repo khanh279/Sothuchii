@@ -28,6 +28,8 @@ export interface Bill {
   people: BillPerson[];
   /** Khoản chi cá nhân `src:'cb'` đã tạo từ bill này. */
   exp?: ExpenseRef;
+  /** Mã các ảnh đính kèm (xem `domain/photos`); thiếu = không có ảnh. */
+  ph?: string[];
 }
 
 /** Một dòng kết quả chia của một người. */

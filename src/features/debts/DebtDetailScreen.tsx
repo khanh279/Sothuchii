@@ -5,6 +5,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { PrimaryButton, ScreenTitle, SectionHeader } from '@/components/design';
+import { SvgIcon } from '@/components/svg-icon';
+import { DebtImageSheet } from '@/features/debts/DebtImageSheet';
+import { PersonPaidCard } from '@/features/debts/PaidStack';
 import { PaymentConfirmSheet } from '@/components/payment-panel';
 import { PayPageFrame } from '@/components/pay-page-frame';
 import { PAY_ACTION_BAR_CLEARANCE, PayActionBar } from '@/components/pay-action-bar';
@@ -54,13 +57,20 @@ export default function DebtDetailScreen() {
   const detail = loaded && !error ? buildDebtDetail(bills, pays, name, period, categoryName) : null;
   const summary = detail ? debtPaySummary(detail, name) : null;
   const loanNet = detail?.loan ?? 0;
-  const picked = summarizePicked({ pair: lists.pair, owner: BILL_OWNER_NAME, billItems: lists.billItems, pickedBills, loanLines: lists.loanList, pickedLoans, loanNet });
+  const picked = summarizePicked({ pair: lists.pair, owner: BILL_OWNER_NAME, billItems: lists.billItems, pickedBills, loanViews: lists.loanList, pickedLoans, loanNet });
   const toggleIn = <T,>(set: ReadonlySet<T>, value: T): ReadonlySet<T> => {
     const next = new Set(set);
     if (next.has(value)) next.delete(value);
     else next.add(value);
     return next;
   };
+  /** Dữ liệu cho ảnh nhắc nợ: các khoản người này còn nợ mình (nợ vay còn nợ, nợ bill chiều chính còn lại) và tổng. */
+  const reminder = {
+    loans: lists.loanList.filter((view) => view.kind === 'debt' && view.line.v > 0 && view.remaining > 0).map((view) => ({ title: view.line.title, date: view.line.date, amount: view.remaining })),
+    bills: lists.pair?.to === BILL_OWNER_NAME ? lists.billItems.filter((item) => !item.offset).map((item) => ({ title: item.title, date: item.date, amount: item.remaining })) : [],
+    total: detail ? Math.abs(detail.loan + detail.bill) : 0,
+  };
+  const [imageOpen, setImageOpen] = useState(false);
   function stopSelecting() {
     setSelecting(false);
     setConfirmOpen(false);
@@ -86,7 +96,7 @@ export default function DebtDetailScreen() {
         if (result.value.message) messages.push(result.value.message);
       }
       if (picked.loan) {
-        const result = await recordPaymentSynced(name, 'loan', picked.loan.amount, `Trả: ${picked.loan.titles.join(', ')}`);
+        const result = await recordPaymentSynced(name, 'loan', picked.loan.amount, `Trả: ${picked.loan.titles.join(', ')}`, picked.loan.ids);
         if (result.value.message) messages.push(result.value.message);
       }
       if (messages.length > 0) toast.show(messages.join('\n'));
@@ -102,6 +112,8 @@ export default function DebtDetailScreen() {
   }
   // Tiêu đề theo chiều nợ ròng (nợ vay + nợ bill) với người này: "Tôi nợ A" / "A nợ tôi"; hai sổ bù nhau về 0 hoặc chưa có dữ liệu thì "Công nợ với A".
   const netTone = loaded && !error ? buildDebtPeopleSplit(bills, pays, true).find((person) => person.name === name)?.tone : undefined;
+  // Người kia trả tiền cho mình: thẻ xác nhận có nút "Mã QR nhận tiền" (tài khoản của mình, đúng số tiền đang xác nhận).
+  const receiveQr = netTone === 'get' ? { content: `${name} tra no`, banks: settings.banks ?? [] } : undefined;
   const title = !name ? 'Chi tiết công nợ' : netTone === 'owe' ? `Tôi nợ ${name}` : netTone === 'get' ? `${name} nợ tôi` : `Công nợ với ${name}`;
 
   async function run(task: () => Promise<SyncedPayChange<RecordResult | number>>, done?: (value: RecordResult | number) => string) {
@@ -133,6 +145,13 @@ export default function DebtDetailScreen() {
   } else {
     body = (
       <PersonView
+        corner={
+          netTone === 'get' && !selecting ? (
+            <Pressable accessibilityRole="button" accessibilityLabel="Nhắc nợ: tạo ảnh các khoản nợ" hitSlop={8} onPress={() => setImageOpen(true)} style={[styles.bell, { backgroundColor: colors.primarySoft }]}>
+              <SvgIcon name="bell" size={20} color={colors.primary} strokeWidth={2} />
+            </Pressable>
+          ) : undefined
+        }
         name={name}
         detail={detail!}
         busy={busy}
@@ -168,6 +187,7 @@ export default function DebtDetailScreen() {
       />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom + (summary || selecting ? PAY_ACTION_BAR_CLEARANCE : 0) }]} keyboardShouldPersistTaps="handled">
         {body}
+        {imageOpen && <DebtImageSheet name={name} loans={reminder.loans} bills={reminder.bills} total={reminder.total} banks={settings.banks ?? []} onClose={() => setImageOpen(false)} />}
       </ScrollView>
       <PayActionBar
         visible={selecting || !!summary}
@@ -180,6 +200,8 @@ export default function DebtDetailScreen() {
         <PaymentConfirmSheet
           message={picked.direction === 'owe' ? `Tôi trả ${name}` : `${name} trả tôi`}
           amountText={formatVnd(picked.total)}
+          amount={picked.total}
+          receiveQr={receiveQr}
           note={pickedNote(picked)}
           busy={busy}
           onCancel={() => setConfirmOpen(false)}
@@ -194,6 +216,7 @@ export default function DebtDetailScreen() {
             pays={pays}
             period={period}
             onSelectItems={() => setSelecting(true)}
+            receiveQr={receiveQr}
             onDone={() => setPayOpen(false)}
             onPaid={async (message) => {
               if (message) toast.show(message);
@@ -218,6 +241,7 @@ function PersonView({
   run,
   lists,
   selection,
+  corner,
 }: {
   name: string;
   detail: ReturnType<typeof buildDebtDetail>;
@@ -225,6 +249,8 @@ function PersonView({
   run: Run;
   lists: PersonDebtLists;
   selection?: ComponentProps<typeof DebtBreakdown>['selection'];
+  /** Biểu tượng ở góc phải trên của khung tổng (nút nhắc nợ). */
+  corner?: ReactNode;
 }) {
   const colors = useColors();
   const [armedUndo, setArmedUndo] = useState<string | null>(null);
@@ -237,6 +263,7 @@ function PersonView({
         amount={total.amount}
         amountColor={total.tone === 'owe' ? colors.danger : total.tone === 'get' ? colors.success : undefined}
         detailsTitle="Chi tiết nợ"
+        corner={corner}
       >
         <DebtBreakdown detail={detail} lists={lists} selection={selection} />
       </PayPageFrame>
@@ -255,6 +282,8 @@ function PersonView({
           </AppText>
         </View>
       )}
+
+      {!selection && <PersonPaidCard lists={lists} />}
 
       {detail.history.length > 0 && (
         <View style={styles.history}>
@@ -330,6 +359,7 @@ const styles = StyleSheet.create({
   actionText: { fontSize: 14 },
   payBox: { marginTop: 14, gap: 8 },
   history: { marginTop: 8, gap: 6 },
+  bell: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   historyRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 14, borderRadius: AppRadius.field },
   cancel: { minHeight: 36, paddingHorizontal: 8, justifyContent: 'center' },
   cancelText: { fontSize: 16, lineHeight: 22 },

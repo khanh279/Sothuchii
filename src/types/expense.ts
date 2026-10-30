@@ -1,4 +1,5 @@
 import type { Vnd } from '@/types/money';
+import type { RecurringExpense } from '@/domain/recurring';
 
 /** Ngày theo giờ máy, dạng 'YYYY-MM-DD'. Không bao giờ dùng toISOString() để tạo chuỗi này. */
 export type DateStr = string;
@@ -24,6 +25,8 @@ export interface Expense {
   i?: string;
   /** Nguồn tự ghi: 'cb' = chia bill, 'quy' = quỹ. Thiếu nếu người dùng tự nhập. */
   src?: string;
+  /** Mã các ảnh đính kèm (xem `domain/photos`); thiếu = không có ảnh. */
+  ph?: string[];
 }
 
 export type ExpenseWithId = Expense & { id: string };
@@ -51,6 +54,16 @@ export interface Category {
   icon?: string;
 }
 
+/** Tài khoản ngân hàng nhận tiền (dùng tạo mã QR chuyển khoản), lưu trong `sct:settings`. */
+export interface BankAccount {
+  /** Mã ngân hàng 6 số (xem `VN_BANKS`). */
+  bin: string;
+  /** Số tài khoản (chỉ chữ số, 6–19). */
+  account: string;
+  /** Tên chủ tài khoản, chỉ để hiện cạnh mã QR. */
+  name: string;
+}
+
 /** `sct:settings`. */
 export interface ExpenseSettings {
   /** Mức ngân sách cũ (trước khi có `budgets`), dùng khi chưa có mức theo tháng nào. */
@@ -58,6 +71,14 @@ export interface ExpenseSettings {
   /** Ngân sách theo tháng: mức đặt ở tháng X áp dụng cho các tháng sau cho tới khi có mức khác. */
   budgets: Record<MonthKey, Vnd>;
   cats: CustomCategory[];
+  /** Các tài khoản nhận tiền cho mã QR (tối đa `MAX_BANK_ACCOUNTS`); chưa thiết lập thì không có. Bản cũ chỉ có một tài khoản ở khoá `bank` được đọc thành danh sách một phần tử. */
+  banks?: BankAccount[];
+  /** Hạn mức chi MỖI THÁNG theo mục (id mục → đồng, > 0); mục không có thì không đặt hạn mức. */
+  catBudgets?: Record<string, Vnd>;
+  /** Chi tiêu định kỳ (xem `domain/recurring`). */
+  recurring?: RecurringExpense[];
+  /** Khoá các khoản đã thanh toán đã "Xóa lịch sử" ở ngăn xếp (chỉ ẩn khỏi ngăn xếp, dữ liệu giữ nguyên). */
+  hiddenPaid?: string[];
 }
 
 /** Kỳ xem. 'custom' là khoảng ngày tuỳ chọn (gồm cả hai đầu). */

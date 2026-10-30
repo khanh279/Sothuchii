@@ -7,6 +7,7 @@ import { ConfirmDialog } from '@/components/design';
 import { AppText } from '@/components/app-text';
 import { CalendarPanel } from '@/components/calendar-panel';
 import { DateField } from '@/components/date-field';
+import { PhotoField } from '@/features/photos/PhotoViews';
 import { AmountField, FormLabel, PickButton, PickPanel, formStyles } from '@/components/expense-form-parts';
 import { InlineSelect } from '@/components/inline-select';
 import { KeyboardAnchor } from '@/components/keyboard-aware-scroll';
@@ -235,6 +236,8 @@ export function FundExpenseForm({
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  /** Mã các ảnh đính kèm (hóa đơn…); lưu cùng khoản chi quỹ. */
+  const [photos, setPhotos] = useState<string[]>(existing?.ph ? [...existing.ph] : []);
   // Hình thức do người dùng tự chọn; chưa chọn thì theo số dư quỹ hiện tại (hết tiền → cá nhân ứng chi, còn tiền → chi trực tiếp). Không tự đổi sau khi đã chọn.
   const [pickedKind, setPickedKind] = useState<ExpenseKind | null>(null);
   /** Quỹ hết tiền: đã chọn "Cá nhân ứng tiền cho người khác chi" — `funder` ứng tiền túi, `person` nhận tiền ứng để chi. */
@@ -326,11 +329,13 @@ export function FundExpenseForm({
             amount: part.amount,
             mode: 'advance',
             advanceId: part.advanceId,
+            ...(index === 0 ? { ph: photos } : {}),
           });
         }
         toast.show('Đã ghi khoản chi');
         setAmount(0);
         setTitle('');
+        setPhotos([]);
         setDate(todayStr());
         setError('');
         setAdvanceSpendId(null);
@@ -409,6 +414,7 @@ export function FundExpenseForm({
           title: title.trim(),
           date,
           amount,
+          ph: photos,
           ...(mode === 'personal' ? { mode: 'personal' as const, payer: who } : {}),
           ...(plan ? { fundPart: plan.fundPart } : {}),
         });
@@ -427,6 +433,7 @@ export function FundExpenseForm({
         setShortfall(false);
         setSplitIntent(false);
         setPerson('');
+        setPhotos([]);
         setFunder('');
         setFundedPicked(false);
         setClientId(newExpenseId(Date.now()));
@@ -553,6 +560,8 @@ export function FundExpenseForm({
             onPress={() => setPickerOpen(true)}
           />
         </View>
+
+        {!givingAdvance && <PhotoField value={photos} onChange={setPhotos} />}
 
         {givingAdvance && !funded && (
           <AppText color={colors.muted} style={styles.hint}>
@@ -726,6 +735,8 @@ export function FundExpenseForm({
         </AppText>
         <DateField value={date} onPress={() => setCalendarOpen(true)} />
       </View>
+
+      {!givingAdvance && <PhotoField value={photos} onChange={setPhotos} />}
 
       {givingAdvance && !funded && (
         <AppText color={colors.muted} style={styles.hint}>

@@ -7,6 +7,7 @@
  */
 
 import { billsNghinToVnd, paysNghinToVnd } from '@/domain/moneyMigration';
+import { validBackupPhotos } from '@/domain/photos';
 
 export const BACKUP_APP = 'so-tien';
 export const BACKUP_VERSION = 2;
@@ -35,6 +36,8 @@ export interface BackupSnapshot {
   bills: readonly unknown[];
   pays: readonly unknown[];
   names: readonly unknown[];
+  /** Ảnh đính kèm đang được dữ liệu dùng (mã → data URL). */
+  photos?: Readonly<Record<string, string>>;
 }
 
 export interface BackupDocument {
@@ -45,6 +48,8 @@ export interface BackupDocument {
   chiTieu: { settings: unknown; months: Record<string, unknown> };
   quyNhom: unknown;
   chiaBill: { v: 7; unit: 'd'; bills: unknown[]; pays: unknown[]; names: unknown[] };
+  /** Ảnh đính kèm (mã → data URL JPEG); thiếu ở file cũ / khi không có ảnh nào. */
+  photos?: Record<string, string>;
 }
 
 /** Dựng nội dung file sao lưu. `at` là mốc thời gian ISO (UTC) chỉ để ghi chú, không dùng làm ngày lịch. */
@@ -61,6 +66,7 @@ export function buildBackup(snapshot: BackupSnapshot, now: number): BackupDocume
     chiTieu: { settings: isRecord(snapshot.settings) ? snapshot.settings : {}, months },
     quyNhom: snapshot.fund ?? null,
     chiaBill: { v: 7, unit: 'd', bills: [...snapshot.bills], pays: [...snapshot.pays], names: [...snapshot.names] },
+    ...(snapshot.photos && Object.keys(snapshot.photos).length > 0 ? { photos: { ...snapshot.photos } } : {}),
   };
 }
 
@@ -79,6 +85,8 @@ export interface RestorePlan {
   chiaBill?: { bills: unknown[]; pays: unknown[]; names: unknown[] };
   /** Danh sách người trong file (có trong file nghĩa là thay danh sách hiện có). */
   people?: unknown[];
+  /** Ảnh đính kèm trong file (mã → data URL): được ghi vào kho ảnh khi khôi phục. */
+  photos?: Record<string, string>;
 }
 
 export type ParseResult = { ok: true; plan: RestorePlan } | { ok: false; error: string };
@@ -134,6 +142,8 @@ export function parseBackup(text: string): ParseResult {
     }
     if (!plan.sections.length) return { ok: false, error: RESTORE_ERRORS.empty };
     if (Array.isArray(data.people)) plan.people = data.people;
+    const photos = validBackupPhotos(data.photos);
+    if (Object.keys(photos).length > 0) plan.photos = photos;
     return { ok: true, plan };
   }
 

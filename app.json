@@ -24,6 +24,13 @@
     "plugins": [
       "expo-router",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Cho phép Sổ Thu Chi chọn ảnh hóa đơn để đính kèm vào giao dịch.",
+          "cameraPermission": "Cho phép Sổ Thu Chi chụp ảnh hóa đơn để đính kèm vào giao dịch."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "backgroundColor": "#F0F2F5",

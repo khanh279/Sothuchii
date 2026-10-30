@@ -23,6 +23,8 @@ export interface Pay {
   /** Có mặt ở dữ liệu cũ của khoản vay; chỉ dùng để phân loại sổ. */
   item?: unknown;
   lbl?: string;
+  /** Mã các ảnh đính kèm (xem `domain/photos`); thiếu = không có ảnh. */
+  ph?: string[];
   /** Khoản "Đối soát" cũ (hiển thị là "Trả nợ"); không tạo mới. */
   ds?: unknown;
   /** Mã nhóm của một lần "Gộp nợ" (hai khoản `bt` cùng nhóm). */

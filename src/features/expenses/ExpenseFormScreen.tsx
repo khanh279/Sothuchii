@@ -8,6 +8,7 @@ import { AppText } from '@/components/app-text';
 import { CalendarPanel } from '@/components/calendar-panel';
 import { CategoryIcon } from '@/components/category-icon';
 import { DateField } from '@/components/date-field';
+import { PhotoField } from '@/features/photos/PhotoViews';
 import { ScreenTitle } from '@/components/design';
 import { KeyboardAnchor, KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll';
 import { AmountField, FormLabel, formStyles } from '@/components/expense-form-parts';
@@ -131,6 +132,8 @@ function ExpenseForm({ settings, existing, suggestedDate, period }: FormProps) {
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [errors, setErrors] = useState({ amount: false, date: false });
   const [busy, setBusy] = useState(false);
+  /** Mã các ảnh đính kèm (hóa đơn…); lưu cùng khoản chi. */
+  const [photos, setPhotos] = useState<string[]>(existing?.ph ? [...existing.ph] : []);
 
   // Android: nút Back đóng lịch trước khi rời màn hình.
   useEffect(() => {
@@ -154,14 +157,14 @@ function ExpenseForm({ settings, existing, suggestedDate, period }: FormProps) {
     try {
       const built = buildExpense(input, existing, Date.now());
       if (existing) {
-        const updated = await updateExpense({ m: monthOf(existing.d), id: existing.id }, { a: built.a, c: built.c, n: built.n, d: built.d });
+        const updated = await updateExpense({ m: monthOf(existing.d), id: existing.id }, { a: built.a, c: built.c, n: built.n, d: built.d, ph: photos });
         if (!updated) {
           toast.show('Khoản chi này không còn nữa');
           setBusy(false);
           return;
         }
       } else {
-        await addExpense(built);
+        await addExpense(photos.length > 0 ? { ...built, ph: photos } : built);
       }
       toast.show(savedMessage({ isEdit: !!existing, amount: built.a, date: built.d, period }));
       if (existing) {
@@ -171,6 +174,7 @@ function ExpenseForm({ settings, existing, suggestedDate, period }: FormProps) {
       // Thêm mới: ở lại trang để ghi tiếp (giữ ngày và mục chi), chỉ xoá số tiền và nội dung.
       setAmount(0);
       setMemo('');
+      setPhotos([]);
       setErrors({ amount: false, date: false });
       setBusy(false);
     } catch (error) {
@@ -223,6 +227,8 @@ function ExpenseForm({ settings, existing, suggestedDate, period }: FormProps) {
               Ngày chưa đúng. Nhập dạng dd/mm/yyyy và không sau hôm nay.
             </AppText>
           )}
+
+          <PhotoField value={photos} onChange={setPhotos} />
 
           <KeyboardAnchor style={formStyles.actions}>
             <Pressable

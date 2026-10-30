@@ -364,8 +364,8 @@ describe('loanLines — khoản nợ vay còn hiển thị của một người'
   it('chưa tất toán lần nào: hiện đủ, cũ → mới; tiêu đề là nội dung khoản chuyển tiền, trống thì dùng nhãn mặc định', () => {
     const events = debtEvents([], [loan('1', 'Tôi', 'An', 500_000, '2025-10-01', 'Tiền thuê nhà'), loan('2', 'An', 'Tôi', 100_000, '2025-10-03')]);
     expect(loanLines(events, 'An')).toEqual([
-      { date: '2025-10-01', title: 'Tiền thuê nhà', v: 500_000 },
-      { date: '2025-10-03', title: 'An trả tôi', v: -100_000 },
+      { date: '2025-10-01', title: 'Tiền thuê nhà', v: 500_000, id: '1' },
+      { date: '2025-10-03', title: 'An trả tôi', v: -100_000, id: '2' },
     ]);
   });
 

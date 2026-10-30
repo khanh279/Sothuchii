@@ -135,6 +135,8 @@ export interface PayPatch {
   amt: number;
   /** Đổi loại ('vay' | 'billpay') khi người dùng chủ động đổi; không đưa vào thì giữ nguyên loại cũ. */
   kind?: string;
+  /** Mã ảnh đính kèm: không truyền = giữ nguyên; mảng rỗng = bỏ hết ảnh. */
+  ph?: readonly string[];
 }
 
 /**
@@ -152,6 +154,7 @@ export function updatePay(id: string, patch: PayPatch): Promise<boolean> {
       if (!isRecord(item) || String(item.id) !== id) return item;
       found = true;
       const next: RawObject = { ...item, date: patch.date, note: patch.note, from: patch.from, to: patch.to, amt: roundVnd(patch.amt) };
+      if (patch.ph !== undefined) next.ph = patch.ph.length > 0 ? [...patch.ph] : undefined;
       if (patch.kind !== undefined && patch.kind !== item.kind && !item.bill) {
         next.kind = patch.kind;
         delete next.ds;

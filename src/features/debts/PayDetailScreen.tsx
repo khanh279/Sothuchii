@@ -4,6 +4,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DetailField, DetailHero, DetailNotice } from '@/components/detail-parts';
+import { PhotoSection } from '@/features/photos/PhotoViews';
 import { Panel, ScreenTitle } from '@/components/design';
 import { PAY_FILTER_LABEL, payRowType } from '@/domain/expenseTab';
 import { buildPayHistory, type PayRow } from '@/domain/payForm';
@@ -54,6 +55,7 @@ export default function PayDetailScreen() {
             <DetailField key={item.label} label={item.label} value={item.value} last={index === rows.length - 1} />
           ))}
         </Panel>
+        <PhotoSection ids={row.pay.ph} />
         <DetailNotice text="Vuốt dòng sang trái để sửa hoặc xóa" tone="info" />
       </ScrollView>
     );

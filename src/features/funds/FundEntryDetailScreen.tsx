@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { DetailField, DetailHero, DetailNotice } from '@/components/detail-parts';
+import { PhotoSection } from '@/features/photos/PhotoViews';
 import { Panel, ScreenTitle, SectionCard } from '@/components/design';
 import { ADVANCE_STATE_LABEL, advanceById, advanceSummary, personalDebt, personalDebtLabel } from '@/domain/fundAdvance';
 import { buildPersonFundDetail } from '@/domain/fundPerson';
@@ -277,6 +278,7 @@ export default function FundEntryDetailScreen() {
             })}
           </Panel>
         )}
+        {entry.kind === 'expense' && <PhotoSection ids={data.expenses.find((item) => item.id === entry.id)?.ph} />}
         <DetailNotice text="Vuốt dòng sang trái để sửa hoặc xóa" tone="info" />
       </ScrollView>
     );

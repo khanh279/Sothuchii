@@ -29,6 +29,7 @@ import {
   newExpenseId,
   niceMax,
   normalizeCustomRange,
+  categoryBudgetStatus,
   normalizeSettings,
   parseAmountInput,
   periodFromParams,
@@ -60,6 +61,29 @@ describe('settings & ngân sách', () => {
     expect(normalizeSettings(undefined)).toEqual(EMPTY_SETTINGS);
     expect(normalizeSettings({ budget: '5000', cats: 'x', budgets: 3 })).toEqual({ budget: 5000, budgets: {}, cats: [] });
     expect(normalizeSettings({ budget: 1, budgets: { '2025-01': 9 }, cats: [] }).budgets).toEqual({ '2025-01': 9 });
+  });
+
+  it('normalizeSettings giữ các tài khoản nhận tiền hợp lệ, bỏ mục sai dạng / trùng, tối đa 5; đọc được khoá `bank` của bản cũ', () => {
+    const bank = { bin: '970422', account: '0123456789', name: '  NGUYEN VAN A ' };
+    const clean = { bin: '970422', account: '0123456789', name: 'NGUYEN VAN A' };
+    expect(normalizeSettings({ banks: [bank] }).banks).toEqual([clean]);
+    expect(normalizeSettings({ bank }).banks).toEqual([clean]); // bản cũ: một tài khoản
+    expect(normalizeSettings({ banks: [{ ...bank, bin: '9704' }, { ...bank, account: '12ab' }, 'x', bank, bank] }).banks).toEqual([clean]);
+    expect(normalizeSettings({ banks: Array.from({ length: 8 }, (_, i) => ({ ...bank, account: `01234567${i}9` })) }).banks).toHaveLength(5);
+    expect(normalizeSettings({}).banks).toBeUndefined();
+  });
+
+  it('hạn mức theo mục: chỉ giữ số dương; tình trạng so với hạn mức', () => {
+    expect(normalizeSettings({ catBudgets: { food: 500000.4, bad: -1, zero: 0, text: 'x' } }).catBudgets).toEqual({ food: 500000 });
+    expect(normalizeSettings({ catBudgets: [1] }).catBudgets).toBeUndefined();
+    expect(categoryBudgetStatus(300_000, 500_000)).toEqual({ ratio: 0.6, remaining: 200_000, over: 0 });
+    expect(categoryBudgetStatus(650_000, 500_000)).toEqual({ ratio: 1.3, remaining: 0, over: 150_000 });
+    expect(categoryBudgetStatus(10, 0)).toEqual({ ratio: 0, remaining: 0, over: 0 });
+  });
+
+  it('hiddenPaid: chỉ giữ khoá chuỗi hợp lệ, không trùng', () => {
+    expect(normalizeSettings({ hiddenPaid: ['loan:L1', 'loan:L1', 5, '', 'bill:k:b1'] }).hiddenPaid).toEqual(['loan:L1', 'bill:k:b1']);
+    expect(normalizeSettings({ hiddenPaid: 'x' }).hiddenPaid).toBeUndefined();
   });
 
   it('budgetForMonth lấy mức đặt ở tháng gần nhất không sau tháng đang xét', () => {

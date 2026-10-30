@@ -130,3 +130,32 @@ export function sumTransactions(entries: readonly TransactionEntry[]): Transacti
   }
   return { count: entries.length, out, in: incoming };
 }
+
+/** Chuẩn hoá để so khớp tìm kiếm: chữ thường, bỏ dấu tiếng Việt. */
+const fold = (text: string): string =>
+  text
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'd')
+    .toLowerCase();
+
+/** Chuỗi để tìm trong một giao dịch: nội dung / ghi chú, tên người, số tiền (chữ số liền, ví dụ 50000) và ngày hiện (dd/mm). */
+function searchTextOf(entry: TransactionEntry): string {
+  if (entry.kind === 'expense') return `${entry.expense.n ?? ''} ${entry.expense.a} ${entry.date}`;
+  const row = entry.row;
+  return `${row.title} ${row.detail} ${row.note} ${row.from} ${row.to} ${row.amt} ${entry.date}`;
+}
+
+/**
+ * Tìm giao dịch theo từ khoá (không phân biệt hoa thường và dấu): mọi từ trong `query` đều phải có mặt trong nội dung, tên người, số tiền hoặc ngày của giao dịch. Số tiền gõ có dấu chấm / phẩy
+ * ("50.000") vẫn khớp số 50000. Từ khoá trống thì trả nguyên danh sách.
+ */
+export function searchTransactions(entries: readonly TransactionEntry[], query: string): TransactionEntry[] {
+  const words = fold(query).split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [...entries];
+  return entries.filter((entry) => {
+    const text = fold(searchTextOf(entry));
+    return words.every((word) => text.includes(word) || (/^[\d.,]+$/.test(word) && text.includes(word.replace(/[.,]/g, ''))));
+  });
+}

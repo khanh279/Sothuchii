@@ -203,6 +203,8 @@ export interface FundExpenseInput {
   mode?: FundExpenseMode;
   payer?: string;
   advanceId?: string;
+  /** Mã ảnh đính kèm: không truyền = giữ nguyên ảnh cũ khi sửa, mảng rỗng = bỏ hết ảnh. */
+  ph?: readonly string[];
   /**
    * Chỉ khi THÊM MỚI với mode 'personal': phần do QUỸ chi trực tiếp (khoản vượt số dư được chia nguồn tiền). 0 < phần < amount và không vượt tiền thực tế
    * trong quỹ — kiểm tra lại ngay lúc ghi. Phần còn lại là cá nhân ứng (quỹ nợ). Ghi MỘT bản ghi duy nhất nên không có khoản chi nào bị tính hai lần.
@@ -216,7 +218,13 @@ export function saveFundExpense(input: FundExpenseInput, now: number = Date.now(
   }
   return mutate((raw) => {
     requireFund(raw, input.fundId);
-    const fields = { fundId: input.fundId, title: input.title, date: input.date, amount: Math.round(input.amount) };
+    const fields = {
+      fundId: input.fundId,
+      title: input.title,
+      date: input.date,
+      amount: Math.round(input.amount),
+      ...(input.ph !== undefined ? { ph: input.ph.length > 0 ? [...input.ph] : undefined } : {}),
+    };
     const expenses = arrayOf(raw.expenses);
 
     if (input.id === undefined) {

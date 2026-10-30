@@ -14,7 +14,8 @@ import type { Pay } from '@/types/pay';
 import { useColors } from '@/hooks/use-colors';
 import { roundVnd } from '@/domain/money';
 import { formatVnd } from '@/utils/format';
-import { DEBT_ZERO, debtEvents, loanLines, type LoanLine } from '@/domain/ledger';
+import { DEBT_ZERO, debtEvents, loanLines } from '@/domain/ledger';
+import { isOwedLoan, loanLineViews, type LoanLineView } from '@/domain/loanAllocation';
 
 const SIGN = { get: '+', owe: '−', mid: '' } as const;
 
@@ -22,9 +23,12 @@ const SIGN = { get: '+', owe: '−', mid: '' } as const;
 const ALL_TIME: Period = { mode: 'all' };
 
 export interface PersonDebtLists {
-  loanList: LoanLine[];
+  /** Các khoản vay kèm trạng thái đã trả (xem `loanLineViews`). */
+  loanList: LoanLineView[];
   pair: BillPair | null;
   billItems: BillPairItem[];
+  /** Các khoản bill đã trả xong (chiều chính, không phải bù trừ) để hiện ở ngăn xếp "Đã thanh toán". */
+  paidBillItems: BillPairItem[];
 }
 
 interface Props {
@@ -53,6 +57,7 @@ export function debtTotalSummary(detail: ReturnType<typeof buildDebtDetail>): { 
 export function DebtBreakdown({ detail, lists, selection, defaultOpen = false }: Props) {
   const [open, setOpen] = useState<{ loan?: boolean; bill?: boolean }>(defaultOpen ? { loan: true, bill: true } : {});
   const { loanList, pair, billItems } = lists;
+  const owedLoans = loanList.filter(isOwedLoan);
   // Đang chọn khoản để thanh toán: hai ngăn mở hết, hiện đủ mọi khoản (không thu gọn nữa) và không đóng lại được cho tới khi thoát chế độ chọn.
   const selecting = !!selection;
   const isOpen = (key: 'loan' | 'bill') => selecting || !!open[key];
@@ -60,7 +65,7 @@ export function DebtBreakdown({ detail, lists, selection, defaultOpen = false }:
     <>
       {detail.hasLoan && (
         <Stack2 label="Nợ vay" sub={detail.loanSubtitle} balance={detail.loan} open={isOpen('loan')} onToggle={() => !selecting && setOpen({ ...open, loan: !open.loan })}>
-          {loanList.length === 0 ? <Empty text="Không còn khoản vay nào chưa thanh toán" /> : <LoanLinesList lines={loanList} selection={selection?.loans} />}
+          {owedLoans.length === 0 ? <Empty text="Không còn khoản vay nào chưa thanh toán" /> : <LoanLinesList views={loanList} selection={selection?.loans} />}
         </Stack2>
       )}
 
@@ -79,10 +84,14 @@ export function DebtBreakdown({ detail, lists, selection, defaultOpen = false }:
  */
 export function usePersonDebtLists(bills: readonly Bill[], pays: readonly Pay[], name: string): PersonDebtLists {
   return useMemo(() => {
-    const loanList = loanLines(debtEvents(bills, pays), name);
+    const lines = loanLines(debtEvents(bills, pays), name);
+    // Các dòng chỉ gồm những khoản phát sinh sau lần sổ vay về 0 gần nhất nên tổng có dấu của chúng chính là nợ vay ròng hiện tại.
+    const loanList = loanLineViews(lines, lines.reduce((sum, line) => sum + line.v, 0));
     const pair = buildBillPairs(bills, pays, ALL_TIME).find((item) => (item.from === BILL_OWNER_NAME && item.to === name) || (item.to === BILL_OWNER_NAME && item.from === name)) ?? null;
-    const billItems = pair ? buildBillPairItems(bills, pays, pair).filter((item) => item.remaining > 0) : [];
-    return { loanList, pair, billItems };
+    const allItems = pair ? buildBillPairItems(bills, pays, pair) : [];
+    const billItems = allItems.filter((item) => item.remaining > 0);
+    const paidBillItems = allItems.filter((item) => !item.offset && item.state === 'paid');
+    return { loanList, pair, billItems, paidBillItems };
   }, [bills, pays, name]);
 }
 

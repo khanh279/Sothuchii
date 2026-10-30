@@ -5,7 +5,7 @@ import Svg, { Circle } from 'react-native-svg';
 import { CardHead } from '@/components/design';
 import { AppText } from '@/components/app-text';
 import { AppRadius } from '@/constants/palette';
-import { categoryPercent, donutSegments, periodTitle, summarizeByCategory } from '@/domain/expenses';
+import { categoryBudgetStatus, categoryPercent, donutSegments, periodTitle, summarizeByCategory } from '@/domain/expenses';
 import { useColors } from '@/hooks/use-colors';
 import type { Expense, ExpenseSettings, Period } from '@/types/expense';
 import { formatVnd, formatVndCompact } from '@/utils/format';
@@ -75,9 +75,12 @@ export function ExpenseCategoryOverview({ items, settings, period, activeCategor
         {summaries.map((item) => {
           const selected = activeCategory === item.category.id;
           const percent = categoryPercent(item.sum, total);
+          // Hạn mức chỉ so được khi xem MỘT tháng (hạn mức là mỗi tháng).
+          const budget = period.mode === 'month' ? settings.catBudgets?.[item.category.id] : undefined;
+          const status = budget ? categoryBudgetStatus(item.sum, budget) : null;
           return (
+            <View key={item.category.id}>
             <Pressable
-              key={item.category.id}
               accessibilityRole="button"
               accessibilityState={{ selected }}
               accessibilityLabel={`${item.category.name}, ${formatVnd(item.sum)}, ${percent}%`}
@@ -94,6 +97,17 @@ export function ExpenseCategoryOverview({ items, settings, period, activeCategor
                 {String(percent).replace('.', ',')}%
               </AppText>
             </Pressable>
+            {status && budget && (
+              <View style={styles.budget}>
+                <View style={[styles.track, { backgroundColor: colors.line }]}>
+                  <View style={[styles.fill, { width: `${Math.min(100, Math.round(status.ratio * 100))}%`, backgroundColor: status.over > 0 ? colors.danger : status.ratio >= 0.8 ? colors.warning : colors.success }]} />
+                </View>
+                <AppText color={status.over > 0 ? colors.danger : colors.muted} style={styles.budgetText} numberOfLines={1}>
+                  {status.over > 0 ? `Vượt hạn mức ${formatVnd(status.over)}` : `Còn ${formatVnd(status.remaining)} / hạn mức ${formatVnd(budget)}`}
+                </AppText>
+              </View>
+            )}
+            </View>
           );
         })}
       </View>
@@ -112,5 +126,9 @@ const styles = StyleSheet.create({
   dot: { width: 10, height: 10, borderRadius: 5 },
   name: { flex: 1, minWidth: 0, fontSize: 14 },
   amount: { fontSize: 13 },
+  budget: { paddingHorizontal: 8, paddingBottom: 6, gap: 4 },
+  track: { height: 5, borderRadius: 3, overflow: 'hidden' },
+  fill: { height: 5, borderRadius: 3 },
+  budgetText: { fontSize: 12, lineHeight: 16 },
   percent: { width: 52, textAlign: 'right', fontSize: 14 },
 });

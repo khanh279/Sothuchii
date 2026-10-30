@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from '@/components/app-text';
 import { EmptyState, ScreenTitle } from '@/components/design';
 import { PaymentConfirmSheet, PaymentPanel } from '@/components/payment-panel';
+import { useExpenseSettings } from '@/features/expenses/hooks';
 import { PaymentSheet } from '@/components/payment-sheet';
 import { PAY_ACTION_BAR_CLEARANCE, PayActionBar } from '@/components/pay-action-bar';
 import { PayPageFrame } from '@/components/pay-page-frame';
@@ -15,8 +16,10 @@ import { PayInputError } from '@/data/payRepository';
 import { recordPaymentSynced } from '@/data/payService';
 import { pickedNote, summarizePicked } from '@/domain/pickedPayment';
 import { DEBT_ZERO, debtEvents, loanLines, personLedger } from '@/domain/ledger';
+import { isOwedLoan, loanKey, loanLineViews, paidLoanViews } from '@/domain/loanAllocation';
 import { describeDebtError, useDebtData } from '@/features/debts/hooks';
 import { LoanLinesList } from '@/features/debts/LoanLinesList';
+import { PaidStack, useHiddenPaid } from '@/features/debts/PaidStack';
 import { useColors } from '@/hooks/use-colors';
 import { formatVnd } from '@/utils/format';
 
@@ -34,6 +37,7 @@ export default function LoanDebtScreen() {
   const toast = useToast();
   const { bills, pays, loaded, error, reload } = useDebtData();
   const [payOpen, setPayOpen] = useState(false);
+  const { settings } = useExpenseSettings();
   // Chọn các khoản vay để thanh toán: tích các dòng cần trả; khoản trả được ghi chú tên các dòng đã chọn.
   const [selecting, setSelecting] = useState(false);
   const [picked, setPicked] = useState<ReadonlySet<number>>(new Set());
@@ -42,7 +46,8 @@ export default function LoanDebtScreen() {
   const detail = useMemo(() => {
     if (!loaded || error) return null;
     const events = debtEvents(bills, pays);
-    return { loan: personLedger(events, name).loan, lines: loanLines(events, name) };
+    const loan = personLedger(events, name).loan;
+    return { loan, lines: loanLines(events, name), views: loanLineViews(loanLines(events, name), loan) };
   }, [bills, pays, name, loaded, error]);
 
   const loan = detail?.loan ?? 0;
@@ -52,7 +57,11 @@ export default function LoanDebtScreen() {
   const tone = loan > DEBT_ZERO ? 'get' : loan < -DEBT_ZERO ? 'owe' : 'mid';
   const color = tone === 'get' ? colors.success : tone === 'owe' ? colors.danger : undefined;
 
-  const summary = summarizePicked({ pair: null, owner: 'Tôi', billItems: [], pickedBills: new Set(), loanLines: detail?.lines ?? [], pickedLoans: picked, loanNet: loan });
+  // Người kia trả tiền cho mình: thẻ xác nhận có nút "Mã QR nhận tiền" (tài khoản của mình, đúng số tiền đang xác nhận).
+  const receiveQr = tone === 'get' ? { content: `${name} tra no`, banks: settings.banks ?? [] } : undefined;
+  const { hidden, hide } = useHiddenPaid();
+  const paidLoans = paidLoanViews(detail?.views ?? [], hidden);
+  const summary = summarizePicked({ pair: null, owner: 'Tôi', billItems: [], pickedBills: new Set(), loanViews: detail?.views ?? [], pickedLoans: picked, loanNet: loan });
   function stopSelecting() {
     setSelecting(false);
     setConfirmOpen(false);
@@ -70,7 +79,7 @@ export default function LoanDebtScreen() {
     if (busy || !summary.ok || !summary.loan) return;
     setBusy(true);
     try {
-      const result = await recordPaymentSynced(name, 'loan', summary.loan.amount, `Trả: ${summary.loan.titles.join(', ')}`);
+      const result = await recordPaymentSynced(name, 'loan', summary.loan.amount, `Trả: ${summary.loan.titles.join(', ')}`, summary.loan.ids);
       if (result.value.message) toast.show(result.value.message);
       stopSelecting();
       await reload();
@@ -102,13 +111,13 @@ export default function LoanDebtScreen() {
         amountColor={color}
         detailsTitle="Các khoản vay"
         detailsSubtitle="Toàn thời gian"
-        detailsCount={`${detail.lines.length} khoản`}
+        detailsCount={`${detail.views.filter(isOwedLoan).length} khoản`}
       >
-        {detail.lines.length === 0 ? (
+        {detail.views.filter(isOwedLoan).length === 0 ? (
           <EmptyState text="Không còn khoản vay nào chưa thanh toán" icon="check" />
         ) : (
           <LoanLinesList
-            lines={detail.lines}
+            views={detail.views}
             selection={
               selecting
                 ? {
@@ -145,6 +154,12 @@ export default function LoanDebtScreen() {
       />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom + (canPay ? PAY_ACTION_BAR_CLEARANCE : 0) }]} keyboardShouldPersistTaps="handled">
         {body}
+        {/* Mọi khoản vay đã trả xong: một thẻ riêng ở cuối, tách khỏi thẻ nợ phía trên. */}
+        {!!detail && !selecting && (
+          <PaidStack count={paidLoans.length} onClear={() => hide(paidLoans.flatMap((view) => loanKey(view) ?? []))}>
+            <LoanLinesList views={detail.views} mode="paid" hidden={hidden} />
+          </PaidStack>
+        )}
       </ScrollView>
       <PayActionBar
         visible={!!detail && canPay}
@@ -157,6 +172,8 @@ export default function LoanDebtScreen() {
         <PaymentConfirmSheet
           message={summary.direction === 'owe' ? `Tôi trả ${name}` : `${name} trả tôi`}
           amountText={formatVnd(summary.total)}
+          amount={summary.total}
+          receiveQr={receiveQr}
           note={pickedNote(summary)}
           busy={busy}
           onCancel={() => setConfirmOpen(false)}
@@ -171,6 +188,7 @@ export default function LoanDebtScreen() {
             receiver={owe ? name : 'Tôi'}
             note="Chỉ trừ vào nợ vay, không đụng tới nợ bill."
             onSelectItems={() => setSelecting(true)}
+            receiveQr={receiveQr}
             onPay={async (amount) => {
               const result = await recordPaymentSynced(name, 'loan', amount);
               if (result.value.message) toast.show(result.value.message);

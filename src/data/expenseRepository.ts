@@ -11,6 +11,7 @@
  *    nếu lỗi giữa chừng thì tệ nhất là bản ghi xuất hiện ở cả hai tháng, không bao giờ mất.
  */
 
+import { normalizePhotoIds } from '@/domain/photos';
 import {
   StorageCorruptError,
   StorageKeys,
@@ -68,6 +69,8 @@ function toExpense(month: MonthKey, id: string, raw: RawEntry): ExpenseWithId {
   };
   if (typeof raw.i === 'string') expense.i = raw.i;
   if (typeof raw.src === 'string') expense.src = raw.src;
+  const ph = normalizePhotoIds(raw.ph);
+  if (ph) expense.ph = ph;
   return expense;
 }
 
@@ -109,7 +112,7 @@ export function getExpense(ref: ExpenseRef): Promise<ExpenseWithId | null> {
 // ───────────────────────── Ghi ─────────────────────────
 
 /** Trường được phép sửa từ form; `t`, `i`, `src` và trường lạ luôn được giữ nguyên. */
-export type ExpensePatch = Partial<Pick<Expense, 'a' | 'c' | 'n' | 'd'>>;
+export type ExpensePatch = Partial<Pick<Expense, 'a' | 'c' | 'n' | 'd' | 'ph'>>;
 
 /** Id đã tồn tại trong tháng: không ghi đè để tránh mất khoản chi cũ. */
 export class ExpenseIdExistsError extends Error {
@@ -247,6 +250,11 @@ export function saveSettings(settings: ExpenseSettings): Promise<void> {
       budget: settings.budget,
       budgets: settings.budgets,
       cats: settings.cats,
+      banks: settings.banks, // không có = xoá hết tài khoản nhận tiền
+      bank: undefined, // khoá của bản cũ (một tài khoản) đã chuyển sang `banks`
+      catBudgets: settings.catBudgets, // không có = bỏ hết hạn mức theo mục
+      recurring: settings.recurring, // không có = bỏ hết chi tiêu định kỳ
+      hiddenPaid: settings.hiddenPaid, // không có = hiện lại mọi khoản đã thanh toán
     });
   });
 }

@@ -49,11 +49,14 @@ export function BillItemsList({ pair, items, selection }: { pair: BillPair; item
 
 function ItemRow({ item, sign, first, selection }: { item: BillPairItem; sign: Sign; first: boolean; selection?: BillSelection }) {
   const colors = useColors();
-  const color = sign === '+' ? colors.success : sign === '−' ? colors.danger : undefined;
   const selecting = !!selection;
   const pickable = isPickableBill(item);
   const toggle = () => selection?.onToggle(item.billId);
-  const paidNote = item.offset ? 'Bù trừ' : item.state === 'partial' ? `Đã trả ${formatVnd(item.paid)}` : '';
+  // Khoản đã trả xong (ở ngăn xếp "Đã thanh toán"): mờ, gạch ngang và hiện số tiền gốc thay cho số còn lại 0.
+  const done = !item.offset && item.state === 'paid';
+  const color = done ? colors.muted : sign === '+' ? colors.success : sign === '−' ? colors.danger : undefined;
+  const shownAmount = done ? item.amount : item.remaining;
+  const paidNote = item.offset ? 'Bù trừ' : item.state === 'partial' ? `Đã trả ${formatVnd(item.paid)}` : done ? 'Đã thanh toán' : '';
   return (
     <Pressable
       accessibilityRole="button"
@@ -62,7 +65,7 @@ function ItemRow({ item, sign, first, selection }: { item: BillPairItem; sign: S
       style={[styles.item, !first && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line }]}>
       <CheckSlot active={selecting} disabled={!pickable} checked={!!selection?.selected.has(item.billId)} label={item.title || 'Không tên'} onToggle={toggle} />
       <View style={styles.flex}>
-        <AppText weight="medium" style={styles.itemTitle} numberOfLines={2}>
+        <AppText weight="medium" color={done ? colors.muted : undefined} style={[styles.itemTitle, done && styles.done]} numberOfLines={2}>
           {item.title || 'Không tên'}
         </AppText>
         <AppText color={colors.muted} style={styles.itemSub}>
@@ -70,9 +73,9 @@ function ItemRow({ item, sign, first, selection }: { item: BillPairItem; sign: S
         </AppText>
       </View>
       <View style={styles.itemRight}>
-        <AppText weight="semibold" color={color} style={styles.itemAmount}>
+        <AppText weight="semibold" color={color} style={[styles.itemAmount, done && styles.done]}>
           {sign}
-          {formatVnd(item.remaining)}
+          {formatVnd(shownAmount)}
         </AppText>
         {!!paidNote && (
           <AppText color={colors.muted} style={styles.itemSub}>
@@ -91,4 +94,5 @@ const styles = StyleSheet.create({
   itemSub: { fontSize: 12.5, lineHeight: 17 },
   itemAmount: { fontSize: 14.5, lineHeight: 20 },
   itemRight: { alignItems: 'flex-end', flexShrink: 0 },
+  done: { textDecorationLine: 'line-through' },
 });

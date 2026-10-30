@@ -146,6 +146,8 @@ export interface PayDraft {
   /** Chỉ khoản trả từ bill gộp / chi tiết bill: nhãn `MERGED_PAY_LABEL` và các bill được chọn (xem `billAllocation`). */
   lbl?: string;
   bills?: string[];
+  /** Mã ảnh đính kèm (xem `domain/photos`). */
+  ph?: string[];
 }
 
 /**
@@ -327,7 +329,14 @@ export interface LoanLine {
   date: DateStr;
   title: string;
   v: Vnd;
+  /** Mã khoản chuyển tiền gốc (khoản gộp nợ không có). */
+  id?: string;
+  /** Khoản trả chọn đích danh các khoản vay (mã khoản gốc) từ "Chọn các khoản thanh toán"; thiếu = trả thường. */
+  targets?: string[];
 }
+
+/** Nhãn của khoản trả chọn đích danh các khoản vay (xem `LoanLine.targets`). */
+export const LOAN_PICK_LABEL = 'Thanh toán khoản vay đã chọn';
 
 /**
  * Các khoản NỢ VAY còn hiển thị của MỘT người, cũ → mới: chỉ lấy các khoản phát sinh SAU lần gần nhất sổ vay về 0 (đã thanh toán xong); các khoản trước mốc đó đã tất toán nên ẩn hết.
@@ -349,7 +358,14 @@ export function loanLines(events: readonly DebtEvent[], name: string): LoanLine[
     if (index < from) return;
     const note = event.k === 'pay' ? clean(event.pay?.note) : '';
     const hasNote = note && note !== 'Đối soát' && note !== 'Trả nợ';
-    lines.push({ date: event.d, title: hasNote ? note : eventLabel(event, before), v: event.v });
+    const pay = event.k === 'pay' ? event.pay : undefined;
+    lines.push({
+      date: event.d,
+      title: hasNote ? note : eventLabel(event, before),
+      v: event.v,
+      ...(pay?.id ? { id: pay.id } : {}),
+      ...(pay?.lbl === LOAN_PICK_LABEL && pay.bills?.length ? { targets: [...pay.bills] } : {}),
+    });
   });
   return lines;
 }

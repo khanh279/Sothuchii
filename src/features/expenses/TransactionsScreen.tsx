@@ -4,13 +4,15 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
+import { AppTextInput as TextInput } from '@/components/app-text-input';
+import { SvgIcon } from '@/components/svg-icon';
 import { CardHead, EmptyState, ScreenTitle } from '@/components/design';
 import { LockableScrollView } from '@/components/lockable-scroll-view';
 import { PeriodNote } from '@/components/period-filter';
 import { PageLayout } from '@/constants/layout';
 import { AppRadius } from '@/constants/palette';
 import { dayHeading, periodToParams, suggestedDateFor } from '@/domain/expenses';
-import { filterTransactions, groupTransactionsByDay, sumTransactions, type TransactionTab } from '@/domain/transactionList';
+import { filterTransactions, groupTransactionsByDay, searchTransactions, sumTransactions, type TransactionTab } from '@/domain/transactionList';
 import { useTransactionBook } from '@/features/expenses/useTransactionBook';
 import { useTransactionRows } from '@/features/expenses/useTransactionRows';
 import { useColors } from '@/hooks/use-colors';
@@ -40,6 +42,8 @@ export default function TransactionsScreen() {
   const today = todayStr();
   const book = useTransactionBook();
   const [tab, setTab] = useState<TransactionTab>('all');
+  /** Từ khoá tìm giao dịch (nội dung, tên, số tiền) trong kỳ đang xem và mục đang chọn. */
+  const [query, setQuery] = useState('');
   const { renderEntry, closeAll } = useTransactionRows({
     settings: book.settings,
     bills: book.bills,
@@ -49,11 +53,11 @@ export default function TransactionsScreen() {
     lockBillExpenses: tab === 'expense',
   });
 
-  const shown = useMemo(() => filterTransactions(book.entries, tab), [book.entries, tab]);
+  const shown = useMemo(() => searchTransactions(filterTransactions(book.entries, tab), query), [book.entries, tab, query]);
   const days = useMemo(() => groupTransactionsByDay(shown), [shown]);
   const totals = useMemo(() => sumTransactions(shown), [shown]);
 
-  const empty = book.entries.length === 0 ? 'Chưa có giao dịch nào trong kỳ này' : 'Không có giao dịch nào thuộc mục này trong kỳ';
+  const empty = query.trim() ? 'Không tìm thấy giao dịch nào' : book.entries.length === 0 ? 'Chưa có giao dịch nào trong kỳ này' : 'Không có giao dịch nào thuộc mục này trong kỳ';
   const emptyAction =
     book.entries.length > 0
       ? undefined
@@ -112,8 +116,29 @@ export default function TransactionsScreen() {
               }}
             />
 
+            <View style={[styles.search, { backgroundColor: colors.bg, borderColor: colors.line }]}>
+              <SvgIcon name="search" size={18} color={colors.muted} strokeWidth={2} />
+              <TextInput
+                value={query}
+                onChangeText={(text) => {
+                  closeAll();
+                  setQuery(text);
+                }}
+                placeholder="Tìm theo nội dung, tên, số tiền"
+                placeholderTextColor={colors.muted}
+                accessibilityLabel="Tìm giao dịch"
+                returnKeyType="search"
+                style={[styles.searchInput, { color: colors.ink }]}
+              />
+              {!!query && (
+                <Pressable accessibilityRole="button" accessibilityLabel="Xoá từ khoá" hitSlop={8} onPress={() => setQuery('')}>
+                  <SvgIcon name="close" size={18} color={colors.muted} strokeWidth={2} />
+                </Pressable>
+              )}
+            </View>
+
             {days.length === 0 ? (
-              <EmptyState text={empty} icon="check" action={emptyAction} />
+              <EmptyState text={empty} icon="check" action={query.trim() ? undefined : emptyAction} />
             ) : (
               days.map((day) => {
                 const dayTotals = sumTransactions(day.entries);
@@ -177,6 +202,8 @@ const styles = StyleSheet.create({
   totals: { alignItems: 'flex-end' },
   total: { fontSize: 11, lineHeight: 15 },
   hidden: { opacity: 0 },
+  search: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 12, marginTop: 8, borderWidth: 1, borderRadius: AppRadius.pill, paddingHorizontal: 14, minHeight: 42 },
+  searchInput: { flex: 1, minWidth: 0, fontSize: 15, paddingVertical: 8 },
   tabs: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, paddingHorizontal: 12, paddingBottom: 4 },
   tab: { flexShrink: 1, height: 36, paddingHorizontal: 12, borderRadius: AppRadius.pill, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   tabText: { fontSize: 12 },

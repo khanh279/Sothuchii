@@ -91,6 +91,8 @@ export interface BillInput {
   cat?: string;
   /** Tiền ĐỒNG. */
   people: readonly BillPerson[];
+  /** Mã ảnh đính kèm; không truyền = giữ nguyên ảnh cũ khi sửa, mảng rỗng = bỏ hết ảnh. */
+  ph?: readonly string[];
 }
 
 /** Người khi lưu: như `Cn()` của PWA — luôn có `w`, chỉ có `fix` khi người đó cố định mức. */
@@ -113,6 +115,7 @@ export function saveBill(input: BillInput, now: number = Date.now()): Promise<st
     date: input.date || todayStr(),
     people: input.people.map(storedPerson),
     cat: input.cat || DEFAULT_BILL_CATEGORY,
+    ...(input.ph !== undefined ? { ph: input.ph.length > 0 ? [...input.ph] : undefined } : {}),
   };
   return mutate((bills) => {
     if (input.id === undefined) {

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -7,6 +7,8 @@ import {
   budgetSummary,
   sumAmounts,
 } from '@/domain/expenses';
+import { cleanOrphanPhotos } from '@/data/photoCleanup';
+import { applyRecurring } from '@/data/recurringService';
 import { averagePerDay } from '@/domain/overviewStats';
 import { useExpenseSettings, useExpenses } from '@/features/expenses/hooks';
 import { BillStatCard } from '@/features/bills/BillOverviewCard';
@@ -35,6 +37,13 @@ export default function OverviewScreen() {
   const { view, setView, period } = useSharedPeriod();
 
   const { settings, error: settingsError } = useExpenseSettings();
+  // Mở app: ghi các khoản chi tiêu định kỳ đã đến hạn (xem `applyRecurring`); lỗi không chặn màn hình.
+  useEffect(() => {
+    void applyRecurring().catch(() => undefined);
+    // Dọn ảnh mồ côi (ảnh đã bỏ / chưa lưu từ hơn một ngày trước), chạy chậm sau khi màn hình đã hiện.
+    const timer = setTimeout(() => void cleanOrphanPhotos(), 8000);
+    return () => clearTimeout(timer);
+  }, []);
   const { items, loaded, error } = useExpenses(period);
   const debt = useDebtData();
 

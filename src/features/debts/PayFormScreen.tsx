@@ -10,6 +10,7 @@ import { InlineSelect } from '@/components/inline-select';
 import { KeyboardAnchor, KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll';
 import { CalendarPanel } from '@/components/calendar-panel';
 import { DateField } from '@/components/date-field';
+import { PhotoField } from '@/features/photos/PhotoViews';
 import { SvgIcon } from '@/components/svg-icon';
 import { useToast } from '@/components/toast';
 import { AppFonts } from '@/constants/fonts';
@@ -104,6 +105,8 @@ function PayForm({ bills, pays, people, editIds, source, reload, onFinished }: F
 
   const [date, setDate] = useState(source?.form.date ?? today);
   const [note, setNote] = useState(source?.form.note ?? '');
+  /** Mã các ảnh đính kèm (biên lai chuyển khoản…); lưu cùng giao dịch. Khoản gộp nhiều khoản không có ảnh riêng. */
+  const [photos, setPhotos] = useState<string[]>(() => (editIds?.length === 1 ? [...(pays.find((pay) => pay.id === editIds[0])?.ph ?? [])] : []));
   const [from, setFrom] = useState<string>(source?.form.from ?? BILL_OWNER_NAME);
   const [to, setTo] = useState(source?.form.to ?? '');
   const [amountText, setAmountText] = useState(source?.form.amountText ?? '');
@@ -128,10 +131,11 @@ function PayForm({ bills, pays, people, editIds, source, reload, onFinished }: F
     setBusy(true);
     try {
       if (!editing) {
-        await addTransferSynced({ date: date || today, note, from, to: effectiveTo, amt: amount, kind: payKindFor(type) });
+        await addTransferSynced({ date: date || today, note, from, to: effectiveTo, amt: amount, kind: payKindFor(type), ph: photos });
         toast.show('Đã ghi nhận');
         setAmountText('');
         setNote('');
+        setPhotos([]);
         setTypeChosen(false);
         setType('vay');
         await reload();
@@ -140,7 +144,7 @@ function PayForm({ bills, pays, people, editIds, source, reload, onFinished }: F
       if (source?.locked) {
         await updatePayGroupSynced(editIds ?? [], source.original, { date, note, from, to: effectiveTo, amt: amount });
       } else {
-        const result = await updateTransferSynced(editIds?.[0] ?? '', { date, note, from, to: effectiveTo, amt: amount, kind: typeChosen ? payKindFor(type) : undefined });
+        const result = await updateTransferSynced(editIds?.[0] ?? '', { date, note, from, to: effectiveTo, amt: amount, kind: typeChosen ? payKindFor(type) : undefined, ph: photos });
         if (!result.value) {
           toast.show('Không tìm thấy khoản này. Có thể nó đã bị xoá.');
           return;
@@ -234,6 +238,8 @@ function PayForm({ bills, pays, people, editIds, source, reload, onFinished }: F
           <FormLabel>Ngày</FormLabel>
           <DateField value={date} onPress={() => setCalendarOpen(true)} accessibilityLabel="Thời gian" />
         </View>
+
+        {!source?.locked && <PhotoField value={photos} onChange={setPhotos} />}
 
         <KeyboardAnchor style={formStyles.actions}>
           <Pressable

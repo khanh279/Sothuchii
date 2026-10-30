@@ -26,6 +26,9 @@ import { PERSON_NAME_LIMIT } from '@/domain/people';
 import { describeStorageError, useExpenseSettings } from '@/features/expenses/hooks';
 import { DataSheet } from '@/features/data/DataSheet';
 import { AboutSheet } from '@/features/expenses/AboutSheet';
+import { BankAccountSection } from '@/features/expenses/BankAccountSection';
+import { CategoryBudgetSection } from '@/features/expenses/CategoryBudgetSection';
+import { RecurringSection } from '@/features/expenses/RecurringSection';
 import { usePeople } from '@/features/people/hooks';
 import { useChromeScroll } from '@/hooks/use-chrome';
 import { useColors } from '@/hooks/use-colors';
@@ -315,6 +318,12 @@ export default function SettingsScreen() {
                 </View>
               </Panel>
             </Section>
+
+            <CategoryBudgetSection key={JSON.stringify(settings.catBudgets ?? {}) + settings.cats.length} settings={settings} save={save} />
+
+            <RecurringSection key={(settings.recurring ?? []).map((rule) => rule.id).join(',') + settings.cats.length} settings={settings} save={save} />
+
+            <BankAccountSection settings={settings} save={save} />
 
             <Pressable
               accessibilityRole="button"

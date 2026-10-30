@@ -5,6 +5,7 @@
  * icon riêng, tên "Sổ Thu Chi", mở toàn màn hình không thanh địa chỉ.
  *
  * Dùng: node scripts/add-install-tags.js <thư mục xuất bản, mặc định dist> <đường dẫn gốc, ví dụ /Sothuchii; mặc định rỗng>
+ * Cũng đăng ký service worker `sw.js` (xem file đó) để mở được khi mất mạng.
  * Manifest và icon nằm trong thư mục `public/` (Expo chép sang thư mục xuất bản). Chạy lại nhiều lần vẫn an toàn (file đã có thẻ thì bỏ qua).
  * Lý do chèn sau khi xuất bản: Expo Router không cho gắn thẻ <head> toàn cục từ layout gốc, còn trang `+html` tuỳ biến làm Expo bỏ mất các thẻ script của ứng dụng.
  */
@@ -27,6 +28,8 @@ const tags = [
   '<meta name="format-detection" content="telephone=no"/>',
   '<meta name="theme-color" content="#F5F7FA" media="(prefers-color-scheme: light)"/>',
   '<meta name="theme-color" content="#0A1220" media="(prefers-color-scheme: dark)"/>',
+  // Đăng ký service worker (public/sw.js) để app mở được khi mất mạng; lỗi đăng ký không ảnh hưởng gì khác.
+  `<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('${base}/sw.js').catch(function(){})})}</script>`,
 ].join('');
 
 function* htmlFiles(dir) {
@@ -40,6 +43,13 @@ function* htmlFiles(dir) {
 if (!fs.existsSync(dist)) {
   console.error(`Không thấy thư mục xuất bản: ${dist}`);
   process.exit(1);
+}
+
+// Mã bản xuất bản: mỗi lần xuất bản service worker có bộ nhớ đệm riêng, bản cũ bị xoá khi kích hoạt.
+const swFile = path.join(dist, 'sw.js');
+if (fs.existsSync(swFile)) {
+  const sw = fs.readFileSync(swFile, 'utf8');
+  if (sw.includes("const BUILD = '__BUILD__'")) fs.writeFileSync(swFile, sw.replace("const BUILD = '__BUILD__'", "const BUILD = '" + Date.now() + "'"));
 }
 
 let changed = 0;

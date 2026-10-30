@@ -15,6 +15,7 @@ import { debtPaymentMessage, planDebtPayment, type DebtPayOption } from '@/domai
 import {
   checkUndoMerge,
   debtEvents,
+  LOAN_PICK_LABEL,
   finalizeNewPays,
   mergeAmount,
   mergeDrafts,
@@ -66,11 +67,12 @@ const NOTHING: RecordResult = { recorded: false, message: '' };
  * "Thanh toán toàn bộ" / "Một phần" với `name` ở sổ `ledger`. Không ghi gì nếu số tiền ≤ 0 hoặc sổ đã hết nợ. `note` (tuỳ chọn) là ghi chú của khoản trả, ví dụ tên các khoản vay đã chọn để
  * thanh toán ("Trả: Vay tiền xe"), hiện ở lịch sử thay cho nhãn mặc định.
  */
-export async function recordPaymentSynced(name: string, ledger: Ledger, amount: Vnd, note?: string): Promise<SyncedPayChange<RecordResult>> {
+export async function recordPaymentSynced(name: string, ledger: Ledger, amount: Vnd, note?: string, targetIds?: readonly string[]): Promise<SyncedPayChange<RecordResult>> {
   const [bills, pays] = await Promise.all([loadBills(), loadPays()]);
   const base = paymentDraft(personLedger(debtEvents(bills, pays), name), ledger, amount);
   if (!base) return { value: NOTHING, syncFailed: false };
-  const draft = note?.trim() ? { ...base, note: note.trim() } : base;
+  // `targetIds` (khoản vay chọn đích danh): ghi nhãn + mã các khoản để khoản trả trừ đúng vào đó (xem `loanLineViews`).
+  const draft = { ...base, ...(note?.trim() ? { note: note.trim() } : {}), ...(targetIds?.length ? { lbl: LOAN_PICK_LABEL, bills: [...targetIds] } : {}) };
   await recordDrafts([draft]);
   return thenSync({ recorded: true, message: paymentMessage(draft) });
 }
@@ -180,11 +182,13 @@ export interface TransferInput {
   amt: Vnd;
   /** 'vay' (Chuyển tiền) | 'billpay' (Trả bill). */
   kind: 'vay' | 'billpay';
+  /** Mã ảnh đính kèm. */
+  ph?: readonly string[];
 }
 
 /** Form "Ghi nhận": thêm một khoản chuyển tiền / trả bill. Khoản có "Tôi" ở một đầu luôn là một dòng riêng (không gộp); chỉ khoản giữa hai người khác "Tôi" giống hệt khoản đã có (cùng ngày, người, loại, ghi chú) mới được cộng vào đó. */
 export async function addTransferSynced(input: TransferInput): Promise<SyncedPayChange<string>> {
-  const pay: Pay = { id: newBillId(), createdAt: Date.now(), date: input.date, note: input.note.trim(), from: input.from, to: input.to, amt: input.amt, kind: input.kind };
+  const pay: Pay = { id: newBillId(), createdAt: Date.now(), date: input.date, note: input.note.trim(), from: input.from, to: input.to, amt: input.amt, kind: input.kind, ...(input.ph && input.ph.length > 0 ? { ph: [...input.ph] } : {}) };
   await appendPays([pay]);
   return thenSync(pay.id);
 }

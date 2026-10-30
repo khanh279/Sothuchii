@@ -5,6 +5,7 @@ import Svg, { Path } from 'react-native-svg';
 import { AppText } from '@/components/app-text';
 import { EmptyState, SectionCard } from '@/components/design';
 import { PaymentPanel } from '@/components/payment-panel';
+import type { ReceiveQr } from '@/components/receive-qr-sheet';
 import { SelectableCard } from '@/components/selectable-card';
 import { SvgIcon } from '@/components/svg-icon';
 import { recordBillPairPaymentSynced } from '@/data/payService';
@@ -202,13 +203,15 @@ interface PanelProps {
   onFailure: (message: string) => void;
   /** Có thì tờ thanh toán có thêm nút "Chọn các khoản thanh toán" (trang vào chế độ tích chọn). */
   onSelectItems?: () => void;
+  /** Người kia trả tiền cho mình: thẻ xác nhận có nút "Mã QR nhận tiền". */
+  receiveQr?: ReceiveQr;
 }
 
 /**
  * Bảng thanh toán của một cặp trên trang Thanh toán bill (thẻ tổng nằm ở trang): dùng lại
  * `PaymentPanel` (tờ đáy hai nút Thanh toán toàn bộ / một phần, rồi thẻ xác nhận / nhập số). Ghi bằng `recordBillPairPaymentSynced`, tính lại số còn lại lúc ghi.
  */
-export function BillPaymentPanel({ pair, period, onSelectItems, onPaid, onDone, onFailure }: PanelProps) {
+export function BillPaymentPanel({ pair, period, onSelectItems, receiveQr, onPaid, onDone, onFailure }: PanelProps) {
   return (
     <>
       <PaymentPanel
@@ -216,6 +219,7 @@ export function BillPaymentPanel({ pair, period, onSelectItems, onPaid, onDone, 
         payer={pair.from}
         receiver={pair.to}
         onSelectItems={onSelectItems}
+        receiveQr={receiveQr}
         onPay={async (amount) => {
           const result = await recordBillPairPaymentSynced(pair.from, pair.to, period, amount);
           await onPaid(result.value.message);

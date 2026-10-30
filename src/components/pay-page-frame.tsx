@@ -19,6 +19,8 @@ interface Props {
   detailsCount?: string;
   /** Dòng chú thích nhỏ nằm ngay dưới tiêu đề phần chi tiết (vd. kỳ đang xem). */
   detailsSubtitle?: string;
+  /** Nút / biểu tượng đặt ở GÓC PHẢI TRÊN của khung (ví dụ nút nhắc nợ); không có thì không hiện. */
+  corner?: ReactNode;
   /** Phần chi tiết các khoản. */
   children: ReactNode;
 }
@@ -28,10 +30,11 @@ interface Props {
  * (1) tổng: nhãn nhỏ, số tiền lớn có màu theo quy ước, chú thích; (2) chi tiết các khoản. Nút Thanh toán cố định ở đáy trang mở tờ nổi thanh toán.
  * Chỉ là khung hiển thị, màu nền nhạt để nhìn nhẹ nhàng; không biết gì về cách tính hay ghi tiền.
  */
-export function PayPageFrame({ label, amount, amountColor, caption, detailsTitle, detailsCount, detailsSubtitle, children }: Props) {
+export function PayPageFrame({ label, amount, amountColor, caption, detailsTitle, detailsCount, detailsSubtitle, corner, children }: Props) {
   const colors = useColors();
   return (
     <View style={[styles.frame, { backgroundColor: colors.surface }]}>
+      {!!corner && <View style={styles.corner}>{corner}</View>}
       <View style={styles.section}>
         <AppText color={colors.muted} style={styles.label}>
           {label}
@@ -75,6 +78,7 @@ export function PayPageFrame({ label, amount, amountColor, caption, detailsTitle
 
 const styles = StyleSheet.create({
   frame: { borderRadius: AppRadius.hero, overflow: 'hidden' },
+  corner: { position: 'absolute', top: 12, right: 12, zIndex: 1 },
   section: { paddingHorizontal: 16, paddingVertical: 14, gap: 4 },
   divider: { height: StyleSheet.hairlineWidth },
   label: { fontSize: 13, lineHeight: 18 },

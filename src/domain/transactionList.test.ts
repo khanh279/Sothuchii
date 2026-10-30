@@ -3,7 +3,7 @@ import type { ExpenseWithId } from '@/types/expense';
 import type { Pay } from '@/types/pay';
 
 import { buildPayHistory } from './payForm';
-import { billOfExpense, buildTransactionEntries, expenseSourceLabel, filterTransactions, groupTransactionsByDay, isTransactionTab, sumTransactions, type TransactionFilter } from './transactionList';
+import { billOfExpense, buildTransactionEntries, expenseSourceLabel, filterTransactions, groupTransactionsByDay, isTransactionTab, searchTransactions, sumTransactions, type TransactionFilter } from './transactionList';
 
 // DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng. Khoản chi và khoản trả đều là ĐỒNG.
 const exp = (id: string, d: string, t: number, a: number, over: Partial<ExpenseWithId> = {}): ExpenseWithId => ({ id, a, c: 'food', n: id, d, t, ...over });
@@ -108,5 +108,28 @@ describe('isTransactionTab', () => {
     expect(['all', 'expense', 'loan', 'bill'].every(isTransactionTab)).toBe(true);
     expect(isTransactionTab('fund')).toBe(false);
     expect(isTransactionTab(undefined)).toBe(false);
+  });
+});
+
+describe('searchTransactions', () => {
+  const entries = build([exp('a1', '2025-10-04', 5, 50_000, { n: 'Phở bò Hà Nội' }), exp('a2', '2025-10-05', 6, 120_000, { n: 'Cà phê' })], [pay('p1', 'Tôi', 'Bình', 300_000, { note: 'Tiền nhà' })]);
+  const titles = (query: string) => searchTransactions(entries, query).map((entry) => entry.key);
+
+  it('từ khoá trống: giữ nguyên; không phân biệt hoa thường và dấu', () => {
+    expect(searchTransactions(entries, '  ')).toHaveLength(entries.length);
+    expect(titles('PHO BO')).toEqual(['expense:2025-10/a1']);
+    expect(titles('ca phe')).toEqual(['expense:2025-10/a2']);
+  });
+
+  it('tìm theo số tiền (kể cả gõ có dấu chấm) và theo tên người', () => {
+    expect(titles('50.000')).toEqual(['expense:2025-10/a1']);
+    expect(titles('300000')).toEqual(['pay:p1']);
+    expect(titles('binh')).toEqual(['pay:p1']);
+  });
+
+  it('nhiều từ: mọi từ đều phải khớp; không khớp thì rỗng', () => {
+    expect(titles('pho ha noi')).toEqual(['expense:2025-10/a1']);
+    expect(titles('pho cafe')).toEqual([]);
+    expect(titles('khong co')).toEqual([]);
   });
 });
