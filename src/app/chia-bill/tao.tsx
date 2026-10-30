@@ -1,10 +1,11 @@
-import { Stack, router } from 'expo-router';
+import { Stack } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ScreenTitle } from '@/components/design';
 import BillCalcScreen from '@/features/bills/BillCalcScreen';
 import { useColors } from '@/hooks/use-colors';
+import { router } from '@/utils/safe-router';
 
 /** Quay lại màn trước (danh sách bill, giữ nguyên kỳ đang xem); mở thẳng trang này thì về Tổng quan. */
 function leave() {

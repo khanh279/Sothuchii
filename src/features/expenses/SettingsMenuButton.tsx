@@ -1,4 +1,3 @@
-import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 
@@ -7,6 +6,7 @@ import { SvgIcon } from '@/components/svg-icon';
 import { useColors } from '@/hooks/use-colors';
 import { setLanguage, useLanguage } from '@/i18n/language';
 import { withAlpha } from '@/utils/color';
+import { router } from '@/utils/safe-router';
 
 /**
  * Nút bánh răng "Cài đặt" của ứng dụng: bấm mở menu hai mục có biểu tượng. (1) Thiết lập: mở trang thiết lập. (2) Đổi ngôn ngữ: viết bằng CHÍNH NGÔN NGỮ SẼ ĐỔI SANG

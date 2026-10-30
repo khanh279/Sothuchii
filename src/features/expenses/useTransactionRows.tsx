@@ -1,4 +1,3 @@
-import { router } from 'expo-router';
 
 import { TOAST_BOTTOM_HISTORY, useToast } from '@/components/toast';
 import { deleteBillSynced } from '@/data/billService';
@@ -14,6 +13,7 @@ import { useExpenseRowActions } from '@/features/expenses/useExpenseRowActions';
 import { useSingleOpenRow } from '@/hooks/use-single-open-row';
 import type { Bill } from '@/types/bill';
 import type { ExpenseSettings, Period } from '@/types/expense';
+import { router } from '@/utils/safe-router';
 
 interface Options {
   settings: ExpenseSettings;

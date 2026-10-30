@@ -1,23 +1,38 @@
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { SvgIcon } from '@/components/svg-icon';
-import type { DayGroup, DebtRow, MonthGroup, Tone, buildDebtDetail } from '@/domain/debtDetail';
-import { dayHeading } from '@/domain/expenses';
+import { BILL_OWNER_NAME } from '@/domain/bills';
+import { buildBillPairItems, buildBillPairs, type BillPair, type BillPairItem } from '@/domain/billPairs';
+import type { Tone, buildDebtDetail } from '@/domain/debtDetail';
+import { BillItemsList, type BillSelection } from '@/features/bills/BillItemsList';
+import { LoanLinesList } from '@/features/debts/LoanLinesList';
+import type { Bill } from '@/types/bill';
+import type { Period } from '@/types/expense';
+import type { Pay } from '@/types/pay';
 import { useColors } from '@/hooks/use-colors';
-import { formatVnDate } from '@/utils/date';
 import { roundVnd } from '@/domain/money';
 import { formatVnd } from '@/utils/format';
-import { DEBT_ZERO } from '@/domain/ledger';
+import { DEBT_ZERO, debtEvents, loanLines, type LoanLine } from '@/domain/ledger';
 
 const SIGN = { get: '+', owe: '−', mid: '' } as const;
 
+/** Danh sách trong hai ngăn luôn là toàn bộ thời gian, như hai trang riêng. */
+const ALL_TIME: Period = { mode: 'all' };
+
+export interface PersonDebtLists {
+  loanList: LoanLine[];
+  pair: BillPair | null;
+  billItems: BillPairItem[];
+}
+
 interface Props {
   detail: ReturnType<typeof buildDebtDetail>;
-  /** Tên kỳ đang xem, dùng cho dòng "Tổng <kỳ>" của nợ bill. */
-  periodLabel: string;
-  today: string;
+  /** Hai danh sách khoản vay / khoản bill (xem `usePersonDebtLists`). */
+  lists: PersonDebtLists;
+  /** Chế độ chọn khoản để thanh toán: có thì hai ngăn mở hết và mỗi khoản có ô tích. */
+  selection?: { bills: BillSelection; loans: { selected: ReadonlySet<number>; onToggle: (index: number) => void } };
   /** Mở sẵn hai ngăn Nợ vay / Nợ bill (mặc định gập). */
   defaultOpen?: boolean;
 }
@@ -32,45 +47,51 @@ export function debtTotalSummary(detail: ReturnType<typeof buildDebtDetail>): { 
 }
 
 /**
- * Hai ngăn chi tiết nợ với MỘT người: Nợ vay (từng khoản cho vay / mượn) và Nợ bill (theo ngày, hoặc theo tháng khi xem toàn thời gian), lấy từ
- * `buildDebtDetail`. Dùng chung cho màn Chi tiết nợ và trang Thanh toán công nợ; chỉ hiển thị, không ghi dữ liệu.
+ * Hai ngăn chi tiết nợ với MỘT người: Nợ vay và Nợ bill, thu gọn sẵn. Khi mở (hoặc khi đang chọn khoản để thanh toán), mỗi ngăn hiện NGUYÊN danh sách của trang riêng (`LoanLinesList` của trang Chi tiết nợ vay, `BillItemsList` của trang
+ * Thanh toán bill); số dư ở đầu ngăn lấy từ `buildDebtDetail`. Dùng chung cho màn Chi tiết nợ và trang Thanh toán công nợ; chỉ hiển thị, không ghi dữ liệu.
  */
-export function DebtBreakdown({ detail, periodLabel, today, defaultOpen = false }: Props) {
-  const colors = useColors();
+export function DebtBreakdown({ detail, lists, selection, defaultOpen = false }: Props) {
   const [open, setOpen] = useState<{ loan?: boolean; bill?: boolean }>(defaultOpen ? { loan: true, bill: true } : {});
-  const [openMonth, setOpenMonth] = useState<string | null>(defaultOpen ? (detail.billMonths[0]?.month ?? null) : null);
+  const { loanList, pair, billItems } = lists;
+  // Đang chọn khoản để thanh toán: hai ngăn mở hết, hiện đủ mọi khoản (không thu gọn nữa) và không đóng lại được cho tới khi thoát chế độ chọn.
+  const selecting = !!selection;
+  const isOpen = (key: 'loan' | 'bill') => selecting || !!open[key];
   return (
     <>
       {detail.hasLoan && (
-        <Stack2 label="Nợ vay" sub={detail.loanSubtitle} balance={detail.loan} open={!!open.loan} onToggle={() => setOpen({ ...open, loan: !open.loan })}>
-          {detail.loanRows.map((row, index) => (
-            <Row key={index} row={row} sub={`${formatVnDate(row.d)}${row.s ? ` · ${row.s}` : ''}`} />
-          ))}
+        <Stack2 label="Nợ vay" sub={detail.loanSubtitle} balance={detail.loan} open={isOpen('loan')} onToggle={() => !selecting && setOpen({ ...open, loan: !open.loan })}>
+          {loanList.length === 0 ? <Empty text="Không còn khoản vay nào chưa thanh toán" /> : <LoanLinesList lines={loanList} selection={selection?.loans} />}
         </Stack2>
       )}
 
       {detail.hasBill && (
-        <Stack2 divider={detail.hasLoan} label="Nợ bill" sub={detail.billSubtitle} balance={detail.bill} open={!!open.bill} onToggle={() => setOpen({ ...open, bill: !open.bill })}>
-          {detail.billPeriodTotal !== null && (
-            <View style={styles.totalRow}>
-              <AppText weight="semibold" color={colors.muted} style={styles.small}>
-                Tổng {periodLabel}
-              </AppText>
-              <Amount value={detail.billPeriodTotal} />
-            </View>
-          )}
-          {detail.billEmpty ? (
-            <AppText color={colors.muted} style={styles.empty}>
-              Không có bill trong khoảng này
-            </AppText>
-          ) : detail.monthMode ? (
-            <Days days={detail.billDays} today={today} />
-          ) : (
-            <Months months={detail.billMonths} openMonth={openMonth} onToggle={(month) => setOpenMonth(openMonth === month ? null : month)} today={today} />
-          )}
+        <Stack2 divider={detail.hasLoan} label="Nợ bill" sub={detail.billSubtitle} balance={detail.bill} open={isOpen('bill')} onToggle={() => !selecting && setOpen({ ...open, bill: !open.bill })}>
+          {pair && billItems.length > 0 ? <BillItemsList pair={pair} items={billItems} selection={selection?.bills} /> : <Empty text="Không còn khoản nào cần thanh toán" />}
         </Stack2>
       )}
     </>
+  );
+}
+
+/**
+ * Hai danh sách của một người, đúng nguồn với hai trang riêng: khoản vay (như trang Chi tiết nợ vay) và khoản bill của cặp (Tôi, người đó) còn nợ, toàn thời gian (như trang Thanh toán bill).
+ * Trang chi tiết dùng cùng bộ dữ liệu này để hiện danh sách và để tính các khoản được chọn.
+ */
+export function usePersonDebtLists(bills: readonly Bill[], pays: readonly Pay[], name: string): PersonDebtLists {
+  return useMemo(() => {
+    const loanList = loanLines(debtEvents(bills, pays), name);
+    const pair = buildBillPairs(bills, pays, ALL_TIME).find((item) => (item.from === BILL_OWNER_NAME && item.to === name) || (item.to === BILL_OWNER_NAME && item.from === name)) ?? null;
+    const billItems = pair ? buildBillPairItems(bills, pays, pair).filter((item) => item.remaining > 0) : [];
+    return { loanList, pair, billItems };
+  }, [bills, pays, name]);
+}
+
+function Empty({ text }: { text: string }) {
+  const colors = useColors();
+  return (
+    <AppText color={colors.muted} style={styles.empty}>
+      {text}
+    </AppText>
   );
 }
 
@@ -82,79 +103,6 @@ function Amount({ value, tone }: { value: number; tone?: Tone }) {
       {SIGN[resolved]}
       {formatVnd(Math.abs(value))}
     </AppText>
-  );
-}
-
-function Row({ row, sub }: { row: DebtRow; sub: string }) {
-  const colors = useColors();
-  return (
-    <View style={[styles.row, { borderTopColor: colors.line }]}>
-      <View style={styles.flex}>
-        <AppText weight="semibold" style={styles.rowTitle}>
-          {row.t}
-        </AppText>
-        {!!sub && (
-          <AppText color={colors.muted} style={styles.small}>
-            {sub}
-          </AppText>
-        )}
-      </View>
-      <Amount value={row.v} tone={row.tone} />
-    </View>
-  );
-}
-
-function Days({ days, today }: { days: DayGroup[]; today: string }) {
-  const colors = useColors();
-  return (
-    <>
-      {days.map((day) => (
-        <View key={day.date}>
-          <View style={styles.dayHeader}>
-            <AppText color={colors.muted} style={styles.small} numberOfLines={1}>
-              <AppText weight="semibold" style={styles.small}>
-                {dayHeading(day.date, today)}
-              </AppText>
-              , {formatVnDate(day.date)}
-            </AppText>
-            <Amount value={day.net} tone={day.tone} />
-          </View>
-          {day.rows.map((row, index) => (
-            <Row key={index} row={row} sub={row.s} />
-          ))}
-        </View>
-      ))}
-    </>
-  );
-}
-
-function Months({ months, openMonth, onToggle, today }: { months: MonthGroup[]; openMonth: string | null; onToggle: (month: string) => void; today: string }) {
-  const colors = useColors();
-  return (
-    <>
-      {months.map((month) => {
-        const open = openMonth === month.month;
-        return (
-          <View key={month.month}>
-            <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => onToggle(month.month)} style={[styles.row, styles.monthRow, { backgroundColor: colors.bg }]}>
-              <View style={styles.flex}>
-                <AppText weight="semibold" style={styles.rowTitle}>
-                  Tháng {Number(month.month.slice(5, 7))}/{month.month.slice(0, 4)}
-                </AppText>
-                <AppText color={colors.muted} style={styles.small}>
-                  {month.count} khoản
-                </AppText>
-              </View>
-              <Amount value={month.net} tone={month.tone} />
-              <View style={{ transform: [{ rotate: open ? '-90deg' : '90deg' }] }}>
-                <SvgIcon name="chevronRight" size={16} color={colors.muted} />
-              </View>
-            </Pressable>
-            {open && <Days days={month.days} today={today} />}
-          </View>
-        );
-      })}
-    </>
   );
 }
 
@@ -190,10 +138,5 @@ const styles = StyleSheet.create({
   stackHead: { minHeight: 52, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 10 },
   stackTitle: { fontSize: 15.5 },
   stackBody: { paddingBottom: 4 },
-  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
-  dayHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10, paddingTop: 8, paddingBottom: 4 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, borderTopWidth: 1 },
-  monthRow: { paddingHorizontal: 10, borderRadius: 10 },
-  rowTitle: { fontSize: 15 },
   amount: { fontSize: 16 },
 });

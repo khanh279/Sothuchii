@@ -370,6 +370,8 @@ interface TransactionRowProps {
   /** Nhãn dạng viên thuốc dưới dòng phụ (ví dụ "Liên kết bill", trạng thái thanh toán) và màu của nó. */
   badge?: string;
   badgeTone?: StatusTone;
+  /** Nhãn trạng thái cỡ nhỏ hơn (nhãn dài). */
+  smallBadge?: boolean;
   first?: boolean;
   /** true: tiêu đề chỉ một dòng, dài quá thì cắt bằng "…" (mặc định tối đa 2 dòng). */
   singleLineTitle?: boolean;
@@ -385,7 +387,7 @@ interface TransactionRowProps {
 export type StatusTone = 'get' | 'owe' | 'warn' | 'info';
 
 /** Nhãn trạng thái nhỏ dạng viên thuốc, dùng chung (danh sách bill, chi tiết bill, nhãn liên kết). Chỉ nhãn đổi màu, không đổi cả thẻ. */
-export function StatusBadge({ label, tone = 'info', style }: { label: string; tone?: StatusTone; style?: StyleProp<ViewStyle> }) {
+export function StatusBadge({ label, tone = 'info', style, small = false }: { label: string; tone?: StatusTone; style?: StyleProp<ViewStyle>; small?: boolean }) {
   const colors = useColors();
   const palette = {
     get: { bg: colors.successSoft, fg: colors.success },
@@ -394,8 +396,8 @@ export function StatusBadge({ label, tone = 'info', style }: { label: string; to
     info: { bg: colors.primarySoft, fg: colors.primary },
   }[tone];
   return (
-    <View style={[styles.badge, { backgroundColor: palette.bg }, style]}>
-      <AppText weight="semibold" color={palette.fg} style={styles.badgeText} numberOfLines={1}>
+    <View style={[styles.badge, small && styles.badgeSmall, { backgroundColor: palette.bg }, style]}>
+      <AppText weight="semibold" color={palette.fg} style={[styles.badgeText, small && styles.badgeTextSmall]} numberOfLines={1}>
         {label}
       </AppText>
     </View>
@@ -403,7 +405,7 @@ export function StatusBadge({ label, tone = 'info', style }: { label: string; to
 }
 
 /** Dòng giao dịch: biểu tượng, nội dung + thông tin phụ bên trái, số tiền căn phải kèm nhãn nhỏ. */
-export function TransactionRow({ icon, title, subtitle, amount, tone, meta, badge, badgeTone, first, singleLineTitle, singleLineSubtitle, onPress, accessibilityLabel, bare }: TransactionRowProps) {
+export function TransactionRow({ icon, title, subtitle, amount, tone, meta, badge, badgeTone, smallBadge, first, singleLineTitle, singleLineSubtitle, onPress, accessibilityLabel, bare }: TransactionRowProps) {
   const colors = useColors();
   const toneColor = useToneColor();
   const content = (
@@ -425,7 +427,7 @@ export function TransactionRow({ icon, title, subtitle, amount, tone, meta, badg
         </AppText>
         {!!badge && (
           <View style={styles.txBadge}>
-            <StatusBadge label={badge} tone={badgeTone} />
+            <StatusBadge label={badge} tone={badgeTone} small={smallBadge} />
           </View>
         )}
         {!!meta && (
@@ -654,6 +656,9 @@ const styles = StyleSheet.create({
   rowAmount: { fontSize: 16, lineHeight: 22, textAlign: 'right' },
   badge: { alignSelf: 'flex-start', marginTop: 4, paddingHorizontal: 8, paddingVertical: 2, borderRadius: AppRadius.pill },
   badgeText: { fontSize: 11, lineHeight: 15, textAlign: 'right' },
+  /** Nhãn nhỏ hơn cho nhãn dài (ví dụ "Thanh toán một phần"). */
+  badgeSmall: { paddingHorizontal: 6 },
+  badgeTextSmall: { fontSize: 9.5, lineHeight: 13 },
   segmented: { flexDirection: 'row', padding: 4, borderRadius: AppRadius.pill, gap: 4 },
   segmentedItem: { flex: 1, height: 38, borderRadius: AppRadius.pill, alignItems: 'center', justifyContent: 'center' },
   segmentedText: { fontSize: 14 },

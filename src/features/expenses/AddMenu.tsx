@@ -1,4 +1,3 @@
-import { router } from 'expo-router';
 import { useState } from 'react';
 
 import { OptionSheet, type SheetOption } from '@/components/option-sheet';
@@ -7,6 +6,7 @@ import { useFundData } from '@/features/funds/hooks';
 import { FundTxnSheet } from '@/features/funds/FundTxnSheet';
 import { useSharedPeriod } from '@/hooks/use-shared-period';
 import { todayStr } from '@/utils/date';
+import { router } from '@/utils/safe-router';
 
 const NO_FUND_HINT = 'Chưa có quỹ — tạo quỹ ở tab Quỹ nhóm';
 

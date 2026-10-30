@@ -47,6 +47,11 @@ interface Props {
   warning?: string;
   /** Ghi nhận khoản thanh toán; ném `PayInputError` nếu số tiền không còn hợp lệ (hiện ngay trong thẻ), lỗi khác giao cho `onFailure`. */
   onPay: (amount: number, choiceId: string) => Promise<void>;
+  /**
+   * Có thì hiện thêm nút "Chọn các khoản thanh toán" ở giữa hai nút kia: bấm thì tờ đáy đóng (cả luồng thanh toán) rồi gọi hàm này để trang vào chế độ tích chọn các khoản cần trả.
+   * Không truyền = chỉ hai nút như cũ (nơi chưa hỗ trợ trả theo từng khoản).
+   */
+  onSelectItems?: () => void;
   /** Gọi sau khi ghi thành công (đóng tờ, làm mới dữ liệu…). */
   onDone: () => void;
   onFailure: (error: unknown) => void;
@@ -55,7 +60,7 @@ interface Props {
 type Step = { kind: 'confirm'; amount: number; id: string } | { kind: 'partial' };
 
 /**
- * Bảng thanh toán dùng chung (bill, công nợ, quỹ). Hai nút đẹp mắt: **Thanh toán toàn bộ** (nền navy) và **Thanh toán một phần** (viền navy).
+ * Bảng thanh toán dùng chung (bill, công nợ, quỹ). Các nút: **Thanh toán toàn bộ** (nền navy), **Chọn các khoản thanh toán** (viền navy, chỉ khi có `onSelectItems`) và **Thanh toán một phần** (viền navy).
  * Trong `PaymentSheet` (các trang thanh toán): bấm nút Thanh toán cố định ở đáy trang thì tờ nổi ở đáy hiện tóm tắt và hai nút; chọn một nút thì tờ đó trượt xuống (nền mờ đứng yên)
  * rồi tờ BƯỚC hiện tại giữa màn hình (mờ dần, phóng nhẹ):
  * - toàn bộ → bước xác nhận "A trả B / số tiền" → Xác nhận mới ghi;
@@ -64,7 +69,7 @@ type Step = { kind: 'confirm'; amount: number; id: string } | { kind: 'partial' 
  * Việc ghi giao dịch và cách phân bổ do `onPay` của từng nghiệp vụ quyết định. Chống ghi trùng: khi đang ghi thì bỏ qua mọi lần bấm xác nhận thêm
  * (khoá bằng ref nên không phụ thuộc lần render). Ghi xong thì `onDone` (nơi dùng gỡ mọi tờ ngay).
  */
-export function PaymentPanel({ remaining, choices, payer, receiver, note, warning, onPay, onDone, onFailure }: Props) {
+export function PaymentPanel({ remaining, choices, payer, receiver, note, warning, onSelectItems, onPay, onDone, onFailure }: Props) {
   const colors = useColors();
   const sheet = usePaymentSheet();
   const [step, setStep] = useState<Step | null>(null);
@@ -131,7 +136,7 @@ export function PaymentPanel({ remaining, choices, payer, receiver, note, warnin
     }, true);
   }
 
-  const buttons = <Choices full={full} partial={partial} busy={busy} onPick={pick} onFull={(amount, id) => ({ kind: 'confirm', amount, id })} />;
+  const buttons = <Choices full={full} partial={partial} busy={busy} onPick={pick} onSelect={onSelectItems} onFull={(amount, id) => ({ kind: 'confirm', amount, id })} />;
   const message = `${payer} trả ${receiver}`;
 
   let stepSheet = null;
@@ -186,22 +191,47 @@ export function PaymentPanel({ remaining, choices, payer, receiver, note, warnin
   );
 }
 
+/**
+ * Thẻ XÁC NHẬN thanh toán giữa màn hình dùng khi trang tự tính số tiền (thanh toán các khoản đã chọn): giống hệt bước xác nhận của "Thanh toán toàn bộ" — tiêu đề "Xác nhận thanh toán",
+ * dòng "A trả B", số tiền lớn, ghi chú nhỏ, hai nút Huỷ / Xác nhận. Huỷ / chạm nền / Back thì `onCancel`.
+ */
+export function PaymentConfirmSheet({ message, amountText, note, busy, onConfirm, onCancel }: { message: string; amountText: string; note?: string; busy: boolean; onConfirm: () => void; onCancel: () => void }) {
+  const colors = useColors();
+  return (
+    <SheetFrame placement="center" onClose={onCancel}>
+      <StepCard title="Xác nhận thanh toán" message={message} problem="" busy={busy} onConfirm={onConfirm}>
+        <AppText weight="display" style={styles.stepAmount}>
+          {amountText}
+        </AppText>
+        {!!note && (
+          <AppText color={colors.muted} style={styles.stepNote}>
+            {note}
+          </AppText>
+        )}
+      </StepCard>
+    </SheetFrame>
+  );
+}
+
 /** Hai nút chọn cách thanh toán; chạm một nút thì báo `onPick` kèm hàm đóng tờ chứa nút (để chạy hiệu ứng trượt xuống). */
 function Choices({
   full,
   partial,
   busy,
   onPick,
+  onSelect,
   onFull,
 }: {
   full: PayChoice | null;
   partial: PayChoice | null;
   busy: boolean;
   onPick: (step: Step, hide: (after?: () => void, keepScrim?: boolean) => void) => void;
+  onSelect?: () => void;
   onFull: (amount: number, id: string) => Step;
 }) {
   const colors = useColors();
   const hide = useSheetClose();
+  const sheet = usePaymentSheet();
   return (
     <View style={styles.buttons}>
       {full && (
@@ -217,18 +247,49 @@ function Choices({
           </AppText>
         </Pressable>
       )}
-      {partial && (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={partial.label}
-          disabled={busy}
-          onPress={() => onPick({ kind: 'partial' }, hide)}
-          style={({ pressed }) => [styles.button, styles.partialButton, { borderColor: colors.primary, backgroundColor: colors.surface, opacity: busy ? 0.5 : pressed ? 0.85 : 1 }]}
-        >
-          <AppText weight="bold" color={colors.primary} style={styles.partialLabel} numberOfLines={1}>
-            {partial.label}
-          </AppText>
-        </Pressable>
+      {/* Có nút chọn khoản: "Thanh toán toàn bộ" là nút chính cả hàng, hai nút viền navy ngang nhau bên dưới (nhãn tối đa hai dòng); không thì giữ hai nút xếp dọc. */}
+      {onSelect ? (
+        <View style={styles.pairRow}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Chọn các khoản thanh toán"
+            disabled={busy}
+            // Tờ đáy trượt xuống (đóng cả luồng thanh toán) rồi trang vào chế độ tích chọn; không có tờ bao quanh thì vào thẳng.
+            onPress={() => (sheet ? hide(onSelect) : onSelect())}
+            style={({ pressed }) => [styles.pairButton, { borderColor: colors.primary, backgroundColor: colors.surface, opacity: busy ? 0.5 : pressed ? 0.85 : 1 }]}
+          >
+            <AppText weight="bold" color={colors.primary} style={styles.pairLabel} numberOfLines={2}>
+              Chọn các khoản thanh toán
+            </AppText>
+          </Pressable>
+          {partial && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={partial.label}
+              disabled={busy}
+              onPress={() => onPick({ kind: 'partial' }, hide)}
+              style={({ pressed }) => [styles.pairButton, { borderColor: colors.primary, backgroundColor: colors.surface, opacity: busy ? 0.5 : pressed ? 0.85 : 1 }]}
+            >
+              <AppText weight="bold" color={colors.primary} style={styles.pairLabel} numberOfLines={2}>
+                {partial.label}
+              </AppText>
+            </Pressable>
+          )}
+        </View>
+      ) : (
+        partial && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={partial.label}
+            disabled={busy}
+            onPress={() => onPick({ kind: 'partial' }, hide)}
+            style={({ pressed }) => [styles.button, styles.partialButton, { borderColor: colors.primary, backgroundColor: colors.surface, opacity: busy ? 0.5 : pressed ? 0.85 : 1 }]}
+          >
+            <AppText weight="bold" color={colors.primary} style={styles.partialLabel} numberOfLines={1}>
+              {partial.label}
+            </AppText>
+          </Pressable>
+        )
       )}
     </View>
   );
@@ -332,6 +393,9 @@ const styles = StyleSheet.create({
   fullLabel: { flex: 1, fontSize: 16, textAlign: 'center' },
   partialButton: { borderWidth: 1.5, justifyContent: 'center' },
   partialLabel: { fontSize: 16 },
+  pairRow: { flexDirection: 'row', gap: 10 },
+  pairButton: { flex: 1, minHeight: 56, borderRadius: 16, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, paddingVertical: 6 },
+  pairLabel: { fontSize: 14, lineHeight: 19, textAlign: 'center' },
   step: { gap: 6 },
   stepWarning: { borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12 },
   stepWarningText: { fontSize: 14, lineHeight: 20 },

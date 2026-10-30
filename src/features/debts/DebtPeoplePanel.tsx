@@ -114,6 +114,8 @@ interface PanelProps extends DataProps {
   onDone: () => void;
   onPaid: (message: string) => Promise<void> | void;
   onFailure: (message: string) => void;
+  /** Có thì tờ thanh toán có thêm nút "Chọn các khoản thanh toán" (trang vào chế độ tích chọn). */
+  onSelectItems?: () => void;
 }
 
 /**
@@ -136,7 +138,7 @@ export function debtPaySummary(detail: ReturnType<typeof buildDebtDetail>, name:
  * còn lại) và Thanh toán một phần (trả nợ bill trước, rồi nợ vay; phần dư ghi thành nợ vay mới). Ghi bằng `recordDebtPaymentSynced` → `planDebtPayment`
  * (quy tắc phân bổ và xử lý tiền dư giữ nguyên; hai sổ trái dấu thì không có Thanh toán, phải gộp nợ trước).
  */
-export function DebtPaymentPanel({ name, bills, pays, period, onDone, onPaid, onFailure }: PanelProps) {
+export function DebtPaymentPanel({ name, bills, pays, period, onSelectItems, onDone, onPaid, onFailure }: PanelProps) {
   const detail = useMemo(() => buildDebtDetail(bills, pays, name, period), [bills, pays, name, period]);
   const summary = debtPaySummary(detail, name);
   if (!summary) return null;
@@ -150,6 +152,7 @@ export function DebtPaymentPanel({ name, bills, pays, period, onDone, onPaid, on
       choices={choices}
       payer={summary.payer}
       receiver={summary.receiver}
+      onSelectItems={onSelectItems}
       onPay={async (amount, id) => {
         const option = id as DebtPayOption;
         const result = await recordDebtPaymentSynced(name, option, option === 'partial' ? amount : undefined);

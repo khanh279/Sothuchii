@@ -1,4 +1,3 @@
-import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -13,6 +12,7 @@ import { describeFundError } from '@/features/funds/hooks';
 import type { FundData } from '@/types/fund';
 import { formatVnDate } from '@/utils/date';
 import { formatVnd } from '@/utils/format';
+import { router } from '@/utils/safe-router';
 
 type SpendItem = { id: string; title: string; date: string; amount: number; advanceId?: string };
 

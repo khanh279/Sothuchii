@@ -1,4 +1,4 @@
-import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { useMemo } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,6 +20,7 @@ import { useDebtData } from '@/features/debts/hooks';
 import { useColors } from '@/hooks/use-colors';
 import { formatVnDate } from '@/utils/date';
 import { formatVnd } from '@/utils/format';
+import { router } from '@/utils/safe-router';
 
 /**
  * Bill gộp: một bill TỔNG THỂ của nhiều bill đã chọn ở danh sách bill (tham số route `ids` = mã các bill, cách nhau bằng dấu phẩy). Chỉ xem và thanh toán; không tạo,

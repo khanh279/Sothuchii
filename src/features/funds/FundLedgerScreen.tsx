@@ -1,4 +1,4 @@
-import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { LockableScrollView } from '@/components/lockable-scroll-view';
@@ -20,6 +20,7 @@ import { useColors } from '@/hooks/use-colors';
 import { useSharedPeriod } from '@/hooks/use-shared-period';
 import { formatVnDate, todayStr } from '@/utils/date';
 import { formatVnd } from '@/utils/format';
+import { router } from '@/utils/safe-router';
 
 /** Màu nhãn trạng thái quyết toán của hồ sơ ứng trước (đã quyết toán xanh, một phần cam, chưa quyết toán đỏ). */
 const ADVANCE_TONE: Record<AdvanceState, StatusTone> = { settled: 'get', partial: 'warn', unsettled: 'owe' };

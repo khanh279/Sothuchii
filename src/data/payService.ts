@@ -62,11 +62,15 @@ export interface RecordResult {
 
 const NOTHING: RecordResult = { recorded: false, message: '' };
 
-/** "Thanh toán toàn bộ" / "Một phần" với `name` ở sổ `ledger`. Không ghi gì nếu số tiền ≤ 0 hoặc sổ đã hết nợ. */
-export async function recordPaymentSynced(name: string, ledger: Ledger, amount: Vnd): Promise<SyncedPayChange<RecordResult>> {
+/**
+ * "Thanh toán toàn bộ" / "Một phần" với `name` ở sổ `ledger`. Không ghi gì nếu số tiền ≤ 0 hoặc sổ đã hết nợ. `note` (tuỳ chọn) là ghi chú của khoản trả, ví dụ tên các khoản vay đã chọn để
+ * thanh toán ("Trả: Vay tiền xe"), hiện ở lịch sử thay cho nhãn mặc định.
+ */
+export async function recordPaymentSynced(name: string, ledger: Ledger, amount: Vnd, note?: string): Promise<SyncedPayChange<RecordResult>> {
   const [bills, pays] = await Promise.all([loadBills(), loadPays()]);
-  const draft = paymentDraft(personLedger(debtEvents(bills, pays), name), ledger, amount);
-  if (!draft) return { value: NOTHING, syncFailed: false };
+  const base = paymentDraft(personLedger(debtEvents(bills, pays), name), ledger, amount);
+  if (!base) return { value: NOTHING, syncFailed: false };
+  const draft = note?.trim() ? { ...base, note: note.trim() } : base;
   await recordDrafts([draft]);
   return thenSync({ recorded: true, message: paymentMessage(draft) });
 }

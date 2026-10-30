@@ -1,4 +1,3 @@
-import { router } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { AppTextInput as TextInput } from '@/components/app-text-input';
@@ -24,6 +23,7 @@ import { useColors } from '@/hooks/use-colors';
 import type { Fund } from '@/types/fund';
 import { formatVnDate } from '@/utils/date';
 import { formatVnd } from '@/utils/format';
+import { router } from '@/utils/safe-router';
 
 /** Đang soạn tên quỹ: thêm mới, hoặc đổi tên một quỹ có sẵn. */
 type Editing = { mode: 'add' } | { mode: 'edit'; id: string };

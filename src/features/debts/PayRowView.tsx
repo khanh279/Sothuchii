@@ -1,4 +1,3 @@
-import { router } from 'expo-router';
 
 import { HistoryCard, IconTile } from '@/components/history-card';
 import { SvgIcon } from '@/components/svg-icon';
@@ -8,6 +7,7 @@ import { payRowSubtitle, type PayRow } from '@/domain/payForm';
 import { useColors } from '@/hooks/use-colors';
 import type { useSingleOpenRow } from '@/hooks/use-single-open-row';
 import { formatVnd } from '@/utils/format';
+import { router } from '@/utils/safe-router';
 
 /** Một dòng khoản trả (vuốt để Sửa / Xoá, chạm để xem chi tiết). `badge`: nhãn liên kết nếu có căn cứ. */
 export function PayRowView({ row, rowProps, onDelete, badge }: { row: PayRow; rowProps: ReturnType<ReturnType<typeof useSingleOpenRow>['rowProps']>; onDelete: () => void; badge?: string }) {

@@ -119,6 +119,8 @@ export const part1: Dictionary = {
   'Đã thanh toán xong': 'Fully paid',
   '{0} nợ tôi': '{0} owes me',
   'Tôi nợ {0}': 'I owe {0}',
+  'Tôi vay {0}': 'I borrowed from {0}',
+  '{0} vay tôi': '{0} borrowed from me',
   'Nợ vay': 'Loans',
   'Nợ bill': 'Bill debts',
   '{0} nợ {1}': '{0} owes {1}',

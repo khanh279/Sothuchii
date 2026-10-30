@@ -1,4 +1,4 @@
-import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,6 +10,7 @@ import BillCalcScreen from '@/features/bills/BillCalcScreen';
 import { describeBillError } from '@/features/bills/hooks';
 import { useColors } from '@/hooks/use-colors';
 import type { Bill } from '@/types/bill';
+import { router } from '@/utils/safe-router';
 
 type Loaded = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready'; bill: Bill | null };
 

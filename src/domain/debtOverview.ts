@@ -86,14 +86,14 @@ export interface DebtPersonSplit extends DebtPersonRow {
 
 /**
  * Nợ THEO NGƯỜI, toàn thời gian, kèm phần nợ vay / nợ bill của từng người: chỉ người còn nợ ròng (hai sổ bù nhau về 0 thì bỏ). Lớn nhất trước.
- * Cùng con số `total` với `buildDebtOverview().people`; chỉ thêm hai phần để trang "Chi tiết nợ & bill" hiện được nợ gồm những gì.
+ * `includeOffsetting`: giữ cả người hai sổ trái chiều bù nhau về 0 (tone 'mid') để vẫn xem được từng khoản. Cùng con số `total` với `buildDebtOverview().people`; chỉ thêm hai phần để trang "Chi tiết nợ & bill" hiện được nợ gồm những gì.
  */
-export function buildDebtPeopleSplit(bills: readonly Bill[], pays: readonly Pay[]): DebtPersonSplit[] {
+export function buildDebtPeopleSplit(bills: readonly Bill[], pays: readonly Pay[], includeOffsetting = false): DebtPersonSplit[] {
   return allDebts(debtEvents(bills, pays))
     .list.map((person) => {
       const total = roundVnd(person.loan + person.bill);
       return { name: person.name, total, tone: isNearZero(total) ? ('mid' as const) : toneOf(total), loan: roundVnd(person.loan), bill: roundVnd(person.bill) };
     })
-    .filter((person) => person.tone !== 'mid')
+    .filter((person) => includeOffsetting || person.tone !== 'mid')
     .sort((a, b) => Math.abs(b.total) - Math.abs(a.total) || a.name.localeCompare(b.name));
 }

@@ -200,19 +200,22 @@ interface PanelProps {
   onPaid: (message: string) => Promise<void> | void;
   onDone: () => void;
   onFailure: (message: string) => void;
+  /** Có thì tờ thanh toán có thêm nút "Chọn các khoản thanh toán" (trang vào chế độ tích chọn). */
+  onSelectItems?: () => void;
 }
 
 /**
  * Bảng thanh toán của một cặp trên trang Thanh toán bill (thẻ tổng nằm ở trang): dùng lại
  * `PaymentPanel` (tờ đáy hai nút Thanh toán toàn bộ / một phần, rồi thẻ xác nhận / nhập số). Ghi bằng `recordBillPairPaymentSynced`, tính lại số còn lại lúc ghi.
  */
-export function BillPaymentPanel({ pair, period, onPaid, onDone, onFailure }: PanelProps) {
+export function BillPaymentPanel({ pair, period, onSelectItems, onPaid, onDone, onFailure }: PanelProps) {
   return (
     <>
       <PaymentPanel
         remaining={pair.remaining}
         payer={pair.from}
         receiver={pair.to}
+        onSelectItems={onSelectItems}
         onPay={async (amount) => {
           const result = await recordBillPairPaymentSynced(pair.from, pair.to, period, amount);
           await onPaid(result.value.message);

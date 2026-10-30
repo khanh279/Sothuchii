@@ -1,4 +1,4 @@
-import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { useMemo } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { LockableScrollView } from '@/components/lockable-scroll-view';
@@ -17,6 +17,7 @@ import { useColors } from '@/hooks/use-colors';
 import { useSharedPeriod } from '@/hooks/use-shared-period';
 import { todayStr } from '@/utils/date';
 import { formatVnd } from '@/utils/format';
+import { router } from '@/utils/safe-router';
 
 /** Màu thu / chi của Quỹ (`--in`, `--out` của PWA). */
 

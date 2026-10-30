@@ -1,4 +1,3 @@
-import { router } from 'expo-router';
 import { useMemo } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
@@ -15,6 +14,7 @@ import type { ExpenseSettings, Period } from '@/types/expense';
 import type { Pay } from '@/types/pay';
 import { addDays, formatVnDate, todayStr } from '@/utils/date';
 import { formatVnd } from '@/utils/format';
+import { router } from '@/utils/safe-router';
 
 /** Số dòng hiện ở Tổng quan, và số ngày gần nhất được đọc để tìm các dòng đó. */
 const RECENT_LIMIT = 5;

@@ -36,6 +36,7 @@ export const part2: Dictionary = {
   'Đã trả {0} · Còn thiếu {1}': 'Paid {0} · Still due {1}',
   'Đã xóa': 'Deleted',
   'Danh sách bill': 'Bill list',
+  'Chi tiết danh sách bill': 'Bill list details',
   'Sổ Thu Chi · Chia bill': 'Income & Expense Ledger · Split bill',
   '{0} · {1} · {2} người': '{0} · {1} · {2} {2|person|people}',
   'Từng người': 'Per person',

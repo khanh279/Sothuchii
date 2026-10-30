@@ -124,6 +124,8 @@ interface FlowProps {
   reload: () => Promise<void> | void;
   /** Đóng cả luồng (sau khi ghi xong hoặc đóng tờ). */
   onClose: () => void;
+  /** Trang "Quỹ nợ": có thì tờ thanh toán có thêm nút "Chọn các khoản thanh toán" (trang vào chế độ tích chọn các khoản quỹ nợ). */
+  onSelectItems?: () => void;
 }
 
 /**
@@ -139,7 +141,7 @@ export function FundPayFlow(props: FlowProps) {
  * Trang "Quỹ nợ": các khoản quỹ nợ người đó được GỘP thành MỘT lần thanh toán, không chọn từng khoản. Toàn bộ = trả hết số trả được ngay (mỗi quỹ tối đa bằng tiền thực tế của quỹ);
  * một phần = nhập số, ưu tiên khoản CŨ NHẤT trước rồi lần lượt các khoản sau cho đến hết (`planCombinedPayout`).
  */
-function FundOwedFlow({ data, person, scope, reload, onClose }: FlowProps) {
+function FundOwedFlow({ data, person, scope, reload, onClose, onSelectItems }: FlowProps) {
   const colors = useColors();
   const toast = useToast();
   const { payMany } = useFundPay(reload);
@@ -162,6 +164,7 @@ function FundOwedFlow({ data, person, scope, reload, onClose }: FlowProps) {
         choices={choices}
         payer={payer}
         receiver={person}
+        onSelectItems={onSelectItems}
         warning={limited ? `Quỹ chỉ có thể quyết toán tối đa ${formatVnd(limit)}` : undefined}
         onPay={(amount) => payMany(planCombinedPayout(data, owed, amount))}
         onDone={onClose}

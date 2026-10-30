@@ -14,7 +14,7 @@ const CARD_PADDING_X = 12;
 type SwipeProps = Pick<ComponentProps<typeof SwipeRow>, 'open' | 'onOpen' | 'onClose' | 'onEdit' | 'onDelete' | 'onPressRow' | 'locked' | 'onPressLocked' | 'accessibilityLabel'>;
 
 /** Các thuộc tính hiển thị — lấy nguyên kiểu từ `TransactionRow` (kiểu props của nó không được export). */
-type RowProps = Pick<ComponentProps<typeof TransactionRow>, 'icon' | 'title' | 'subtitle' | 'singleLineSubtitle' | 'amount' | 'tone' | 'meta' | 'badge' | 'badgeTone'>;
+type RowProps = Pick<ComponentProps<typeof TransactionRow>, 'icon' | 'title' | 'subtitle' | 'singleLineTitle' | 'singleLineSubtitle' | 'amount' | 'tone' | 'meta' | 'badge' | 'badgeTone' | 'smallBadge'>;
 
 export type HistoryCardProps = SwipeProps &
   RowProps & {

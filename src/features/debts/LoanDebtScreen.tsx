@@ -1,22 +1,23 @@
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { EmptyState, ScreenTitle } from '@/components/design';
-import { PaymentPanel } from '@/components/payment-panel';
+import { PaymentConfirmSheet, PaymentPanel } from '@/components/payment-panel';
 import { PaymentSheet } from '@/components/payment-sheet';
 import { PAY_ACTION_BAR_CLEARANCE, PayActionBar } from '@/components/pay-action-bar';
 import { PayPageFrame } from '@/components/pay-page-frame';
 import { useToast } from '@/components/toast';
 import { PageLayout } from '@/constants/layout';
+import { PayInputError } from '@/data/payRepository';
 import { recordPaymentSynced } from '@/data/payService';
-import { toneOf } from '@/domain/debtDetail';
-import { DEBT_ZERO, debtEvents, loanLines, personLedger, type LoanLine } from '@/domain/ledger';
+import { pickedNote, summarizePicked } from '@/domain/pickedPayment';
+import { DEBT_ZERO, debtEvents, loanLines, personLedger } from '@/domain/ledger';
 import { describeDebtError, useDebtData } from '@/features/debts/hooks';
+import { LoanLinesList } from '@/features/debts/LoanLinesList';
 import { useColors } from '@/hooks/use-colors';
-import { formatVnDate } from '@/utils/date';
 import { formatVnd } from '@/utils/format';
 
 const SIGN = { get: '+', owe: '−', mid: '' } as const;
@@ -33,6 +34,11 @@ export default function LoanDebtScreen() {
   const toast = useToast();
   const { bills, pays, loaded, error, reload } = useDebtData();
   const [payOpen, setPayOpen] = useState(false);
+  // Chọn các khoản vay để thanh toán: tích các dòng cần trả; khoản trả được ghi chú tên các dòng đã chọn.
+  const [selecting, setSelecting] = useState(false);
+  const [picked, setPicked] = useState<ReadonlySet<number>>(new Set());
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
   const detail = useMemo(() => {
     if (!loaded || error) return null;
     const events = debtEvents(bills, pays);
@@ -45,6 +51,37 @@ export default function LoanDebtScreen() {
   const canPay = remaining >= DEBT_ZERO;
   const tone = loan > DEBT_ZERO ? 'get' : loan < -DEBT_ZERO ? 'owe' : 'mid';
   const color = tone === 'get' ? colors.success : tone === 'owe' ? colors.danger : undefined;
+
+  const summary = summarizePicked({ pair: null, owner: 'Tôi', billItems: [], pickedBills: new Set(), loanLines: detail?.lines ?? [], pickedLoans: picked, loanNet: loan });
+  function stopSelecting() {
+    setSelecting(false);
+    setConfirmOpen(false);
+    setPicked(new Set());
+  }
+  function pressPickedPay() {
+    if (summary.count === 0) return;
+    if (!summary.ok) {
+      toast.show(summary.reason ?? 'Chưa thanh toán được các khoản đã chọn.');
+      return;
+    }
+    setConfirmOpen(true);
+  }
+  async function payPicked() {
+    if (busy || !summary.ok || !summary.loan) return;
+    setBusy(true);
+    try {
+      const result = await recordPaymentSynced(name, 'loan', summary.loan.amount, `Trả: ${summary.loan.titles.join(', ')}`);
+      if (result.value.message) toast.show(result.value.message);
+      stopSelecting();
+      await reload();
+    } catch (e) {
+      setConfirmOpen(false);
+      toast.show(e instanceof PayInputError ? e.message : describeDebtError(e));
+      await reload();
+    } finally {
+      setBusy(false);
+    }
+  }
 
   let body;
   if (error) {
@@ -70,11 +107,23 @@ export default function LoanDebtScreen() {
         {detail.lines.length === 0 ? (
           <EmptyState text="Không còn khoản vay nào chưa thanh toán" icon="check" />
         ) : (
-          <View>
-            {detail.lines.map((line, index) => (
-              <LoanRow key={index} line={line} first={index === 0} />
-            ))}
-          </View>
+          <LoanLinesList
+            lines={detail.lines}
+            selection={
+              selecting
+                ? {
+                    selected: picked,
+                    onToggle: (index) =>
+                      setPicked((set) => {
+                        const next = new Set(set);
+                        if (next.has(index)) next.delete(index);
+                        else next.add(index);
+                        return next;
+                      }),
+                  }
+                : undefined
+            }
+          />
         )}
       </PayPageFrame>
     );
@@ -83,11 +132,37 @@ export default function LoanDebtScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
       <Stack.Screen options={{ title: 'Chi tiết nợ vay', headerShown: false }} />
-      <ScreenTitle title={!name ? 'Chi tiết nợ vay' : tone === 'owe' ? `Tôi nợ ${name}` : tone === 'get' ? `${name} nợ tôi` : `Nợ vay · ${name}`} topInset={insets.top} />
+      <ScreenTitle title={!name ? 'Chi tiết nợ vay' : tone === 'owe' ? `Tôi vay ${name}` : tone === 'get' ? `${name} vay tôi` : `Nợ vay · ${name}`} topInset={insets.top}
+        right={
+          selecting ? (
+            <Pressable accessibilityRole="button" accessibilityLabel="Hủy chọn khoản" hitSlop={8} onPress={stopSelecting} style={styles.cancel}>
+              <AppText weight="semibold" color={colors.danger} style={styles.cancelText}>
+                Hủy
+              </AppText>
+            </Pressable>
+          ) : undefined
+        }
+      />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom + (canPay ? PAY_ACTION_BAR_CLEARANCE : 0) }]} keyboardShouldPersistTaps="handled">
         {body}
       </ScrollView>
-      <PayActionBar visible={!!detail && canPay} bottom={16} onPress={() => setPayOpen(true)} />
+      <PayActionBar
+        visible={!!detail && canPay}
+        label={selecting ? (summary.count > 0 ? `Thanh toán ${summary.count} khoản · ${formatVnd(summary.total)}` : 'Chọn khoản cần thanh toán') : undefined}
+        disabled={selecting && summary.count === 0}
+        bottom={16}
+        onPress={selecting ? pressPickedPay : () => setPayOpen(true)}
+      />
+      {confirmOpen && summary.ok && summary.loan && (
+        <PaymentConfirmSheet
+          message={summary.direction === 'owe' ? `Tôi trả ${name}` : `${name} trả tôi`}
+          amountText={formatVnd(summary.total)}
+          note={pickedNote(summary)}
+          busy={busy}
+          onCancel={() => setConfirmOpen(false)}
+          onConfirm={() => void payPicked()}
+        />
+      )}
       {payOpen && detail && canPay && (
         <PaymentSheet heading={`${owe ? 'Tôi' : name} trả ${owe ? name : 'tôi'}`} amountText={formatVnd(remaining)} amountColor={owe ? colors.danger : colors.success} onClose={() => setPayOpen(false)}>
           <PaymentPanel
@@ -95,6 +170,7 @@ export default function LoanDebtScreen() {
             payer={owe ? 'Tôi' : name}
             receiver={owe ? name : 'Tôi'}
             note="Chỉ trừ vào nợ vay, không đụng tới nợ bill."
+            onSelectItems={() => setSelecting(true)}
             onPay={async (amount) => {
               const result = await recordPaymentSynced(name, 'loan', amount);
               if (result.value.message) toast.show(result.value.message);
@@ -109,38 +185,12 @@ export default function LoanDebtScreen() {
   );
 }
 
-/** Một khoản vay: tiêu đề là nội dung của khoản chuyển tiền, ghi chú nhỏ bên dưới chỉ là ngày; bên phải số tiền có dấu / màu (− đỏ: tôi phải trả, + xanh: người kia phải trả tôi). */
-function LoanRow({ line, first }: { line: LoanLine; first: boolean }) {
-  const colors = useColors();
-  const tone = toneOf(line.v);
-  const color = tone === 'get' ? colors.success : tone === 'owe' ? colors.danger : undefined;
-  return (
-    <View style={[styles.item, !first && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line }]}>
-      <View style={styles.flex}>
-        <AppText weight="medium" style={styles.itemTitle} numberOfLines={2}>
-          {line.title}
-        </AppText>
-        <AppText color={colors.muted} style={styles.itemSub}>
-          {formatVnDate(line.date)}
-        </AppText>
-      </View>
-      <AppText weight="semibold" color={color} style={styles.itemAmount}>
-        {SIGN[tone]}
-        {formatVnd(Math.abs(line.v))}
-      </AppText>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  flex: { flex: 1, minWidth: 0 },
   content: { paddingHorizontal: PageLayout.paddingX, paddingTop: PageLayout.contentTop, gap: PageLayout.gap },
   loading: { marginTop: 48 },
   card: { borderRadius: 16, padding: 16 },
   note: { fontSize: 14, lineHeight: 20 },
-  item: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 },
-  itemTitle: { fontSize: 15.5, lineHeight: 21 },
-  itemSub: { fontSize: 12.5, lineHeight: 17 },
-  itemAmount: { fontSize: 14.5, lineHeight: 20 },
+  cancel: { minHeight: 36, paddingHorizontal: 8, justifyContent: 'center' },
+  cancelText: { fontSize: 16, lineHeight: 22 },
 });

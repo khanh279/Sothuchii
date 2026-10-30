@@ -1,4 +1,4 @@
-import { Stack, router } from 'expo-router';
+import { Stack } from 'expo-router';
 import { useMemo, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { LockableScrollView } from '@/components/lockable-scroll-view';
@@ -24,6 +24,7 @@ import { BillListCard } from '@/features/bills/BillListCard';
 import { BillOverviewSection, BillPairsSection } from '@/features/bills/BillPairsPanel';
 import { useSingleOpenRow } from '@/hooks/use-single-open-row';
 import { todayStr } from '@/utils/date';
+import { router } from '@/utils/safe-router';
 
 /**
  * Lịch sử Chia bill trong một kỳ (khung "Chia bill" của trang Lịch sử PWA): bill gom theo ngày, mới nhất trước.

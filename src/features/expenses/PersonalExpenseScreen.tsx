@@ -1,4 +1,4 @@
-import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,6 +16,7 @@ import { useTransactionRows } from '@/features/expenses/useTransactionRows';
 import { useColors } from '@/hooks/use-colors';
 import { formatVnDate, todayStr } from '@/utils/date';
 import { formatVnd } from '@/utils/format';
+import { router } from '@/utils/safe-router';
 
 /**
  * Trang "Lịch sử chi tiêu" (mở từ nút "Lịch sử chi tiêu cá nhân" và từ biểu đồ ở tab Chi tiêu): lịch sử MỌI khoản chi cá nhân của kỳ dùng chung (kể cả khoản tự sinh từ quỹ / bill / khoản trả,

@@ -1,4 +1,4 @@
-import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { useMemo } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,6 +15,7 @@ import { useFundData } from '@/features/funds/hooks';
 import { buildTxnEditTarget } from '@/features/funds/txnEditTarget';
 import { AppRadius } from '@/constants/palette';
 import { useColors } from '@/hooks/use-colors';
+import { router } from '@/utils/safe-router';
 
 /** Quay lại màn trước (Lịch sử quỹ tự đọc lại dữ liệu khi được mở lại); mở thẳng trang này thì về Tổng quan. */
 function leave() {

@@ -1,4 +1,3 @@
-import { router } from 'expo-router';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
@@ -8,6 +7,7 @@ import { FundRow } from '@/features/funds/FundExpensePanel';
 import { useFundData } from '@/features/funds/hooks';
 import { useColors } from '@/hooks/use-colors';
 import { formatVnd } from '@/utils/format';
+import { router } from '@/utils/safe-router';
 
 interface Props {
   /** 'thu': ghi lần đóng (thu) quỹ; 'chi': ghi khoản chi quỹ. */

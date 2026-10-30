@@ -113,3 +113,13 @@ describe('buildDebtPeopleSplit — nợ theo người kèm phần nợ vay / n�
     expect(people.find((person) => person.name === 'Chi')).toMatchObject({ loan: 0, bill: 20_000, tone: 'get' });
   });
 });
+
+describe('buildDebtPeopleSplit — includeOffsetting', () => {
+  it('người hai sổ trái chiều bù nhau về 0 chỉ có mặt khi includeOffsetting, với tone mid và vẫn đủ hai phần', () => {
+    // An: vay An nợ tôi 30 và bill tôi nợ An 30 → tổng 0
+    const bill30 = bill('BX', '2025-10-01', 1, [p('Tôi', 0), p('An', 60_000)]); // Tôi nợ An 30
+    const loan30 = pay('LX', 'Tôi', 'An', 30_000, { kind: 'vay', date: '2025-10-02' }); // An nợ tôi 30
+    expect(buildDebtPeopleSplit([bill30], [loan30]).find((person) => person.name === 'An')).toBeUndefined();
+    expect(buildDebtPeopleSplit([bill30], [loan30], true).find((person) => person.name === 'An')).toMatchObject({ loan: 30_000, bill: -30_000, total: 0, tone: 'mid' });
+  });
+});

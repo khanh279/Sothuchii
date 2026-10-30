@@ -1,4 +1,3 @@
-import { router } from 'expo-router';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { LockableScrollView } from '@/components/lockable-scroll-view';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,6 +13,7 @@ import { useExpenseSettings, useExpenses } from '@/features/expenses/hooks';
 import { useColors } from '@/hooks/use-colors';
 import { useSharedPeriod } from '@/hooks/use-shared-period';
 import { todayStr } from '@/utils/date';
+import { router } from '@/utils/safe-router';
 
 /**
  * Tab "Chi tiêu": thẻ biểu đồ tròn phân bổ chi tiêu theo mục (kèm %), rồi thẻ biểu đồ cột (kỳ tháng: theo ngày; kỳ năm: theo tháng), bên dưới là nút "Lịch sử chi tiêu cá nhân" mở trang Lịch sử chi tiêu

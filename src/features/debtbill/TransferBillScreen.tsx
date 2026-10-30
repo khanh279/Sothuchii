@@ -1,4 +1,4 @@
-import { Stack, router } from 'expo-router';
+import { Stack } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,6 +16,7 @@ import { useTransactionRows } from '@/features/expenses/useTransactionRows';
 import { useColors } from '@/hooks/use-colors';
 import { formatVnDate, todayStr } from '@/utils/date';
 import { formatVnd } from '@/utils/format';
+import { router } from '@/utils/safe-router';
 
 type Chip = 'all' | 'loan' | 'bill';
 const CHIPS: readonly { value: Chip; label: string }[] = [

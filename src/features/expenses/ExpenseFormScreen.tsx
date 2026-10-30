@@ -1,4 +1,4 @@
-import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, BackHandler, Pressable, StyleSheet, View } from 'react-native';
 import { AppTextInput as TextInput } from '@/components/app-text-input';
@@ -29,6 +29,7 @@ import { describeStorageError, useExpenseSettings } from '@/features/expenses/ho
 import { useColors } from '@/hooks/use-colors';
 import type { ExpenseRef, ExpenseSettings, ExpenseWithId, Period } from '@/types/expense';
 import { isValidDateStr, monthOf, todayStr } from '@/utils/date';
+import { router } from '@/utils/safe-router';
 
 /** Quay lại màn trước; nếu không có màn trước (mở thẳng trang này) thì về Tổng quan. */
 function leave() {

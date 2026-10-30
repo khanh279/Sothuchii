@@ -1,10 +1,11 @@
-import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ScreenTitle } from '@/components/design';
 import PayFormScreen from '@/features/debts/PayFormScreen';
 import { useColors } from '@/hooks/use-colors';
+import { router } from '@/utils/safe-router';
 
 /** Quay lại màn trước; nếu không có màn trước (mở thẳng trang này) thì về Tổng quan. */
 function leave() {

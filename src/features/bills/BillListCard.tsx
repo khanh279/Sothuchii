@@ -1,4 +1,3 @@
-import { router } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
 
@@ -18,6 +17,7 @@ import type { Period } from '@/types/expense';
 import { formatVnDate, todayStr } from '@/utils/date';
 import { AppRadius } from '@/constants/palette';
 import { formatVnd } from '@/utils/format';
+import { router } from '@/utils/safe-router';
 
 /** Màu nhãn: đã thanh toán xanh lá, chưa thanh toán đỏ, một phần vàng cam (như chi tiết bill). */
 const STATE_TONE: Record<TransferPayState, 'get' | 'owe' | 'warn'> = { paid: 'get', unpaid: 'owe', partial: 'warn' };
@@ -141,6 +141,10 @@ export function BillListCard({ title, period, history, stateOf, rowProps, onRemo
                           icon={<CategoryIcon category={category} />}
                           title={bill.title || 'Không tên'}
                           subtitle={`${formatVnDate(bill.date)} · ${bill.people.map((person) => person.name).join(', ')}`}
+                          // Đang chọn gộp: thẻ co lại vì ô tích nên tiêu đề / dòng phụ chỉ một dòng, dài quá thì cắt bằng "…"; nhãn trạng thái dùng cỡ nhỏ.
+                          singleLineTitle={selecting}
+                          singleLineSubtitle={selecting}
+                          smallBadge
                           badge={TRANSFER_STATE_LABEL[stateOf(bill.id)]}
                           badgeTone={STATE_TONE[stateOf(bill.id)]}
                           amount={formatVnd(billTotal(bill))}

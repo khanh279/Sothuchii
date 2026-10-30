@@ -1,23 +1,27 @@
 import { Stack, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState, type ComponentProps, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { PrimaryButton, ScreenTitle, SectionHeader } from '@/components/design';
+import { PaymentConfirmSheet } from '@/components/payment-panel';
 import { PayPageFrame } from '@/components/pay-page-frame';
 import { PAY_ACTION_BAR_CLEARANCE, PayActionBar } from '@/components/pay-action-bar';
 import { PaymentSheet } from '@/components/payment-sheet';
 import { useToast } from '@/components/toast';
 import { AppRadius } from '@/constants/palette';
 import { PayInputError } from '@/data/payRepository';
-import { mergeDebtsSynced, undoMergeSynced, type RecordResult, type SyncedPayChange } from '@/data/payService';
+import { mergeDebtsSynced, recordMergedPaymentSynced, recordPaymentSynced, undoMergeSynced, type RecordResult, type SyncedPayChange } from '@/data/payService';
 import { buildDebtDetail } from '@/domain/debtDetail';
-import { periodFromParams, periodTitle, resolveCategory } from '@/domain/expenses';
-import { DebtBreakdown, debtTotalSummary } from '@/features/debts/DebtBreakdown';
+import { buildDebtPeopleSplit } from '@/domain/debtOverview';
+import { periodFromParams, resolveCategory } from '@/domain/expenses';
+import { pickedNote, summarizePicked } from '@/domain/pickedPayment';
+import { DebtBreakdown, debtTotalSummary, usePersonDebtLists, type PersonDebtLists } from '@/features/debts/DebtBreakdown';
 import { DebtPaymentPanel, debtPaySummary } from '@/features/debts/DebtPeoplePanel';
 import { describeDebtError, useDebtData } from '@/features/debts/hooks';
 import { useExpenseSettings } from '@/features/expenses/hooks';
+import { BILL_OWNER_NAME } from '@/domain/bills';
 import { useColors } from '@/hooks/use-colors';
 import { formatVnDate, todayStr } from '@/utils/date';
 import { formatVnd } from '@/utils/format';
@@ -41,8 +45,64 @@ export default function DebtDetailScreen() {
   const [busy, setBusy] = useState(false);
   const [payOpen, setPayOpen] = useState(false);
   const name = params.name ?? '';
+  // Chọn các khoản để thanh toán: tích các khoản nợ bill / dòng nợ vay cần trả rồi thanh toán đúng những khoản đó.
+  const [selecting, setSelecting] = useState(false);
+  const [pickedBills, setPickedBills] = useState<ReadonlySet<string>>(new Set());
+  const [pickedLoans, setPickedLoans] = useState<ReadonlySet<number>>(new Set());
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const lists = usePersonDebtLists(bills, pays, name);
   const detail = loaded && !error ? buildDebtDetail(bills, pays, name, period, categoryName) : null;
   const summary = detail ? debtPaySummary(detail, name) : null;
+  const loanNet = detail?.loan ?? 0;
+  const picked = summarizePicked({ pair: lists.pair, owner: BILL_OWNER_NAME, billItems: lists.billItems, pickedBills, loanLines: lists.loanList, pickedLoans, loanNet });
+  const toggleIn = <T,>(set: ReadonlySet<T>, value: T): ReadonlySet<T> => {
+    const next = new Set(set);
+    if (next.has(value)) next.delete(value);
+    else next.add(value);
+    return next;
+  };
+  function stopSelecting() {
+    setSelecting(false);
+    setConfirmOpen(false);
+    setPickedBills(new Set());
+    setPickedLoans(new Set());
+  }
+  function pressPickedPay() {
+    if (picked.count === 0) return;
+    if (!picked.ok) {
+      toast.show(picked.reason ?? 'Chưa thanh toán được các khoản đã chọn.');
+      return;
+    }
+    setConfirmOpen(true);
+  }
+  /** Ghi các khoản đã chọn: nợ bill chỉ trừ vào đúng các bill đã tích (bill cũ trước), nợ vay trừ vào sổ vay; hai phần là hai giao dịch riêng. */
+  async function payPicked() {
+    if (busy || !picked.ok) return;
+    setBusy(true);
+    try {
+      const messages: string[] = [];
+      if (picked.bill) {
+        const result = await recordMergedPaymentSynced(picked.bill.from, picked.bill.to, picked.bill.billIds, picked.bill.amount);
+        if (result.value.message) messages.push(result.value.message);
+      }
+      if (picked.loan) {
+        const result = await recordPaymentSynced(name, 'loan', picked.loan.amount, `Trả: ${picked.loan.titles.join(', ')}`);
+        if (result.value.message) messages.push(result.value.message);
+      }
+      if (messages.length > 0) toast.show(messages.join('\n'));
+      stopSelecting();
+      await reload();
+    } catch (e) {
+      setConfirmOpen(false);
+      toast.show(e instanceof PayInputError ? e.message : describeDebtError(e));
+      await reload();
+    } finally {
+      setBusy(false);
+    }
+  }
+  // Tiêu đề theo chiều nợ ròng (nợ vay + nợ bill) với người này: "Tôi nợ A" / "A nợ tôi"; hai sổ bù nhau về 0 hoặc chưa có dữ liệu thì "Công nợ với A".
+  const netTone = loaded && !error ? buildDebtPeopleSplit(bills, pays, true).find((person) => person.name === name)?.tone : undefined;
+  const title = !name ? 'Chi tiết công nợ' : netTone === 'owe' ? `Tôi nợ ${name}` : netTone === 'get' ? `${name} nợ tôi` : `Công nợ với ${name}`;
 
   async function run(task: () => Promise<SyncedPayChange<RecordResult | number>>, done?: (value: RecordResult | number) => string) {
     if (busy) return;
@@ -77,8 +137,15 @@ export default function DebtDetailScreen() {
         detail={detail!}
         busy={busy}
         run={run}
-        periodLabel={periodTitle(period)}
-        today={today}
+        lists={lists}
+        selection={
+          selecting
+            ? {
+                bills: { selected: pickedBills, onToggle: (id) => setPickedBills((set) => toggleIn(set, id)) },
+                loans: { selected: pickedLoans, onToggle: (index) => setPickedLoans((set) => toggleIn(set, index)) },
+              }
+            : undefined
+        }
       />
     );
   }
@@ -86,11 +153,39 @@ export default function DebtDetailScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
       <Stack.Screen options={{ title: 'Chi tiết nợ', headerShown: false }} />
-      <ScreenTitle title={params.name ? `Công nợ với ${params.name}` : 'Chi tiết công nợ'} topInset={insets.top} />
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom + (summary ? PAY_ACTION_BAR_CLEARANCE : 0) }]} keyboardShouldPersistTaps="handled">
+      <ScreenTitle
+        title={title}
+        topInset={insets.top}
+        right={
+          selecting ? (
+            <Pressable accessibilityRole="button" accessibilityLabel="Hủy chọn khoản" hitSlop={8} onPress={stopSelecting} style={styles.cancel}>
+              <AppText weight="semibold" color={colors.danger} style={styles.cancelText}>
+                Hủy
+              </AppText>
+            </Pressable>
+          ) : undefined
+        }
+      />
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom + (summary || selecting ? PAY_ACTION_BAR_CLEARANCE : 0) }]} keyboardShouldPersistTaps="handled">
         {body}
       </ScrollView>
-      <PayActionBar visible={!!summary} bottom={16} onPress={() => setPayOpen(true)} />
+      <PayActionBar
+        visible={selecting || !!summary}
+        label={selecting ? (picked.count > 0 ? `Thanh toán ${picked.count} khoản · ${formatVnd(picked.total)}` : 'Chọn khoản cần thanh toán') : undefined}
+        disabled={selecting && picked.count === 0}
+        bottom={16}
+        onPress={selecting ? pressPickedPay : () => setPayOpen(true)}
+      />
+      {confirmOpen && picked.ok && (
+        <PaymentConfirmSheet
+          message={picked.direction === 'owe' ? `Tôi trả ${name}` : `${name} trả tôi`}
+          amountText={formatVnd(picked.total)}
+          note={pickedNote(picked)}
+          busy={busy}
+          onCancel={() => setConfirmOpen(false)}
+          onConfirm={() => void payPicked()}
+        />
+      )}
       {payOpen && summary && (
         <PaymentSheet heading={`${summary.payer} trả ${summary.receiver}`} amountText={formatVnd(summary.total)} amountColor={summary.receiving ? colors.success : colors.danger} onClose={() => setPayOpen(false)}>
           <DebtPaymentPanel
@@ -98,6 +193,7 @@ export default function DebtDetailScreen() {
             bills={bills}
             pays={pays}
             period={period}
+            onSelectItems={() => setSelecting(true)}
             onDone={() => setPayOpen(false)}
             onPaid={async (message) => {
               if (message) toast.show(message);
@@ -120,15 +216,15 @@ function PersonView({
   detail,
   busy,
   run,
-  periodLabel,
-  today,
+  lists,
+  selection,
 }: {
   name: string;
   detail: ReturnType<typeof buildDebtDetail>;
   busy: boolean;
   run: Run;
-  periodLabel: string;
-  today: string;
+  lists: PersonDebtLists;
+  selection?: ComponentProps<typeof DebtBreakdown>['selection'];
 }) {
   const colors = useColors();
   const [armedUndo, setArmedUndo] = useState<string | null>(null);
@@ -137,13 +233,12 @@ function PersonView({
   return (
     <View style={styles.personWrap}>
       <PayPageFrame
-        label="Tổng nợ hiện tại (vay + bill)"
+        label="Còn lại"
         amount={total.amount}
         amountColor={total.tone === 'owe' ? colors.danger : total.tone === 'get' ? colors.success : undefined}
-        caption={total.caption}
         detailsTitle="Chi tiết nợ"
       >
-        <DebtBreakdown detail={detail} periodLabel={periodLabel} today={today} />
+        <DebtBreakdown detail={detail} lists={lists} selection={selection} />
       </PayPageFrame>
 
       {detail.settled && (
@@ -236,5 +331,7 @@ const styles = StyleSheet.create({
   payBox: { marginTop: 14, gap: 8 },
   history: { marginTop: 8, gap: 6 },
   historyRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 14, borderRadius: AppRadius.field },
+  cancel: { minHeight: 36, paddingHorizontal: 8, justifyContent: 'center' },
+  cancelText: { fontSize: 16, lineHeight: 22 },
   undo: { minHeight: 34, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
 });

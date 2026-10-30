@@ -1,4 +1,3 @@
-import { router } from 'expo-router';
 import { useState } from 'react';
 
 import { TOAST_BOTTOM_HISTORY, useToast } from '@/components/toast';
@@ -8,6 +7,7 @@ import { linkedExpenseNotice } from '@/domain/linkedExpense';
 import { describeStorageError } from '@/features/expenses/hooks';
 import type { ExpenseWithId, Period } from '@/types/expense';
 import { monthOf } from '@/utils/date';
+import { router } from '@/utils/safe-router';
 
 /**
  * Thao tác trên một dòng khoản chi (mở chi tiết, sửa, xoá có hoàn tác) dùng chung cho Lịch sử và tab Chi tiêu.

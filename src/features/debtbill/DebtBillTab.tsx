@@ -1,4 +1,3 @@
-import { router } from 'expo-router';
 import { useMemo } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,16 +13,16 @@ import { periodTitle } from '@/domain/expenses';
 import { BillSpenderRows } from '@/features/bills/BillPairsPanel';
 import { DebtTotalTiles } from '@/features/debts/DebtPeoplePanel';
 import { useDebtData } from '@/features/debts/hooks';
-import { DebtBlock } from '@/features/debtbill/DebtBlock';
 import { useChromeScroll } from '@/hooks/use-chrome';
 import { useColors } from '@/hooks/use-colors';
 import { useSharedPeriod } from '@/hooks/use-shared-period';
 import { todayStr } from '@/utils/date';
+import { router } from '@/utils/safe-router';
 
 /**
  * Tab "Nợ & bill" (gộp hai tab Chia bill và Công nợ cũ), ba khối cuộn cùng nhau:
  * (1) Thẻ "Các khoản nợ & bill": hai ô "Tôi nợ" / "Nợ tôi" (toàn thời gian) và nút "Chi tiết nợ & bill" mở trang chi tiết (nợ vay theo người, nợ bill theo cặp).
- * (2) Thẻ "Bill": TẤT CẢ những người chi bill trong kỳ dùng chung (nhiều → ít) và ô bấm "Danh sách bill" mở trang danh sách bill.
+ * (2) Thẻ "Danh sách bill" (kỳ dùng chung ghi dưới tiêu đề): TẤT CẢ những người chi bill (nhiều → ít), không có tiêu đề riêng, và ô bấm "Chi tiết danh sách bill" mở trang danh sách bill.
  * (3) Nút "Lịch sử chuyển tiền & bill" mở trang Lịch sử chuyển tiền & bill (xem, sửa, xoá khoản chuyển tiền và bill). Không có logic tính nợ riêng ở đây: dùng lại các hàm domain và các khối hiện có.
  */
 export default function DebtBillTab() {
@@ -55,12 +54,10 @@ export default function DebtBillTab() {
             </View>
           </SectionCard>
 
-          <SectionCard title="Bill">
+          <SectionCard title="Danh sách bill" subtitle={periodTitle(period)}>
             <View style={styles.inner}>
-              <DebtBlock title="Người chi bill" note={periodTitle(period)}>
-                <BillSpenderRows rows={card.rows} />
-              </DebtBlock>
-              <DetailLink variant="inner" label="Danh sách bill" onPress={() => router.push('/chia-bill/lich-su')} />
+              <BillSpenderRows rows={card.rows} />
+              <DetailLink variant="inner" label="Chi tiết danh sách bill" onPress={() => router.push('/chia-bill/lich-su')} />
             </View>
           </SectionCard>
 
