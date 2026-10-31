@@ -1,6 +1,6 @@
 import { TabList, TabSlot, TabTrigger, Tabs, type TabListProps, type TabTriggerSlotProps } from 'expo-router/ui';
-import { Children, useEffect, useState, type ReactNode } from 'react';
-import { Animated, Easing, Platform, Pressable, StyleSheet, View, type LayoutChangeEvent, type PressableProps } from 'react-native';
+import { Children, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Animated, Easing, Platform, Pressable, StyleSheet, View, type HostInstance, type LayoutChangeEvent, type PressableProps } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -9,13 +9,12 @@ import { SvgIcon } from '@/components/svg-icon';
 import { AppRadius } from '@/constants/palette';
 import type { IconName } from '@/constants/icons';
 import { useChrome } from '@/hooks/use-chrome';
-import { AddMenu } from '@/features/expenses/AddMenu';
-import { pressStyle } from '@/components/press-feedback';
+import { RadialAddOverlay, usePlusGesture, useRadialAdd, type RadialAdd } from '@/features/expenses/RadialAddMenu';
 import { useColors } from '@/hooks/use-colors';
 import { useLanguage } from '@/i18n/language';
 
 /**
- * Thanh điều hướng dưới: bốn mục (Tổng quan, Chi tiêu, Nợ & bill, Quỹ nhóm) chia hai bên nút "+" tròn nổi ở CHÍNH GIỮA (mở menu thêm nhanh ở mọi trang chính). Mỗi mục một biểu tượng và nhãn ngắn; mục đang chọn nền xanh nhạt.
+ * Thanh điều hướng dưới: bốn mục (Tổng quan, Chi tiêu, Nợ & bill, Quỹ nhóm) chia hai bên nút "+" tròn nổi ở CHÍNH GIỮA (chạm hoặc giữ rồi vuốt để chọn Chi tiêu / Tạo bill / Chi tiêu quỹ ở các vòng bán nguyệt, ở mọi trang chính). Mỗi mục một biểu tượng và nhãn ngắn; mục đang chọn nền xanh nhạt.
  */
 const TABS: { name: string; href: '/' | '/chi-tieu' | '/no-bill' | '/quy'; icon: IconName; label: string; short: string }[] = [
   { name: 'index', href: '/', icon: 'tabOverview', label: 'Tổng quan', short: 'Tổng quan' },
@@ -25,11 +24,12 @@ const TABS: { name: string; href: '/' | '/chi-tieu' | '/no-bill' | '/quy'; icon:
 ];
 
 export default function FloatingTabs() {
+  const radial = useRadialAdd();
   return (
     <Tabs>
       <TabSlot style={{ flex: 1 }} />
       <TabList asChild>
-        <FloatingTabList>
+        <FloatingTabList radial={radial}>
           {TABS.map((tab) => (
             <TabTrigger key={tab.name} name={tab.name} href={tab.href} asChild>
               <TabButton icon={tab.icon} label={tab.label} short={tab.short} />
@@ -37,6 +37,8 @@ export default function FloatingTabs() {
           ))}
         </FloatingTabList>
       </TabList>
+      {/* Lớp phủ menu vòng bán nguyệt của nút "+" (phủ cả màn hình, nằm trên thanh tab). */}
+      <RadialAddOverlay radial={radial} />
     </Tabs>
   );
 }
@@ -71,13 +73,14 @@ function halves(width: number) {
   };
 }
 
-function FloatingTabList(props: TabListProps) {
+function FloatingTabList({ radial, ...props }: TabListProps & { radial: RadialAdd }) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { hidden } = useChrome();
   const [y] = useState(() => new Animated.Value(0));
   const [width, setWidth] = useState(0);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const plusRef = useRef<HostInstance>(null);
+  const { panHandlers, openAtPlus, onLayout: onPlusLayout } = usePlusGesture(radial, plusRef);
   const items = Children.toArray(props.children as ReactNode);
   const paths = width > 0 ? halves(width) : null;
 
@@ -104,11 +107,19 @@ function FloatingTabList(props: TabListProps) {
           <View style={[styles.half, { paddingRight: NOTCH_R + 2 }]}>{items.slice(0, 2)}</View>
           <View style={[styles.half, { paddingLeft: NOTCH_R + 2 }]}>{items.slice(2)}</View>
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Thêm nhanh" onPress={() => setMenuOpen(true)} style={({ pressed }) => [styles.plus, { backgroundColor: colors.primary }, pressStyle(pressed, false, 0.9)]}>
+        <View
+          ref={plusRef}
+          {...panHandlers}
+          onLayout={onPlusLayout}
+          accessible
+          accessibilityRole="button"
+          accessibilityLabel="Thêm nhanh"
+          accessibilityActions={[{ name: 'activate' }]}
+          onAccessibilityAction={openAtPlus}
+          style={[styles.plus, { backgroundColor: colors.primary }, Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : null]}>
           <SvgIcon name="plus" size={34} color={colors.primaryInk} strokeWidth={2.6} />
-        </Pressable>
+        </View>
       </Animated.View>
-      <AddMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
     </View>
   );
 }
