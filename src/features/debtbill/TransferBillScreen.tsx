@@ -4,7 +4,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { CardHead, ChipRow, EmptyState, ScreenTitle } from '@/components/design';
+import { CardHead, ChipRow, EmptyState, ScreenTitle, TitleAction } from '@/components/design';
 import { LockableScrollView } from '@/components/lockable-scroll-view';
 import { PeriodNote } from '@/components/period-filter';
 import { PageLayout } from '@/constants/layout';
@@ -26,7 +26,7 @@ const CHIPS: readonly { value: Chip; label: string }[] = [
 ];
 
 /**
- * Trang "Lịch sử chuyển tiền & bill" (mở từ nút "Chi tiết giao dịch" ở tab Nợ & bill): GỘP khoản chuyển tiền và bill của kỳ dùng chung (khoản trả, trả bill và khoản chi sinh từ Chia bill, kể cả khoản giữa
+ * Trang "Lịch sử Nợ & Bill" (mở từ nút "Chi tiết giao dịch" ở tab Nợ & bill): GỘP khoản chuyển tiền và bill của kỳ dùng chung (khoản trả, trả bill và khoản chi sinh từ Chia bill, kể cả khoản giữa
  * những người khác), không có chi tiêu thường. Dùng cùng nguồn dữ liệu và cách dựng dòng với trang Tất cả giao dịch (`useTransactionBook`, `useTransactionRows`) nhưng bố cục riêng: thẻ tóm tắt
  * "Tôi chi ra / Tôi nhận" rồi danh sách có ba nút lọc. Khoản chi sinh từ Chia bill: Sửa / Xoá / chạm chuyển sang bill gốc.
  */
@@ -52,8 +52,8 @@ export default function TransferBillScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
-      <Stack.Screen options={{ title: 'Lịch sử chuyển tiền & bill', headerShown: false }} />
-      <ScreenTitle title="Lịch sử chuyển tiền & bill" topInset={insets.top} />
+      <Stack.Screen options={{ title: 'Lịch sử Nợ & Bill', headerShown: false }} />
+      <ScreenTitle title="Lịch sử Nợ & Bill" topInset={insets.top} right={<TitleAction label="Giao dịch" onPress={() => router.push('/cong-no/ghi-nhan')} />} />
       <LockableScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} onScrollBeginDrag={closeAll} keyboardShouldPersistTaps="handled">
         {book.message ? (
           <View style={[styles.notice, { backgroundColor: colors.dangerSoft }]}>

@@ -1,6 +1,6 @@
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, BackHandler, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, BackHandler, StyleSheet, View } from 'react-native';
 import { AppTextInput as TextInput } from '@/components/app-text-input';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -10,8 +10,8 @@ import { CategoryIcon } from '@/components/category-icon';
 import { DateField } from '@/components/date-field';
 import { PhotoField } from '@/features/photos/PhotoViews';
 import { ScreenTitle } from '@/components/design';
-import { KeyboardAnchor, KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll';
-import { AmountField, FormLabel, formStyles } from '@/components/expense-form-parts';
+import { KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll';
+import { AmountField, FormLabel, formStyles, FormSaveButton } from '@/components/expense-form-parts';
 import { InlineSelect } from '@/components/inline-select';
 import { useToast } from '@/components/toast';
 import { DEFAULT_CATEGORY_ID, MEMO_MAX } from '@/constants/categories';
@@ -30,6 +30,7 @@ import { describeStorageError, useExpenseSettings } from '@/features/expenses/ho
 import { useColors } from '@/hooks/use-colors';
 import type { ExpenseRef, ExpenseSettings, ExpenseWithId, Period } from '@/types/expense';
 import { isValidDateStr, monthOf, todayStr } from '@/utils/date';
+import { clearQuickDraft, peekQuickDraft } from '@/utils/quick-draft';
 import { router } from '@/utils/safe-router';
 
 /** Quay lại màn trước; nếu không có màn trước (mở thẳng trang này) thì về Tổng quan. */
@@ -123,8 +124,11 @@ function ExpenseForm({ settings, existing, suggestedDate, period }: FormProps) {
   const insets = useSafeAreaInsets();
   const toast = useToast();
   const today = todayStr();
-  const [amount, setAmount] = useState(existing?.a ?? 0);
-  const [memo, setMemo] = useState(existing?.n ?? '');
+  /** Bản nháp từ "Chụp nhanh" (chỉ khi thêm mới). */
+  const [quick] = useState(() => (existing ? null : peekQuickDraft()));
+  useEffect(() => clearQuickDraft(), []);
+  const [amount, setAmount] = useState(existing?.a ?? quick?.amount ?? 0);
+  const [memo, setMemo] = useState(existing?.n ?? quick?.title ?? '');
   const [date, setDate] = useState(
     existing?.d ?? (suggestedDate && isValidDateStr(suggestedDate) && suggestedDate <= today ? suggestedDate : today),
   );
@@ -133,7 +137,7 @@ function ExpenseForm({ settings, existing, suggestedDate, period }: FormProps) {
   const [errors, setErrors] = useState({ amount: false, date: false });
   const [busy, setBusy] = useState(false);
   /** Mã các ảnh đính kèm (hóa đơn…); lưu cùng khoản chi. */
-  const [photos, setPhotos] = useState<string[]>(existing?.ph ? [...existing.ph] : []);
+  const [photos, setPhotos] = useState<string[]>(existing?.ph ? [...existing.ph] : (quick?.ph ?? []));
 
   // Android: nút Back đóng lịch trước khi rời màn hình.
   useEffect(() => {
@@ -230,17 +234,9 @@ function ExpenseForm({ settings, existing, suggestedDate, period }: FormProps) {
 
           <PhotoField value={photos} onChange={setPhotos} />
 
-          <KeyboardAnchor style={formStyles.actions}>
-            <Pressable
-              style={[formStyles.btn, formStyles.btnSave, { backgroundColor: colors.primary }, busy && formStyles.disabled]}
-              onPress={save}
-              disabled={busy}
-              accessibilityRole="button">
-              <AppText weight="semibold" color={colors.primaryInk} style={formStyles.btnText}>
-                Lưu khoản chi
-              </AppText>
-            </Pressable>
-          </KeyboardAnchor>
+          <View style={formStyles.actions}>
+            <FormSaveButton label="Lưu khoản chi" busy={busy} onPress={save} />
+          </View>
 
           {calendarOpen && (
             <CalendarPanel

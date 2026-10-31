@@ -11,6 +11,8 @@ import { BillItemsList } from '@/features/bills/BillItemsList';
 import type { PersonDebtLists } from '@/features/debts/DebtBreakdown';
 import { LoanLinesList } from '@/features/debts/LoanLinesList';
 import { useExpenseSettings } from '@/features/expenses/hooks';
+import { useToast } from '@/components/toast';
+import { loadSettings } from '@/data/expenseRepository';
 import { useColors } from '@/hooks/use-colors';
 
 /** Số khoá "đã ẩn" tối đa lưu trong thiết lập (giữ các khoá mới nhất) để thiết lập không phình ra mãi. */
@@ -20,7 +22,7 @@ const MAX_HIDDEN = 500;
  * Các khoản đã thanh toán người dùng đã chọn "Xóa lịch sử" ở ngăn xếp (chỉ ẨN khỏi ngăn xếp, dữ liệu và lịch sử giao dịch giữ nguyên). Lưu danh sách khoá trong thiết lập (`hiddenPaid`) nên được sao lưu cùng.
  * Khoá: khoản vay `loan:<mã khoản gốc>`, khoản bill `bill:<mã cặp>:<mã bill>`.
  */
-export function useHiddenPaid(): { hidden: ReadonlySet<string>; hide: (keys: readonly string[]) => Promise<void> } {
+export function useHiddenPaid(): { hidden: ReadonlySet<string>; hide: (keys: readonly string[]) => Promise<void>; unhide: (keys: readonly string[]) => Promise<void> } {
   const { settings, save } = useExpenseSettings();
   const hidden = new Set(settings.hiddenPaid ?? []);
   return {
@@ -28,6 +30,12 @@ export function useHiddenPaid(): { hidden: ReadonlySet<string>; hide: (keys: rea
     hide: async (keys) => {
       const merged = [...new Set([...(settings.hiddenPaid ?? []), ...keys])].slice(-MAX_HIDDEN);
       await save({ ...settings, hiddenPaid: merged });
+    },
+    // Hoàn tác "Xóa lịch sử": đọc lại thiết lập mới nhất (đã đổi sau lúc ẩn) rồi bỏ đúng các khoá vừa ẩn.
+    unhide: async (keys) => {
+      const current = await loadSettings();
+      const drop = new Set(keys);
+      await save({ ...current, hiddenPaid: (current.hiddenPaid ?? []).filter((key) => !drop.has(key)) });
     },
   };
 }
@@ -41,7 +49,7 @@ export function useHiddenPaid(): { hidden: ReadonlySet<string>; hide: (keys: rea
  */
 export function PersonPaidCard({ lists }: { lists: PersonDebtLists }) {
   const colors = useColors();
-  const { hidden, hide } = useHiddenPaid();
+  const { hidden } = useHiddenPaid();
   const paidLoans = paidLoanViews(lists.loanList, hidden);
   const billKey = (item: BillPairItem) => `bill:${lists.pair?.key}:${item.billId}`;
   const paidBills = lists.paidBillItems.filter((item) => !hidden.has(billKey(item)));
@@ -51,7 +59,7 @@ export function PersonPaidCard({ lists }: { lists: PersonDebtLists }) {
     </AppText>
   );
   return (
-    <PaidStack count={paidLoans.length + paidBills.length} onClear={() => hide([...paidLoans.flatMap((view) => loanKey(view) ?? []), ...paidBills.map(billKey)])}>
+    <PaidStack count={paidLoans.length + paidBills.length} keys={[...paidLoans.flatMap((view) => loanKey(view) ?? []), ...paidBills.map(billKey)]}>
       {paidLoans.length > 0 && (
         <>
           {group('Nợ vay')}
@@ -68,8 +76,11 @@ export function PersonPaidCard({ lists }: { lists: PersonDebtLists }) {
   );
 }
 
-export function PaidStack({ count, onClear, children }: { count: number; onClear: () => Promise<void>; children: ReactNode }) {
+/** `keys`: khoá các khoản đã trả đang hiện, dùng để ẩn (và hoàn tác ẩn) khi "Xóa lịch sử". */
+export function PaidStack({ count, keys, children }: { count: number; keys: readonly string[]; children: ReactNode }) {
   const colors = useColors();
+  const toast = useToast();
+  const { hide, unhide } = useHiddenPaid();
   const [open, setOpen] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -105,8 +116,16 @@ export function PaidStack({ count, onClear, children }: { count: number; onClear
           onConfirm={async () => {
             setBusy(true);
             try {
-              await onClear();
+              await hide(keys);
               setConfirm(false);
+              toast.show(`Đã xóa lịch sử ${count} khoản đã thanh toán`, {
+                action: {
+                  label: 'Hoàn tác',
+                  onPress: () => {
+                    void unhide(keys).catch(() => toast.show('Không hoàn tác được. Hãy thử lại.'));
+                  },
+                },
+              });
             } finally {
               setBusy(false);
             }

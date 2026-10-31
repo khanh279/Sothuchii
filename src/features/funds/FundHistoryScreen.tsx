@@ -1,12 +1,13 @@
 import { Stack, useLocalSearchParams } from 'expo-router';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { LockableScrollView } from '@/components/lockable-scroll-view';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { DetailLink } from '@/components/detail-link';
-import { EmptyState, ScreenTitle, SectionCard } from '@/components/design';
+import { EmptyState, ScreenTitle, SectionCard, TitleAction } from '@/components/design';
+import { OptionSheet } from '@/components/option-sheet';
 import { PeriodNote } from '@/components/period-filter';
 import { SelectableCard } from '@/components/selectable-card';
 import { SvgIcon } from '@/components/svg-icon';
@@ -34,6 +35,8 @@ export default function FundHistoryScreen() {
   const { view, setView, period } = useSharedPeriod();
 
   const { data, loaded, error } = useFundData();
+  /** Tờ chọn Thu quỹ / Chi tiêu quỹ của nút "+ Thu, chi quỹ" (chỉ khi xem một quỹ). */
+  const [txnOpen, setTxnOpen] = useState(false);
 
   const history = useMemo(() => buildFundHistory(data, params.fund || 'all', period), [data, params.fund, period]);
   const single = history.filter !== 'all' ? history.funds[0] : null;
@@ -52,7 +55,17 @@ export default function FundHistoryScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
       <Stack.Screen options={{ title: 'Quỹ nhóm', headerShown: false }} />
-      <ScreenTitle title={single ? single.name : 'Chi tiêu quỹ'} topInset={insets.top} />
+      <ScreenTitle title={single ? single.name : 'Chi tiêu quỹ'} topInset={insets.top} right={single ? <TitleAction label="Thu, chi quỹ" onPress={() => setTxnOpen(true)} /> : undefined} />
+      {txnOpen && single && (
+        <OptionSheet
+          title="Thu, chi quỹ"
+          onClose={() => setTxnOpen(false)}
+          options={[
+            { icon: 'wallet', label: 'Thu quỹ', onPress: () => router.push({ pathname: '/quy/thu-quy', params: { fund: single.id } }) },
+            { icon: 'people', label: 'Chi tiêu quỹ', onPress: () => router.push({ pathname: '/quy/chi-tieu', params: { fund: single.id } }) },
+          ]}
+        />
+      )}
       {error ? (
         <View style={[styles.notice, { backgroundColor: colors.dangerSoft }]}>
           <AppText color={colors.danger} style={styles.noticeText}>

@@ -4,7 +4,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { CardHead, ChipRow, EmptyState, ScreenTitle } from '@/components/design';
+import { CardHead, ChipRow, EmptyState, ScreenTitle, TitleAction } from '@/components/design';
 import { LockableScrollView } from '@/components/lockable-scroll-view';
 import { PeriodNote } from '@/components/period-filter';
 import { PageLayout } from '@/constants/layout';
@@ -55,7 +55,11 @@ export default function PersonalExpenseScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
       <Stack.Screen options={{ title: 'Lịch sử chi tiêu', headerShown: false }} />
-      <ScreenTitle title="Lịch sử chi tiêu" topInset={insets.top} />
+      <ScreenTitle
+        title="Lịch sử chi tiêu"
+        topInset={insets.top}
+        right={<TitleAction label="Chi tiêu" onPress={() => router.push({ pathname: '/chi-tieu/nhap', params: { ...periodToParams(book.period), d: suggestedDateFor(book.period, today) } })} />}
+      />
       <LockableScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} onScrollBeginDrag={closeAll} keyboardShouldPersistTaps="handled">
         {book.message ? (
           <View style={[styles.notice, { backgroundColor: colors.dangerSoft }]}>

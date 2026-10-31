@@ -8,9 +8,8 @@ import { AppText } from '@/components/app-text';
 import { CalendarPanel } from '@/components/calendar-panel';
 import { DateField } from '@/components/date-field';
 import { PhotoField } from '@/features/photos/PhotoViews';
-import { AmountField, FormLabel, PickButton, PickPanel, formStyles } from '@/components/expense-form-parts';
+import { AmountField, FormLabel, PickButton, PickPanel, formStyles, FormSaveButton } from '@/components/expense-form-parts';
 import { InlineSelect } from '@/components/inline-select';
-import { KeyboardAnchor } from '@/components/keyboard-aware-scroll';
 import { SvgIcon } from '@/components/svg-icon';
 import { useToast } from '@/components/toast';
 import { AppFonts } from '@/constants/fonts';
@@ -21,6 +20,7 @@ import { FUND_TITLE_MAX, fundExpenseSavedMessage, overspends, validateFundExpens
 import { newExpenseId } from '@/domain/expenses';
 import { FUND_INSUFFICIENT_MESSAGE, defaultExpenseKind, directSpendAvailable, splitByCash, type ExpenseKind, type SpendSplit } from '@/domain/fundAdvance';
 import { formatVnd } from '@/utils/format';
+import { clearQuickDraft, peekQuickDraft } from '@/utils/quick-draft';
 import { describeFundError } from '@/features/funds/hooks';
 import { PersonSelect } from '@/features/funds/PersonSelect';
 import { ShortfallDialog } from '@/features/funds/ShortfallDialog';
@@ -229,15 +229,18 @@ export function FundExpenseForm({
   const colors = useColors();
   const toast = useToast();
   const today = todayStr();
-  const [amount, setAmount] = useState(existing?.amount ?? existingAdvance?.amount ?? 0);
-  const [title, setTitle] = useState(existing?.title ?? existingAdvance?.title ?? '');
+  /** Bản nháp từ "Chụp nhanh" (chỉ khi thêm mới). */
+  const [quick] = useState(() => (existing || existingAdvance ? null : peekQuickDraft()));
+  useEffect(() => clearQuickDraft(), []);
+  const [amount, setAmount] = useState(existing?.amount ?? existingAdvance?.amount ?? quick?.amount ?? 0);
+  const [title, setTitle] = useState(existing?.title ?? existingAdvance?.title ?? quick?.title ?? '');
   const [date, setDate] = useState(existing?.date ?? existingAdvance?.date ?? today);
   const [error, setError] = useState('');
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   /** Mã các ảnh đính kèm (hóa đơn…); lưu cùng khoản chi quỹ. */
-  const [photos, setPhotos] = useState<string[]>(existing?.ph ? [...existing.ph] : []);
+  const [photos, setPhotos] = useState<string[]>(existing?.ph ? [...existing.ph] : (quick?.ph ?? []));
   // Hình thức do người dùng tự chọn; chưa chọn thì theo số dư quỹ hiện tại (hết tiền → cá nhân ứng chi, còn tiền → chi trực tiếp). Không tự đổi sau khi đã chọn.
   const [pickedKind, setPickedKind] = useState<ExpenseKind | null>(null);
   /** Quỹ hết tiền: đã chọn "Cá nhân ứng tiền cho người khác chi" — `funder` ứng tiền túi, `person` nhận tiền ứng để chi. */
@@ -576,18 +579,9 @@ export function FundExpenseForm({
         {shortfallDialog}
         {splitDialog}
 
-        <KeyboardAnchor style={formStyles.actions}>
-          <Pressable
-            style={[formStyles.btn, formStyles.btnSave, { backgroundColor: colors.primary }, busy && formStyles.disabled]}
-            onPress={() => void save()}
-            disabled={busy}
-            accessibilityRole="button"
-          >
-            <AppText weight="semibold" color={colors.primaryInk} style={formStyles.btnText}>
-              {givingAdvance ? 'Lưu khoản giao tiền' : 'Lưu khoản chi'}
-            </AppText>
-          </Pressable>
-        </KeyboardAnchor>
+        <View style={formStyles.actions}>
+          <FormSaveButton label={givingAdvance ? 'Lưu khoản giao tiền' : 'Lưu khoản chi'} busy={busy} onPress={() => void save()} />
+        </View>
 
         {calendarOpen && (
           <CalendarPanel
@@ -751,7 +745,7 @@ export function FundExpenseForm({
       {shortfallDialog}
       {splitDialog}
 
-      <KeyboardAnchor>
+      <View>
         <Pressable
           accessibilityRole="button"
           disabled={busy}
@@ -762,7 +756,7 @@ export function FundExpenseForm({
             {givingAdvance ? 'Lưu khoản giao tiền' : 'Lưu khoản chi'}
           </AppText>
         </Pressable>
-      </KeyboardAnchor>
+      </View>
 
       {calendarOpen && (
         <CalendarPanel

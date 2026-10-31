@@ -1,8 +1,9 @@
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useMemo } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll';
 import { AppText } from '@/components/app-text';
 import { PersonAmountRow, ScreenTitle, StatusBadge, type StatusTone } from '@/components/design';
 import { PAY_ACTION_BAR_CLEARANCE } from '@/components/pay-action-bar';
@@ -145,7 +146,7 @@ export default function MergedBillScreen() {
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
       <Stack.Screen options={{ title: 'Bill gộp', headerShown: false }} />
       <ScreenTitle title="Bill gộp" topInset={insets.top} />
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom + (canPay ? PAY_ACTION_BAR_CLEARANCE : 0) }]}>{body}</ScrollView>
+      <KeyboardAwareScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom + (canPay ? PAY_ACTION_BAR_CLEARANCE : 0) }]}>{body}</KeyboardAwareScrollView>
       <BillPayFlow billIds={ids} pairs={pairs} scope={`Gộp ${merged.bills.length} bill`} visible={canPay} reload={reload} />
     </View>
   );

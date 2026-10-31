@@ -4,7 +4,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { CardHead, ChipRow, EmptyState, ScreenTitle } from '@/components/design';
+import { CardHead, ChipRow, EmptyState, ScreenTitle, TitleAction } from '@/components/design';
 import { LockableScrollView } from '@/components/lockable-scroll-view';
 import { SelectableCard } from '@/components/selectable-card';
 import { SvgIcon } from '@/components/svg-icon';
@@ -193,7 +193,7 @@ export default function DebtBillDetailScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
       <Stack.Screen options={{ title: 'Chi tiết nợ & bill', headerShown: false }} />
-      <ScreenTitle title="Chi tiết nợ & bill" topInset={insets.top} />
+      <ScreenTitle title="Chi tiết nợ & bill" topInset={insets.top} right={<TitleAction label="Giao dịch" onPress={() => router.push('/cong-no/ghi-nhan')} />} />
       {error ? (
         <View style={[styles.notice, { backgroundColor: colors.dangerSoft }]}>
           <AppText color={colors.danger} style={styles.noticeText}>

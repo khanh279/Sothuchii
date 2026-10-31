@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Modal, ScrollView, StyleSheet, View } from 'react-native';
+import { Modal, StyleSheet, View } from 'react-native';
 
+import { KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll';
 import { AppText } from '@/components/app-text';
 import { PrimaryButton, SecondaryButton } from '@/components/design';
 import { FormLabel } from '@/components/expense-form-parts';
@@ -50,7 +51,7 @@ export function ShortfallDialog({ cash, amount, members, busy, onClose, onConfir
           <AppText weight="bold" style={styles.title}>
             Không đủ số dư quỹ
           </AppText>
-          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.body}>
+          <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.body}>
             <Line label="Số dư quỹ" value={formatVnd(available)} />
             <Line label="Khoản chi" value={formatVnd(amount)} />
             <Line label="Còn thiếu" value={formatVnd(missing)} valueColor={colors.danger} bold />
@@ -74,7 +75,7 @@ export function ShortfallDialog({ cash, amount, members, busy, onClose, onConfir
                 </AppText>
               )}
             </View>
-          </ScrollView>
+          </KeyboardAwareScrollView>
           <View style={styles.buttons}>
             <SecondaryButton label="Đóng" disabled={busy} onPress={onClose} style={styles.flex} />
             <PrimaryButton

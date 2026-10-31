@@ -4,7 +4,6 @@ import { AppTextInput as TextInput } from '@/components/app-text-input';
 
 import { AmountInput } from '@/components/amount-input';
 import { AppText } from '@/components/app-text';
-import { KeyboardAnchor } from '@/components/keyboard-aware-scroll';
 import { CalendarPanel } from '@/components/calendar-panel';
 import { DateField } from '@/components/date-field';
 import { PrimaryButton } from '@/components/design';
@@ -180,13 +179,13 @@ export function FundActionSheet({ target, data, existing, onClose, onDone, asPag
           {error}
         </AppText>
       )}
-      <KeyboardAnchor>
+      <View>
         <PrimaryButton
           label={target.mode === 'expense' ? 'Lưu khoản chi' : target.mode === 'refund' ? 'Lưu hoàn tiền' : 'Lưu thanh toán'}
           disabled={busy}
           onPress={() => void save()}
         />
-      </KeyboardAnchor>
+      </View>
       {calendarOpen && (
         <CalendarPanel
           variant="popup"

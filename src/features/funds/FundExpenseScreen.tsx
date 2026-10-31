@@ -22,11 +22,13 @@ function leave() {
  * từ nút "+" ở Tổng quan hoặc mục Giao dịch quỹ ở tab Quỹ nhóm; không có `fund` thì hiện danh sách quỹ để chọn trước. Lưu xong quay lại. Chỉ dùng được khi đã có quỹ.
  */
 export default function FundExpenseScreen({ mode = 'chi' }: { mode?: 'chi' | 'thu' } = {}) {
-  const heading = mode === 'thu' ? 'Thu quỹ' : 'Chi tiêu quỹ';
   const { fund } = useLocalSearchParams<{ fund?: string }>();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { data, loaded, error, reload } = useFundData();
+  // Có quỹ cụ thể (mở từ trang một quỹ / menu) thì ghi thẳng vào quỹ đó: tiêu đề kèm tên quỹ, không có ô chọn quỹ.
+  const target = data.funds.find((item) => item.id === fund);
+  const heading = target ? `${mode === 'thu' ? 'Thu' : 'Chi'} ${target.name}` : mode === 'thu' ? 'Thu quỹ' : 'Chi tiêu quỹ';
 
   let body;
   if (error) {
@@ -52,10 +54,10 @@ export default function FundExpenseScreen({ mode = 'chi' }: { mode?: 'chi' | 'th
       <KeyboardAwareScrollView style={styles.screen} contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
         {mode === 'thu' ? (
           // Thu quỹ tự có hai thẻ riêng (như trang tạo bill), nên không bọc thêm thẻ ngoài.
-          <FundExpensePanel data={data} mode={mode} initialFundId={fund} onChanged={leave} onAdded={() => void reload()} />
+          <FundExpensePanel data={data} mode={mode} initialFundId={fund} lockFund={!!target} onChanged={leave} onAdded={() => void reload()} />
         ) : (
           <View style={[styles.card, { backgroundColor: colors.surface }]}>
-            <FundExpensePanel data={data} mode={mode} initialFundId={fund} onChanged={leave} onAdded={() => void reload()} />
+            <FundExpensePanel data={data} mode={mode} initialFundId={fund} lockFund={!!target} onChanged={leave} onAdded={() => void reload()} />
           </View>
         )}
       </KeyboardAwareScrollView>

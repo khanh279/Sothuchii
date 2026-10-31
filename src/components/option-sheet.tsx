@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
+import { pressStyle } from '@/components/press-feedback';
 import { SheetFrame, useSheetClose } from '@/components/sheet-frame';
 import { SvgIcon } from '@/components/svg-icon';
 import type { IconName } from '@/constants/icons';
@@ -63,7 +64,7 @@ function OptionList({ title, options, onClose, note }: Props) {
           style={({ pressed }) => [
             styles.option,
             index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
-            { opacity: option.disabled ? 0.45 : pressed ? 0.7 : 1 },
+            pressStyle(pressed, !!option.disabled, 0.98),
           ]}
         >
           <View style={[styles.optionIcon, { backgroundColor: colors.primarySoft }]}>

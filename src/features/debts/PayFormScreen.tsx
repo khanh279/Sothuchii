@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { AppTextInput as TextInput } from '@/components/app-text-input';
 import Svg, { Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { AmountField, FormLabel, formStyles } from '@/components/expense-form-parts';
+import { AmountField, FormLabel, formStyles, FormSaveButton } from '@/components/expense-form-parts';
 import { InlineSelect } from '@/components/inline-select';
-import { KeyboardAnchor, KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll';
+import { KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll';
 import { CalendarPanel } from '@/components/calendar-panel';
 import { DateField } from '@/components/date-field';
 import { PhotoField } from '@/features/photos/PhotoViews';
@@ -241,18 +241,9 @@ function PayForm({ bills, pays, people, editIds, source, reload, onFinished }: F
 
         {!source?.locked && <PhotoField value={photos} onChange={setPhotos} />}
 
-        <KeyboardAnchor style={formStyles.actions}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ disabled: busy }}
-            disabled={busy}
-            onPress={() => void save()}
-            style={[formStyles.btn, formStyles.btnSave, { backgroundColor: colors.primary }, busy && formStyles.disabled]}>
-            <AppText weight="semibold" color={colors.primaryInk} style={formStyles.btnText}>
-              {editing ? 'Lưu thay đổi' : 'Lưu giao dịch'}
-            </AppText>
-          </Pressable>
-        </KeyboardAnchor>
+        <View style={formStyles.actions}>
+          <FormSaveButton label={editing ? 'Lưu thay đổi' : 'Lưu giao dịch'} busy={busy} onPress={() => void save()} />
+        </View>
 
         {calendarOpen && (
           <CalendarPanel

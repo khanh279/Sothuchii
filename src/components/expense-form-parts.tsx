@@ -1,10 +1,12 @@
-import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import type { ReactNode } from 'react';
 
 import { AmountInput } from '@/components/amount-input';
 import { AppText } from '@/components/app-text';
+import { pressStyle } from '@/components/press-feedback';
 import { AppRadius } from '@/constants/palette';
 import { useColors } from '@/hooks/use-colors';
+import { tapHaptic } from '@/utils/haptics';
 
 /**
  * Giao diện chung của hai trang nhập "Chi tiêu cá nhân" và "Chi tiêu quỹ" (PWA: hai trang có cùng giao diện): khung form,
@@ -20,6 +22,31 @@ export const QUICK_ADDS = [
   { label: '+100k', add: 100_000 },
   { label: '+500k', add: 500_000 },
 ] as const;
+
+/**
+ * Nút Lưu lớn của các biểu mẫu: thu nhỏ nhẹ khi nhấn; đang lưu (`busy`) thì hiện vòng quay trước chữ và khóa nút để không lưu hai lần.
+ * `disabled` khóa nút mà không hiện vòng quay (ví dụ chưa đủ điều kiện để tiếp tục).
+ */
+export function FormSaveButton({ label, busy = false, disabled = false, onPress }: { label: string; busy?: boolean; disabled?: boolean; onPress: () => void }) {
+  const colors = useColors();
+  const off = busy || disabled;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ disabled: off, busy }}
+      disabled={off}
+      onPress={() => {
+        tapHaptic();
+        onPress();
+      }}
+      style={({ pressed }) => [formStyles.btn, formStyles.btnSave, formStyles.btnRow, { backgroundColor: colors.primary }, pressStyle(pressed, off)]}>
+      {busy && <ActivityIndicator size="small" color={colors.primaryInk} />}
+      <AppText weight="semibold" color={colors.primaryInk} style={formStyles.btnText}>
+        {label}
+      </AppText>
+    </Pressable>
+  );
+}
 
 export function FormLabel({ children }: { children: string }) {
   const colors = useColors();
@@ -135,6 +162,7 @@ export const formStyles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: 10 },
   btn: { height: 46, borderRadius: AppRadius.field, alignItems: 'center', justifyContent: 'center' },
   btnSave: { flex: 1 },
+  btnRow: { flexDirection: 'row', gap: 8 },
   btnDelete: { paddingHorizontal: 18 },
   btnText: { fontSize: 15 },
   disabled: { opacity: 0.6 },

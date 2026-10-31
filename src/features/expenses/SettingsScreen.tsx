@@ -1,8 +1,9 @@
 import { useState, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { AppTextInput as TextInput } from '@/components/app-text-input';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll';
 import { AppText } from '@/components/app-text';
 import { ScreenTitle } from '@/components/design';
 import { MoneyTextInput } from '@/components/money-input';
@@ -23,8 +24,9 @@ import {
   setBudget,
 } from '@/domain/expenses';
 import { PERSON_NAME_LIMIT } from '@/domain/people';
+import { router } from '@/utils/safe-router';
 import { describeStorageError, useExpenseSettings } from '@/features/expenses/hooks';
-import { DataSheet } from '@/features/data/DataSheet';
+import { DataPanel } from '@/features/data/DataSheet';
 import { AboutSheet } from '@/features/expenses/AboutSheet';
 import { BankAccountSection } from '@/features/expenses/BankAccountSection';
 import { CategoryBudgetSection } from '@/features/expenses/CategoryBudgetSection';
@@ -37,6 +39,19 @@ import { withAlpha } from '@/utils/color';
 import { addMonths, monthOf, todayStr } from '@/utils/date';
 import { formatVnd } from '@/utils/format';
 
+/** Các mục của danh sách Thiết lập; bấm một mục mở trang riêng của mục đó (route `thiet-lap-muc`). */
+export type SettingsView = 'budget' | 'people' | 'cats' | 'catBudget' | 'recurring' | 'bank' | 'data';
+
+export const SETTINGS_ITEMS: { key: SettingsView; title: string; note: string; icon: 'wallet' | 'people' | 'list' | 'receipt' | 'calendar' | 'qr' | 'download' }[] = [
+  { key: 'budget', title: 'Ngân sách chi tiêu hàng tháng', note: 'Số tiền tối đa mỗi tháng', icon: 'wallet' },
+  { key: 'catBudget', title: 'Hạn mức theo mục', note: 'Hạn mức riêng cho từng mục chi', icon: 'receipt' },
+  { key: 'people', title: 'Danh sách người', note: 'Người hay chia bill, ghi nợ', icon: 'people' },
+  { key: 'cats', title: 'Mục chi tiêu', note: 'Thêm hoặc xóa mục chi riêng', icon: 'list' },
+  { key: 'recurring', title: 'Chi định kỳ', note: 'Khoản tự ghi mỗi tháng', icon: 'calendar' },
+  { key: 'bank', title: 'Tài khoản nhận tiền', note: 'Tài khoản ngân hàng cho mã QR', icon: 'qr' },
+  { key: 'data', title: 'Sao lưu và khôi phục', note: 'Xuất, nhập và khôi phục dữ liệu', icon: 'download' },
+];
+
 /** Số cột của lưới chọn biểu tượng (đo từ PWA). */
 const ICON_COLUMNS = 6;
 
@@ -44,7 +59,7 @@ const ICON_COLUMNS = 6;
  * Màn Thiết lập (phần chi tiêu): ngân sách theo tháng và các mục chi riêng.
  * "Danh sách người" và "Sao lưu và khôi phục" của PWA sẽ thêm cùng các module Quỹ / Chia bill.
  */
-export default function SettingsScreen() {
+export default function SettingsScreen({ view }: { view?: SettingsView } = {}) {
   const { ref: scrollRef, props: scrollProps } = useChromeScroll(false);
   const today = todayStr();
   const colors = useColors();
@@ -56,7 +71,6 @@ export default function SettingsScreen() {
   const [icon, setIcon] = useState<string>('star');
   const [name, setName] = useState('');
   const { people, error: peopleError, add: addPerson, remove: removePerson, reload: reloadPeople } = usePeople();
-  const [dataOpen, setDataOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [personName, setPersonName] = useState('');
 
@@ -134,15 +148,17 @@ export default function SettingsScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
       <ScreenTitle
-        title="Thiết lập"
+        title={view ? (SETTINGS_ITEMS.find((item) => item.key === view)?.title ?? 'Thiết lập') : 'Thiết lập'}
         topInset={insets.top}
         afterTitle={
-          <Pressable accessibilityRole="button" accessibilityLabel="Giới thiệu" hitSlop={6} onPress={() => setAboutOpen(true)} style={[styles.titleButton, { backgroundColor: colors.surface }]}>
-            <SvgIcon name="info" size={20} color={colors.muted} strokeWidth={1.9} />
-          </Pressable>
+          view ? undefined : (
+            <Pressable accessibilityRole="button" accessibilityLabel="Giới thiệu" hitSlop={6} onPress={() => setAboutOpen(true)} style={[styles.titleButton, { backgroundColor: colors.surface }]}>
+              <SvgIcon name="info" size={20} color={colors.muted} strokeWidth={1.9} />
+            </Pressable>
+          )
         }
       />
-      <ScrollView ref={scrollRef} {...scrollProps} contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView ref={scrollRef} {...scrollProps} contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
         {error ? (
           <View style={[styles.notice, { backgroundColor: colors.dangerSoft, marginTop: 12 }]}>
             <AppText color={colors.danger} style={styles.noticeText}>
@@ -153,7 +169,8 @@ export default function SettingsScreen() {
           <ActivityIndicator color={colors.primary} style={{ marginTop: 12 }} />
         ) : (
           <>
-            <Section title="Ngân sách chi tiêu hàng tháng" first>
+            {view === 'budget' && (
+<Section title="Ngân sách chi tiêu hàng tháng" first>
               <Panel>
                 <View style={styles.field}>
                   <View style={styles.headRow}>
@@ -197,8 +214,10 @@ export default function SettingsScreen() {
                 </View>
               </Panel>
             </Section>
+            )}
 
-            <Section title="Danh sách người">
+            {view === 'people' && (
+<Section title="Danh sách người">
               <Panel>
                 <View style={styles.field}>
                   <Label>Thêm người</Label>
@@ -246,8 +265,10 @@ export default function SettingsScreen() {
                 </View>
               </Panel>
             </Section>
+            )}
 
-            <Section title="Mục chi tiêu">
+            {view === 'cats' && (
+<Section title="Mục chi tiêu">
               <Panel>
                 <View style={styles.field}>
                   <Label>Thêm mục riêng</Label>
@@ -318,39 +339,50 @@ export default function SettingsScreen() {
                 </View>
               </Panel>
             </Section>
+            )}
 
-            <CategoryBudgetSection key={JSON.stringify(settings.catBudgets ?? {}) + settings.cats.length} settings={settings} save={save} />
+            {view === 'catBudget' && <CategoryBudgetSection key={JSON.stringify(settings.catBudgets ?? {}) + settings.cats.length} settings={settings} save={save} />}
 
-            <RecurringSection key={(settings.recurring ?? []).map((rule) => rule.id).join(',') + settings.cats.length} settings={settings} save={save} />
+            {view === 'recurring' && <RecurringSection key={(settings.recurring ?? []).map((rule) => rule.id).join(',') + settings.cats.length} settings={settings} save={save} />}
 
-            <BankAccountSection settings={settings} save={save} />
+            {view === 'bank' && <BankAccountSection settings={settings} save={save} />}
 
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setDataOpen(true)}
-              style={[styles.dataButton, { backgroundColor: colors.surface, borderColor: colors.line }]}>
-              <SvgIcon name="download" size={22} color={colors.primary} />
-              <View style={styles.dataText}>
-                <AppText weight="bold" style={styles.dataTitle}>
-                  Sao lưu và khôi phục
-                </AppText>
+            {view === 'data' && (
+              <DataPanel
+                onDataChanged={() => {
+                  void reloadSettings();
+                  void reloadPeople();
+                }}
+              />
+            )}
+
+            {!view && (
+              <View style={[styles.list, { backgroundColor: colors.surface }]}>
+                {SETTINGS_ITEMS.map((item, index) => (
+                  <Pressable
+                    key={item.key}
+                    accessibilityRole="button"
+                    onPress={() => router.push({ pathname: '/thiet-lap-muc', params: { muc: item.key } })}
+                    style={[styles.row, index > 0 && { borderTopColor: colors.line, borderTopWidth: StyleSheet.hairlineWidth }]}>
+                    <SvgIcon name={item.icon} size={22} color={colors.primary} />
+                    <View style={styles.dataText}>
+                      <AppText weight="bold" style={styles.dataTitle}>
+                        {item.title}
+                      </AppText>
+                      <AppText color={colors.muted} style={styles.note}>
+                        {item.note}
+                      </AppText>
+                    </View>
+                    <SvgIcon name="chevronRight" size={18} color={colors.muted} />
+                  </Pressable>
+                ))}
               </View>
-              <SvgIcon name="chevronRight" size={18} color={colors.muted} />
-            </Pressable>
+            )}
           </>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {aboutOpen && <AboutSheet onClose={() => setAboutOpen(false)} />}
-      {dataOpen && (
-        <DataSheet
-          onClose={() => setDataOpen(false)}
-          onDataChanged={() => {
-            void reloadSettings();
-            void reloadPeople();
-          }}
-        />
-      )}
     </View>
   );
 }
@@ -411,7 +443,8 @@ const styles = StyleSheet.create({
   note: { fontSize: 13, lineHeight: 18.85 },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   personTag: { paddingLeft: 10 },
-  dataButton: { minHeight: 64, borderRadius: AppRadius.card, borderWidth: 1, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16 },
+  list: { borderRadius: AppRadius.card, marginTop: 8, overflow: 'hidden' },
+  row: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 8 },
   dataText: { flex: 1, minWidth: 0 },
   dataTitle: { fontSize: 15.5 },
   tag: { height: 32, paddingVertical: 4, paddingLeft: 4, paddingRight: 10, borderRadius: AppRadius.pill, flexDirection: 'row', alignItems: 'center', gap: 6 },

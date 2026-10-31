@@ -1,8 +1,9 @@
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState, type ComponentProps, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll';
 import { AppText } from '@/components/app-text';
 import { PrimaryButton, ScreenTitle, SectionHeader } from '@/components/design';
 import { SvgIcon } from '@/components/svg-icon';
@@ -185,10 +186,10 @@ export default function DebtDetailScreen() {
           ) : undefined
         }
       />
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom + (summary || selecting ? PAY_ACTION_BAR_CLEARANCE : 0) }]} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom + (summary || selecting ? PAY_ACTION_BAR_CLEARANCE : 0) }]} keyboardShouldPersistTaps="handled">
         {body}
         {imageOpen && <DebtImageSheet name={name} loans={reminder.loans} bills={reminder.bills} total={reminder.total} banks={settings.banks ?? []} onClose={() => setImageOpen(false)} />}
-      </ScrollView>
+      </KeyboardAwareScrollView>
       <PayActionBar
         visible={selecting || !!summary}
         label={selecting ? (picked.count > 0 ? `Thanh toán ${picked.count} khoản · ${formatVnd(picked.total)}` : 'Chọn khoản cần thanh toán') : undefined}

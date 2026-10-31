@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from '@/components/app-text';
 import { AppRadius } from '@/constants/palette';
 import { useColors } from '@/hooks/use-colors';
+import { warnHaptic } from '@/utils/haptics';
 
 /** Thời gian toast hiện (ms), như PWA; toast có nút hành động (Hoàn tác) hiện lâu hơn để kịp bấm. */
 const TOAST_MS = 2400;
@@ -41,6 +42,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const show = useCallback((next: string, options?: { bottom?: number; action?: ToastAction }) => {
     if (timer.current) clearTimeout(timer.current);
+    // Có nút hoàn tác nghĩa là vừa xóa / thay đổi quan trọng: rung cảnh báo nhẹ.
+    if (options?.action) warnHaptic();
     setBottom(options?.bottom ?? TOAST_BOTTOM);
     setToast({ message: next, action: options?.action });
     timer.current = setTimeout(() => setToast(null), options?.action ? TOAST_ACTION_MS : TOAST_MS);

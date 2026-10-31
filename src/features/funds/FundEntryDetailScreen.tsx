@@ -1,8 +1,9 @@
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll';
 import { AppText } from '@/components/app-text';
 import { DetailField, DetailHero, DetailNotice } from '@/components/detail-parts';
 import { PhotoSection } from '@/features/photos/PhotoViews';
@@ -150,7 +151,7 @@ export default function FundEntryDetailScreen() {
     const settlePaid = settlements.reduce((sum, item) => sum + item.debt.paid, 0);
     const payoutView =
       settlements.length > 0 ? (
-        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]}>
+        <KeyboardAwareScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]}>
           <Panel>
             {settlements.map((item, index) => (
               <DetailField
@@ -169,7 +170,7 @@ export default function FundEntryDetailScreen() {
             ))}
             <DetailField label="Còn lại" value={formatVnd(Math.max(0, settleTotal - settlePaid))} last />
           </SectionCard>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       ) : null;
 
     const shownRows =
@@ -184,7 +185,7 @@ export default function FundEntryDetailScreen() {
           : rows;
 
     body = payoutView ?? (
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]}>
+      <KeyboardAwareScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]}>
         {/* Khoản chi từ tiền ứng: gọn, không thẻ số tiền lớn; chỉ cho biết khoản này được chi từ những lần giao nào. */}
         {spendParts.length === 0 && entry.kind !== 'advance' && <DetailHero amount={formatVnd(entry.amount)} />}
         {/* Khoản giao ứng: một khung "Số tiền giao"; bấm vào mới xổ danh sách từng lần giao (ngày, số tiền, đã chi). */}
@@ -280,7 +281,7 @@ export default function FundEntryDetailScreen() {
         )}
         {entry.kind === 'expense' && <PhotoSection ids={data.expenses.find((item) => item.id === entry.id)?.ph} />}
         <DetailNotice text="Vuốt dòng sang trái để sửa hoặc xóa" tone="info" />
-      </ScrollView>
+      </KeyboardAwareScrollView>
     );
   }
 
@@ -311,7 +312,7 @@ function OverflowDetail({ data, advanceId, bottom, reload }: { data: FundData; a
     ...(paidExtra > 0 ? [{ label: 'Quỹ đã trả thêm', value: formatVnd(paidExtra) }] : []),
   ];
   return (
-    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + bottom }]}>
+    <KeyboardAwareScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + bottom }]}>
       <DetailHero amount={formatVnd(owedNow)} />
       <Panel>
         {rows.map((row, index) => (
@@ -323,7 +324,7 @@ function OverflowDetail({ data, advanceId, bottom, reload }: { data: FundData; a
         tone="info"
       />
       <AdvanceSpendCard title={`Quỹ giao ${advance.person} ứng chi`} items={advanceSpendItems(data, advance.fundId, advance.person)} reload={reload} />
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 }
 

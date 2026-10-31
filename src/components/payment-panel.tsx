@@ -2,6 +2,8 @@ import { useRef, useState, type ReactNode } from 'react';
 import { Keyboard, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
+import { pressStyle } from '@/components/press-feedback';
+import { tapHaptic } from '@/utils/haptics';
 import { PrimaryButton, SecondaryButton } from '@/components/design';
 import { MoneyTextInput } from '@/components/money-input';
 import { PaymentSummary, usePaymentSheet } from '@/components/payment-sheet';
@@ -248,8 +250,11 @@ function Choices({
           accessibilityRole="button"
           accessibilityLabel={full.label}
           disabled={busy}
-          onPress={() => onPick(onFull(full.amount ?? 0, full.id), hide)}
-          style={({ pressed }) => [styles.button, { backgroundColor: colors.heroBg, opacity: busy ? 0.5 : pressed ? 0.9 : 1 }]}
+          onPress={() => {
+            tapHaptic();
+            onPick(onFull(full.amount ?? 0, full.id), hide);
+          }}
+          style={({ pressed }) => [styles.button, { backgroundColor: colors.heroBg }, pressStyle(pressed, busy)]}
         >
           <AppText weight="bold" color={colors.heroInk} style={styles.fullLabel} numberOfLines={1}>
             {full.label}
@@ -263,7 +268,7 @@ function Choices({
           disabled={busy}
           // Tờ đáy trượt xuống (đóng cả luồng thanh toán) rồi trang vào chế độ tích chọn; không có tờ bao quanh thì vào thẳng.
           onPress={() => (sheet ? hide(onSelect) : onSelect())}
-          style={({ pressed }) => [styles.button, styles.partialButton, { borderColor: colors.primary, backgroundColor: colors.surface, opacity: busy ? 0.5 : pressed ? 0.85 : 1 }]}
+          style={({ pressed }) => [styles.button, styles.partialButton, { borderColor: colors.primary, backgroundColor: colors.surface }, pressStyle(pressed, busy)]}
         >
           <AppText weight="bold" color={colors.primary} style={styles.partialLabel} numberOfLines={1}>
             Chọn các khoản thanh toán
@@ -276,7 +281,7 @@ function Choices({
           accessibilityLabel={partial.label}
           disabled={busy}
           onPress={() => onPick({ kind: 'partial' }, hide)}
-          style={({ pressed }) => [styles.button, styles.partialButton, { borderColor: colors.primary, backgroundColor: colors.surface, opacity: busy ? 0.5 : pressed ? 0.85 : 1 }]}
+          style={({ pressed }) => [styles.button, styles.partialButton, { borderColor: colors.primary, backgroundColor: colors.surface }, pressStyle(pressed, busy)]}
         >
           <AppText weight="bold" color={colors.primary} style={styles.partialLabel} numberOfLines={1}>
             {partial.label}

@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Keyboard, Pressable, StyleSheet, View } from 'react-native';
+import { Animated, Keyboard, StyleSheet, View } from 'react-native';
 import { AppTextInput as TextInput } from '@/components/app-text-input';
 import { GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { MoneyTextInput } from '@/components/money-input';
-import { KeyboardAnchor, KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll';
+import { KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll';
 import { CalendarPanel } from '@/components/calendar-panel';
 import { CategoryIcon } from '@/components/category-icon';
 import { DateField } from '@/components/date-field';
 import { PhotoField } from '@/features/photos/PhotoViews';
-import { FormLabel, formStyles } from '@/components/expense-form-parts';
+import { FormLabel, formStyles, FormSaveButton } from '@/components/expense-form-parts';
 import { InlineMultiSelect } from '@/components/inline-multi-select';
 import { InlineSelect } from '@/components/inline-select';
 import { SvgIcon } from '@/components/svg-icon';
@@ -45,6 +45,7 @@ import { useSlideToggle } from '@/hooks/use-slide-toggle';
 import type { Bill } from '@/types/bill';
 import type { DateStr } from '@/types/expense';
 import { todayStr } from '@/utils/date';
+import { clearQuickDraft, peekQuickDraft } from '@/utils/quick-draft';
 
 /** Các mục chi của bill và thứ tự hiển thị, như PWA (`ne`). */
 const BILL_CATEGORY_IDS = ['food', 'fun', 'trip', 'move', 'bill', 'other'];
@@ -62,16 +63,19 @@ export default function BillCalcScreen({ existing = null, onFinished }: { existi
   const { settings } = useExpenseSettings();
 
   const [initial] = useState(() => (existing ? formFromBill(existing) : null));
-  const [title, setTitle] = useState(initial?.title ?? '');
+  /** Bản nháp từ "Chụp nhanh" (chỉ khi tạo mới): điền tên bill, số tiền người đầu (Tôi đã chi) và ảnh. */
+  const [quick] = useState(() => (existing ? null : peekQuickDraft()));
+  useEffect(() => clearQuickDraft(), []);
+  const [title, setTitle] = useState(initial?.title ?? quick?.title ?? '');
   const [date, setDate] = useState<DateStr>(initial?.date ?? today);
   const [catId, setCatId] = useState(initial?.cat ?? 'food');
   const [openRow, setOpenRow] = useState<number | null>(null);
-  const [rows, setRows] = useState<FormPerson[]>(initial?.rows ?? [emptyPerson('Tôi')]);
+  const [rows, setRows] = useState<FormPerson[]>(initial?.rows ?? [quick && quick.amount > 0 ? { ...emptyPerson('Tôi'), paidText: String(quick.amount) } : emptyPerson('Tôi')]);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [peopleList, setPeopleList] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   /** Mã các ảnh đính kèm (hóa đơn…); lưu cùng bill. */
-  const [photos, setPhotos] = useState<string[]>(existing?.ph ? [...existing.ph] : []);
+  const [photos, setPhotos] = useState<string[]>(existing?.ph ? [...existing.ph] : (quick?.ph ?? []));
   /** Ô cảnh báo (mức cố định lớn hơn tổng bill) chỉ hiện sau khi bấm Lưu bill mà không hợp lệ; sửa số liệu thì ẩn lại. */
   const [showProblem, setShowProblem] = useState(false);
   const touched = useRef(!!existing);
@@ -84,13 +88,18 @@ export default function BillCalcScreen({ existing = null, onFinished }: { existi
       .then(([names, people]) => {
         if (cancelled) return;
         setPeopleList(people);
-        if (!touched.current) setRows(initialPeople(names, people));
+        if (!touched.current) {
+          const base = initialPeople(names, people);
+          // Số tiền từ "Chụp nhanh" là phần "Tôi" đã chi (người đầu tiên).
+          if (quick && quick.amount > 0) base[0] = { ...base[0], paidText: String(quick.amount) };
+          setRows(base);
+        }
       })
       .catch(() => undefined);
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [quick]);
 
   const categories = useMemo(() => {
     const all = allCategories(settings);
@@ -233,18 +242,9 @@ export default function BillCalcScreen({ existing = null, onFinished }: { existi
 
       <SplitReceipt split={split} showTotal showWarning={showProblem} />
 
-      <KeyboardAnchor>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ disabled: saving }}
-          disabled={saving}
-          onPress={() => void save()}
-          style={[formStyles.btn, { backgroundColor: colors.primary }, saving && formStyles.disabled]}>
-          <AppText weight="semibold" color={colors.primaryInk} style={formStyles.btnText}>
-            {existing ? 'Lưu thay đổi' : 'Lưu bill'}
-          </AppText>
-        </Pressable>
-      </KeyboardAnchor>
+      <View>
+        <FormSaveButton label={existing ? 'Lưu thay đổi' : 'Lưu bill'} busy={saving} onPress={() => void save()} />
+      </View>
 
       {calendarOpen && (
         <CalendarPanel

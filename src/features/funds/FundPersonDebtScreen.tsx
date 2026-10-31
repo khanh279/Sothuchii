@@ -1,8 +1,9 @@
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll';
 import { AppText } from '@/components/app-text';
 import { DetailNotice } from '@/components/detail-parts';
 import { CheckSlot } from '@/components/check-slot';
@@ -318,7 +319,7 @@ export default function FundPersonDebtScreen() {
           ) : undefined
         }
       />
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom + (canPay || selecting ? PAY_ACTION_BAR_CLEARANCE : 0) }]}>{body}</ScrollView>
+      <KeyboardAwareScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom + (canPay || selecting ? PAY_ACTION_BAR_CLEARANCE : 0) }]}>{body}</KeyboardAwareScrollView>
       <PayActionBar
         visible={canPay || selecting}
         label={selecting ? (pickedTargets.length > 0 ? `Thanh toán ${pickedTargets.length} khoản · ${formatVnd(pickedTotal)}` : 'Chọn khoản cần thanh toán') : undefined}

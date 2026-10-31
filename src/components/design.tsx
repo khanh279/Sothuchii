@@ -1,7 +1,9 @@
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { AppText } from '@/components/app-text';
+import { pressStyle } from '@/components/press-feedback';
+import { tapHaptic, warnHaptic } from '@/utils/haptics';
 import { ModalPresence } from '@/components/modal-presence';
 import { KeyboardAvoid } from '@/components/keyboard-avoid';
 import { SvgIcon } from '@/components/svg-icon';
@@ -72,7 +74,7 @@ export function TitleAction({ label, onPress, disabled }: { label: string; onPre
       accessibilityState={{ disabled: !!disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => [styles.titleAction, { backgroundColor: colors.primary, opacity: disabled ? 0.45 : pressed ? 0.88 : 1 }]}
+      style={({ pressed }) => [styles.titleAction, { backgroundColor: colors.primary }, pressStyle(pressed, !!disabled)]}
     >
       <SvgIcon name="plus" size={16} color={colors.primaryInk} strokeWidth={2.4} />
       <AppText weight="semibold" color={colors.primaryInk} style={styles.titleActionText} numberOfLines={1}>
@@ -533,8 +535,11 @@ export function PrimaryButton({ label, onPress, disabled, style }: ButtonProps) 
       accessibilityRole="button"
       accessibilityState={{ disabled: !!disabled }}
       disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => [styles.button, { backgroundColor: colors.primary, opacity: disabled ? 0.45 : pressed ? 0.88 : 1 }, style]}
+      onPress={() => {
+        tapHaptic();
+        onPress();
+      }}
+      style={({ pressed }) => [styles.button, { backgroundColor: colors.primary }, pressStyle(pressed, !!disabled), style]}
     >
       <AppText weight="semibold" color={colors.primaryInk} style={styles.buttonText}>
         {label}
@@ -552,7 +557,7 @@ export function SecondaryButton({ label, onPress, disabled, style, icon }: Butto
       accessibilityState={{ disabled: !!disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => [styles.button, !!icon && styles.buttonWithIcon, { backgroundColor: colors.primarySoft, opacity: disabled ? 0.45 : pressed ? 0.8 : 1 }, style]}
+      style={({ pressed }) => [styles.button, !!icon && styles.buttonWithIcon, { backgroundColor: colors.primarySoft }, pressStyle(pressed, !!disabled), style]}
     >
       {icon}
       <AppText weight="semibold" color={colors.primary} style={styles.buttonText}>
@@ -583,6 +588,8 @@ interface ConfirmDialogProps {
 /** Xác nhận một thao tác quan trọng (thanh toán, xoá…). Hiện đè lên toàn màn hình, nền mờ. */
 export function ConfirmDialog({ title, message, amountText, note, warning, confirmLabel = 'Xác nhận', cancelLabel = 'Huỷ', busy, onConfirm, onCancel }: ConfirmDialogProps) {
   const colors = useColors();
+  // Hộp xác nhận (xóa, thanh toán…) vừa hiện: rung cảnh báo nhẹ.
+  useEffect(() => warnHaptic(), []);
   return (
     <Modal transparent animationType="fade" visible statusBarTranslucent onRequestClose={() => {
         if (!busy) onCancel();

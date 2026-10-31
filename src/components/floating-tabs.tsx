@@ -10,6 +10,7 @@ import { AppRadius } from '@/constants/palette';
 import type { IconName } from '@/constants/icons';
 import { useChrome } from '@/hooks/use-chrome';
 import { AddMenu } from '@/features/expenses/AddMenu';
+import { pressStyle } from '@/components/press-feedback';
 import { useColors } from '@/hooks/use-colors';
 import { useLanguage } from '@/i18n/language';
 
@@ -103,7 +104,7 @@ function FloatingTabList(props: TabListProps) {
           <View style={[styles.half, { paddingRight: NOTCH_R + 2 }]}>{items.slice(0, 2)}</View>
           <View style={[styles.half, { paddingLeft: NOTCH_R + 2 }]}>{items.slice(2)}</View>
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Thêm nhanh" onPress={() => setMenuOpen(true)} style={[styles.plus, { backgroundColor: colors.primary }]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Thêm nhanh" onPress={() => setMenuOpen(true)} style={({ pressed }) => [styles.plus, { backgroundColor: colors.primary }, pressStyle(pressed, false, 0.9)]}>
           <SvgIcon name="plus" size={34} color={colors.primaryInk} strokeWidth={2.6} />
         </Pressable>
       </Animated.View>

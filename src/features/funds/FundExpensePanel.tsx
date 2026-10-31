@@ -25,6 +25,8 @@ interface Props {
   onAdded?: () => void;
   /** Quỹ đã chọn sẵn (từ thẻ nổi chọn quỹ): có thì form hiện ngay, không có thì bắt đầu bằng danh sách quỹ. */
   initialFundId?: string;
+  /** Quỹ đã cố định (mở từ trang một quỹ): không hiện ô chọn / đổi quỹ, ghi thẳng vào quỹ đó. */
+  lockFund?: boolean;
 }
 
 /**
@@ -33,7 +35,7 @@ interface Props {
  * cho biết quỹ đang chọn và số dư hiện tại ở cùng một hàng (cùng kiểu ô chọn "Hình thức chi": nhãn "Quỹ", biểu tượng tròn, tên, số dư, mũi tên) — chạm cả thanh thì các quỹ khác XỔ XUỐNG ngay trong cùng khung (`InlineSelect`),
  * chọn một quỹ để đổi quỹ (thu gọn lại), chạm thanh lần nữa để thu gọn.
  */
-export function FundExpensePanel({ data, onChanged, onAdded, mode = 'chi', initialFundId }: Props) {
+export function FundExpensePanel({ data, onChanged, onAdded, mode = 'chi', initialFundId, lockFund }: Props) {
   const colors = useColors();
   const [pickedId, setPickedId] = useState<string | null>(initialFundId ?? null);
   const fund = data.funds.find((item) => item.id === pickedId) ?? null;
@@ -59,7 +61,7 @@ export function FundExpensePanel({ data, onChanged, onAdded, mode = 'chi', initi
     );
   }
 
-  const fundSelect = (
+  const fundSelect = lockFund ? null : (
     <View style={formStyles.field}>
       <FormLabel>Quỹ</FormLabel>
       <InlineSelect

@@ -1,8 +1,9 @@
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll';
 import { AppText } from '@/components/app-text';
 import { EmptyState, ScreenTitle } from '@/components/design';
 import { PaymentConfirmSheet, PaymentPanel } from '@/components/payment-panel';
@@ -59,7 +60,7 @@ export default function LoanDebtScreen() {
 
   // Người kia trả tiền cho mình: thẻ xác nhận có nút "Mã QR nhận tiền" (tài khoản của mình, đúng số tiền đang xác nhận).
   const receiveQr = tone === 'get' ? { content: `${name} tra no`, banks: settings.banks ?? [] } : undefined;
-  const { hidden, hide } = useHiddenPaid();
+  const { hidden } = useHiddenPaid();
   const paidLoans = paidLoanViews(detail?.views ?? [], hidden);
   const summary = summarizePicked({ pair: null, owner: 'Tôi', billItems: [], pickedBills: new Set(), loanViews: detail?.views ?? [], pickedLoans: picked, loanNet: loan });
   function stopSelecting() {
@@ -152,15 +153,15 @@ export default function LoanDebtScreen() {
           ) : undefined
         }
       />
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom + (canPay ? PAY_ACTION_BAR_CLEARANCE : 0) }]} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom + (canPay ? PAY_ACTION_BAR_CLEARANCE : 0) }]} keyboardShouldPersistTaps="handled">
         {body}
         {/* Mọi khoản vay đã trả xong: một thẻ riêng ở cuối, tách khỏi thẻ nợ phía trên. */}
         {!!detail && !selecting && (
-          <PaidStack count={paidLoans.length} onClear={() => hide(paidLoans.flatMap((view) => loanKey(view) ?? []))}>
+          <PaidStack count={paidLoans.length} keys={paidLoans.flatMap((view) => loanKey(view) ?? [])}>
             <LoanLinesList views={detail.views} mode="paid" hidden={hidden} />
           </PaidStack>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
       <PayActionBar
         visible={!!detail && canPay}
         label={selecting ? (summary.count > 0 ? `Thanh toán ${summary.count} khoản · ${formatVnd(summary.total)}` : 'Chọn khoản cần thanh toán') : undefined}

@@ -61,6 +61,7 @@ export default function RootLayout() {
           <KeyboardAvoid ignoreWhenModalOpen>
           <Stack screenOptions={{ headerShown: false, gestureEnabled: true }}>
             <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="chup-nhanh" />
             <Stack.Screen name="chi-tieu/nhap" />
             <Stack.Screen name="chi-tieu/chi-tiet" />
             <Stack.Screen name="chi-tieu/ca-nhan" />
@@ -75,6 +76,7 @@ export default function RootLayout() {
             <Stack.Screen name="quy/cong-no" />
             <Stack.Screen name="chia-bill/lich-su" />
             <Stack.Screen name="thiet-lap" />
+            <Stack.Screen name="thiet-lap-muc" />
             <Stack.Screen name="chia-bill/tao" />
             <Stack.Screen name="chia-bill/nguoi" />
             <Stack.Screen name="chia-bill/chi-tiet" />

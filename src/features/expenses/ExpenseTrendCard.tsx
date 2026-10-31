@@ -3,8 +3,10 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { CardHead } from '@/components/design';
+import { PeriodNote } from '@/components/period-filter';
+import { useSharedPeriod } from '@/hooks/use-shared-period';
+import { todayStr } from '@/utils/date';
 import { AppRadius } from '@/constants/palette';
-import { periodTitle } from '@/domain/expenses';
 import { buildSpendSeries, type SpendBucket, type SpendSeries, type SpendUnit } from '@/domain/spendSeries';
 import { useColors } from '@/hooks/use-colors';
 import type { Expense, Period } from '@/types/expense';
@@ -87,6 +89,7 @@ function showAxisLabel(series: SpendSeries, bucket: SpendBucket): boolean {
  * thì không hiện thẻ, như thẻ biểu đồ tròn bên cạnh. Ít cột (khoảng ngắn) thì cột có bề rộng cố định và căn giữa.
  */
 export function ExpenseTrendCard({ items, period }: Props) {
+  const { view, setView } = useSharedPeriod();
   const colors = useColors();
   const series = useMemo(() => buildSpendSeries(items, period), [items, period]);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
@@ -103,7 +106,7 @@ export function ExpenseTrendCard({ items, period }: Props) {
 
   return (
     <View style={[styles.card, { backgroundColor: colors.surface }]}>
-      <CardHead title={TITLE[series.unit]} subtitle={periodTitle(period)} />
+      <CardHead title={TITLE[series.unit]} subtitleNode={<PeriodNote view={view} onChange={setView} today={todayStr()} />} />
 
       {shown && (
         <View style={styles.info} accessibilityLiveRegion="polite">

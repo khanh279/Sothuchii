@@ -3,9 +3,12 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 
 import { CardHead } from '@/components/design';
+import { PeriodNote } from '@/components/period-filter';
+import { useSharedPeriod } from '@/hooks/use-shared-period';
+import { todayStr } from '@/utils/date';
 import { AppText } from '@/components/app-text';
 import { AppRadius } from '@/constants/palette';
-import { categoryBudgetStatus, categoryPercent, donutSegments, periodTitle, summarizeByCategory } from '@/domain/expenses';
+import { categoryBudgetStatus, categoryPercent, donutSegments, summarizeByCategory } from '@/domain/expenses';
 import { useColors } from '@/hooks/use-colors';
 import type { Expense, ExpenseSettings, Period } from '@/types/expense';
 import { formatVnd, formatVndCompact } from '@/utils/format';
@@ -30,6 +33,7 @@ interface Props {
  * khoản chi nào trong kỳ thì không hiện thẻ.
  */
 export function ExpenseCategoryOverview({ items, settings, period, activeCategory, onSelectCategory }: Props) {
+  const { view, setView } = useSharedPeriod();
   const colors = useColors();
   const { summaries, total } = useMemo(() => {
     const all = summarizeByCategory(items, settings).filter((s) => s.sum > 0);
@@ -41,7 +45,7 @@ export function ExpenseCategoryOverview({ items, settings, period, activeCategor
 
   return (
     <View style={[styles.card, { backgroundColor: colors.surface }]}>
-      <CardHead title="Tổng quan" subtitle={periodTitle(period)} rightTop={`${summaries.length} mục`} rightBottom={formatVnd(total)} />
+      <CardHead title="Tổng quan" subtitleNode={<PeriodNote view={view} onChange={setView} today={todayStr()} />} rightTop={`${summaries.length} mục`} rightBottom={formatVnd(total)} />
 
       <View style={styles.chartWrap} accessible accessibilityLabel={`Tổng chi ${formatVnd(total)}. ${summaries.map((s) => `${s.category.name} ${categoryPercent(s.sum, total)}%`).join(', ')}`}>
         <Svg width={SIZE} height={SIZE} viewBox="0 0 100 100">

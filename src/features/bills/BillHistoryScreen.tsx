@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { PeriodNote } from '@/components/period-filter';
-import { ScreenTitle } from '@/components/design';
+import { ScreenTitle, TitleAction } from '@/components/design';
 import { PAY_ACTION_BAR_CLEARANCE, PayActionBar } from '@/components/pay-action-bar';
 import { TOAST_BOTTOM_HISTORY, useToast } from '@/components/toast';
 import { PageLayout } from '@/constants/layout';
@@ -106,7 +106,9 @@ export default function BillHistoryScreen({ tab }: { tab?: BillHistoryTabMode } 
                   Hủy
                 </AppText>
               </Pressable>
-            ) : undefined
+            ) : (
+              <TitleAction label="Tạo bill" onPress={() => router.push('/chia-bill/tao')} />
+            )
           }
         />
       )}

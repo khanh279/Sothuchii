@@ -1,8 +1,9 @@
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { KeyboardAwareScrollView } from '@/components/keyboard-aware-scroll';
 import { AppText } from '@/components/app-text';
 import { EmptyState, ScreenTitle } from '@/components/design';
 import { PaymentConfirmSheet } from '@/components/payment-panel';
@@ -56,7 +57,7 @@ export default function BillPaymentScreen() {
   // Chỉ các khoản còn phải thanh toán (đã trả đủ thì ẩn); mỗi dòng ghi SỐ CÒN LẠI của khoản đó.
   const allItems = useMemo(() => (pair ? buildBillPairItems(bills, pays, pair) : []), [bills, pays, pair]);
   const items = useMemo(() => allItems.filter((item) => item.remaining > 0), [allItems]);
-  const { hidden, hide } = useHiddenPaid();
+  const { hidden } = useHiddenPaid();
   const billKey = (billId: string) => `bill:${pair?.key}:${billId}`;
   const paidItems = allItems.filter((item) => !item.offset && item.state === 'paid' && !hidden.has(billKey(item.billId)));
   // Người kia trả tiền cho mình: thẻ xác nhận có nút "Mã QR nhận tiền" (tài khoản của mình, đúng số tiền đang xác nhận).
@@ -147,15 +148,15 @@ export default function BillPaymentScreen() {
           ) : undefined
         }
       />
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom + (pair ? PAY_ACTION_BAR_CLEARANCE : 0) }]} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom + (pair ? PAY_ACTION_BAR_CLEARANCE : 0) }]} keyboardShouldPersistTaps="handled">
         {body}
         {/* Mọi khoản bill đã trả xong: một thẻ riêng ở cuối, tách khỏi thẻ nợ phía trên. */}
         {!!pair && !selecting && (
-          <PaidStack count={paidItems.length} onClear={() => hide(paidItems.map((item) => billKey(item.billId)))}>
+          <PaidStack count={paidItems.length} keys={paidItems.map((item) => billKey(item.billId))}>
             <BillItemsList pair={pair} items={paidItems} />
           </PaidStack>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
       <PayActionBar
         visible={!!pair && loaded && !error}
         label={selecting ? (summary.count > 0 ? `Thanh toán ${summary.count} khoản · ${formatVnd(summary.total)}` : 'Chọn khoản cần thanh toán') : undefined}

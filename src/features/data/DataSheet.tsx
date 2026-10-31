@@ -1,17 +1,15 @@
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { useRef, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
-import { SheetFrame, SheetHeader } from '@/components/sheet-frame';
 import { createBackupText, restoreFromText, wipeSection } from '@/data/backupRepository';
 import { StorageCorruptError } from '@/data/storage';
 import { backupFileName, parseBackup, type BackupSection } from '@/domain/backup';
 import { useColors } from '@/hooks/use-colors';
 
 interface Props {
-  onClose: () => void;
   /** Dữ liệu vừa được khôi phục / xoá: màn cha đọc lại. */
   onDataChanged: () => void;
 }
@@ -67,10 +65,10 @@ async function pickTextFile(): Promise<PickedFile | null> {
 }
 
 /**
- * Bảng "Sao lưu và khôi phục" (`#stSheet` của PWA): thẻ Sao lưu (lưu ra FILE), thẻ Khôi phục (CHỌN FILE sao lưu rồi khôi phục) và nút "Xoá tất cả dữ liệu". Khôi phục và xoá bấm hai lần ("Bấm lại để xác nhận"). Khôi phục THAY phần dữ liệu có trong file.
- * Kết quả hiện ngay trong bảng (thông báo nổi có thể bị bảng che).
+ * Nội dung trang "Sao lưu và khôi phục" (`#stSheet` của PWA): thẻ Sao lưu (lưu ra FILE), thẻ Khôi phục (CHỌN FILE sao lưu rồi khôi phục) và nút "Xoá tất cả dữ liệu". Khôi phục và xoá bấm hai lần ("Bấm lại để xác nhận"). Khôi phục THAY phần dữ liệu có trong file.
+ * Kết quả hiện ngay trên trang.
  */
-export function DataSheet({ onClose, onDataChanged }: Props) {
+export function DataPanel({ onDataChanged }: Props) {
   const colors = useColors();
   const [picked, setPicked] = useState<PickedFile | null>(null);
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
@@ -163,10 +161,7 @@ export function DataSheet({ onClose, onDataChanged }: Props) {
   }
 
   return (
-    <SheetFrame onClose={onClose}>
-      <SheetHeader title="Sao lưu và khôi phục" />
-
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <View style={styles.content}>
         {!!message && (
           <View style={[styles.message, { backgroundColor: message.error ? colors.dangerSoft : colors.primarySoft }]} accessibilityRole="alert">
             <AppText weight="semibold" color={message.error ? colors.danger : colors.primary} style={styles.messageText}>
@@ -208,8 +203,7 @@ export function DataSheet({ onClose, onDataChanged }: Props) {
         </View>
 
         <Button label={armed === 'wipe:all' ? 'Bấm lại để xác nhận' : 'Xoá tất cả dữ liệu'} danger armed={armed === 'wipe:all'} disabled={busy} onPress={wipeAll} />
-      </ScrollView>
-    </SheetFrame>
+    </View>
   );
 }
 
@@ -246,7 +240,7 @@ function Button({
 }
 
 const styles = StyleSheet.create({
-  content: { paddingTop: 12, paddingBottom: 4, gap: 12 },
+  content: { paddingTop: 8, gap: 12 },
   message: { borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12 },
   messageText: { fontSize: 14 },
   section: { gap: 10, padding: 14, borderRadius: 16 },

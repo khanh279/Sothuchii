@@ -5,10 +5,9 @@ import { AppTextInput as TextInput } from '@/components/app-text-input';
 import { AppText } from '@/components/app-text';
 import { CalendarPanel } from '@/components/calendar-panel';
 import { DateField } from '@/components/date-field';
-import { FormLabel, formStyles } from '@/components/expense-form-parts';
+import { FormLabel, formStyles, FormSaveButton } from '@/components/expense-form-parts';
 import { InlineMultiSelect } from '@/components/inline-multi-select';
 import { InlineSelect } from '@/components/inline-select';
-import { KeyboardAnchor } from '@/components/keyboard-aware-scroll';
 import { MoneyTextInput } from '@/components/money-input';
 import { SvgIcon } from '@/components/svg-icon';
 import { useToast } from '@/components/toast';
@@ -412,18 +411,9 @@ export function ContributionForm({ fund, existing, header, extraNames = [], defa
           </AppText>
         )}
 
-        <KeyboardAnchor style={formStyles.actions}>
-          <Pressable
-            accessibilityRole="button"
-            disabled={busy}
-            onPress={() => void save()}
-            style={[formStyles.btn, formStyles.btnSave, { backgroundColor: colors.primary }, busy && formStyles.disabled]}
-          >
-            <AppText weight="semibold" color={colors.primaryInk} style={formStyles.btnText}>
-              {existing ? 'Lưu thay đổi' : 'Lưu khoản thu'}
-            </AppText>
-          </Pressable>
-        </KeyboardAnchor>
+        <View style={formStyles.actions}>
+          <FormSaveButton label={existing ? 'Lưu thay đổi' : 'Lưu khoản thu'} busy={busy} onPress={() => void save()} />
+        </View>
       </View>
 
       {calendarOpen && (
