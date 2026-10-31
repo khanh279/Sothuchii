@@ -19,16 +19,20 @@ interface Props {
   value: string;
   onChange: (name: string) => void;
   accessibilityLabel: string;
+  /** true: danh sách xổ sẵn ngay khi hiện (vd. vừa chọn hình thức chi cần người). */
+  initiallyOpen?: boolean;
+  /** false: chỉ chọn trong danh sách, không có mục "Thành viên khác" (nhập tên) — ví dụ chọn người đang giữ tiền giao. Mặc định có. */
+  allowOther?: boolean;
 }
 
 /**
  * Ô chọn người dạng NGĂN XẾP (như các ô chọn người khác): hàng đầu là người đang chọn, bấm thì danh sách xổ ngay bên dưới; mục cuối "Thành viên khác" đổi ô thành nơi nhập tên
  * (có nút "Chọn từ danh sách" để quay lại, danh sách xổ sẵn). Dùng ở form Chi tiêu quỹ ("Người chi" / "Người nhận ứng") và hộp thoại "Không đủ số dư quỹ".
  */
-export function PersonSelect({ members, value, onChange, accessibilityLabel }: Props) {
+export function PersonSelect({ members, value, onChange, accessibilityLabel, initiallyOpen = false, allowOther = true }: Props) {
   const colors = useColors();
   const [typing, setTyping] = useState(false);
-  const [listOpen, setListOpen] = useState(false);
+  const [listOpen, setListOpen] = useState(initiallyOpen);
   const badge = (
     <View style={[styles.badge, { backgroundColor: colors.primarySoft }]}>
       <SvgIcon name="person" size={16} color={colors.primary} strokeWidth={2} />
@@ -85,7 +89,7 @@ export function PersonSelect({ members, value, onChange, accessibilityLabel }: P
       }}
       placeholder="Chọn người"
       placeholderIcon={badge}
-      options={[...names.map((name) => ({ key: name, name, icon: badge })), { key: OTHER_KEY, name: 'Thành viên khác', icon: badge }]}
+      options={[...names.map((name) => ({ key: name, name, icon: badge })), ...(allowOther ? [{ key: OTHER_KEY, name: 'Thành viên khác', icon: badge }] : [])]}
     />
   );
 }

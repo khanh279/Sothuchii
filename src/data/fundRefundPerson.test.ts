@@ -40,7 +40,7 @@ describe('hoàn tiền ứng theo người', () => {
     const data = await loadFundData();
     expect(data.advances?.map((a) => a.id)).toEqual(['a1']);
     expect(data.txns ?? []).toEqual([]);
-    expect(fundPosition(data, 'f1').cash).toBe(before + 300_000); // tiền mặt quỹ tăng đúng số được hoàn
+    expect(fundPosition(data, 'f1').cash).toBe(before); // hoàn tiền ứng chưa chi chỉ đóng công nợ, số còn lại của quỹ không đổi
     expect(fundBalance(data, 'f1')).toBe(balanceBefore);
   });
 

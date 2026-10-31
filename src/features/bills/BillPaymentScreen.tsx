@@ -152,7 +152,10 @@ export default function BillPaymentScreen() {
         {body}
         {/* Mọi khoản bill đã trả xong: một thẻ riêng ở cuối, tách khỏi thẻ nợ phía trên. */}
         {!!pair && !selecting && (
-          <PaidStack count={paidItems.length} keys={paidItems.map((item) => billKey(item.billId))}>
+          <PaidStack
+            count={paidItems.length}
+            keys={paidItems.map((item) => billKey(item.billId))}
+            hiddenKeys={allItems.filter((item) => !item.offset && item.state === 'paid' && hidden.has(billKey(item.billId))).map((item) => billKey(item.billId))}>
             <BillItemsList pair={pair} items={paidItems} />
           </PaidStack>
         )}

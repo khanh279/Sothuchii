@@ -2,14 +2,18 @@ import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { AppRadius } from '@/constants/palette';
-import { SettingsMenuButton } from '@/features/expenses/SettingsMenuButton';
-import { periodTitle, type BudgetSummary } from '@/domain/expenses';
+import { PeriodNote } from '@/components/period-filter';
+import { periodTitle, type BudgetSummary, type PeriodView } from '@/domain/expenses';
 import { useColors } from '@/hooks/use-colors';
-import type { Period } from '@/types/expense';
+import type { DateStr, Period } from '@/types/expense';
 import { formatGrouped, formatVnd } from '@/utils/format';
 
 interface Props {
   period: Period;
+  /** Kỳ đang chọn và hàm đổi kỳ: ghi chú nhỏ chọn được ngang hàng chữ "Tổng chi tiêu" (bấm mở bảng chọn thời gian như các trang khác). */
+  view: PeriodView;
+  onViewChange: (view: PeriodView) => void;
+  today: DateStr;
   loaded: boolean;
   total: number;
   /** Số khoản chi và chi trung bình mỗi ngày của kỳ (null: không xác định, ẩn). */
@@ -20,23 +24,22 @@ interface Props {
 
 /**
  * Thẻ "Tổng chi tiêu" nổi bật ở đầu Tổng quan (nền navy, chữ trắng): tổng chi của kỳ đang chọn, số khoản chi, trung bình/ngày và ngân sách
- * nếu có. Thẻ CHỈ để xem (không bấm được); nút bánh răng Cài đặt (menu Thiết lập / đổi ngôn ngữ) nằm ở góc phải trên của thẻ. Chỉ dùng số liệu chi tiêu cá nhân sẵn có.
+ * nếu có. Thẻ chỉ để xem; riêng ghi chú kỳ nhỏ ngang hàng chữ "Tổng chi tiêu" bấm được để đổi thời gian. Chỉ dùng số liệu chi tiêu cá nhân sẵn có.
  */
-export function SpentCard({ period, loaded, total, count, average, budget }: Props) {
+export function SpentCard({ period, view, onViewChange, today, loaded, total, count, average, budget }: Props) {
   const colors = useColors();
 
   return (
     <View style={[styles.card, { backgroundColor: colors.heroBg }]}>
-      {/* Góc phải trên của thẻ: nút bánh răng Cài đặt (menu Thiết lập / đổi ngôn ngữ). */}
-      <View style={styles.corner}>
-        <SettingsMenuButton variant="hero" />
-      </View>
-      <View style={styles.hero} accessible accessibilityLabel={`Tổng chi tiêu ${periodTitle(period)}: ${formatVnd(total)}`}>
+      <View style={styles.hero}>
         <View>
-          <AppText weight="medium" color={colors.heroSoft} style={styles.label}>
-            {loaded ? 'Tổng chi tiêu' : 'Đang mở sổ…'}
-          </AppText>
-          <AppText weight="display" color={colors.heroInk} style={styles.total} adjustsFontSizeToFit numberOfLines={1}>
+          <View style={styles.labelRow}>
+            <AppText weight="medium" color={colors.heroSoft} style={styles.label}>
+              {loaded ? 'Tổng chi tiêu' : 'Đang mở sổ…'}
+            </AppText>
+            <PeriodNote view={view} onChange={onViewChange} today={today} color={colors.heroSoft} />
+          </View>
+          <AppText weight="display" color={colors.heroInk} style={styles.total} adjustsFontSizeToFit numberOfLines={1} accessibilityLabel={`Tổng chi tiêu ${periodTitle(period)}: ${formatVnd(total)}`}>
             {formatGrouped(total)}
             <AppText weight="display" color={colors.heroInk} style={styles.currency}>
               {' '}
@@ -104,7 +107,7 @@ export function SpentCard({ period, loaded, total, count, average, budget }: Pro
 
 const styles = StyleSheet.create({
   card: { borderRadius: AppRadius.hero, overflow: 'hidden' },
-  corner: { position: 'absolute', top: 14, right: 14, zIndex: 1 },
+  labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   hero: { paddingTop: 20, paddingHorizontal: 20, paddingBottom: 18, gap: 12 },
   label: { fontSize: 13.5, lineHeight: 20 },
   statsRule: { height: 1, marginTop: 2 },

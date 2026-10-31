@@ -34,25 +34,26 @@ describe('chi vượt số dư: chia nguồn tiền quỹ / cá nhân ứng', ()
     const stored = (await raw()).expenses[0];
     expect(stored).toMatchObject({ id, amount: 350_000, mode: 'personal', payer: 'B' });
     expect(stored).not.toHaveProperty('fundPart');
-    expect(fundPosition(await loadFundData(), 'f1')).toMatchObject({ cash: 0, owed: 350_000 });
+    expect(fundPosition(await loadFundData(), 'f1')).toMatchObject({ cash: -350_000, owed: 350_000 });
   });
 
-  it('2. quỹ 200.000 < khoản chi 350.000: một bản ghi 350.000 với phần quỹ 200.000; tiền thực tế về 0, quỹ nợ 150.000', async () => {
+  it('2. quỹ 200.000 < khoản chi 350.000: một bản ghi 350.000 với phần quỹ 200.000; số còn lại −150.000, quỹ nợ 150.000', async () => {
     await seed(200_000);
     await spend(350_000, { mode: 'personal', payer: 'B', fundPart: 200_000 });
     const stored = await raw();
     expect(stored.expenses).toHaveLength(1);
     expect(stored.expenses[0]).toMatchObject({ amount: 350_000, mode: 'personal', payer: 'B', fundPart: 200_000 });
     const data = await loadFundData();
-    expect(fundPosition(data, 'f1')).toMatchObject({ cash: 0, owed: 150_000, spent: 350_000 });
+    expect(fundPosition(data, 'f1')).toMatchObject({ cash: -150_000, owed: 150_000, spent: 350_000 });
     expect(personalDebt(data, data.expenses[0])).toMatchObject({ amount: 150_000, remaining: 150_000 });
   });
 
-  it('phần quỹ chi vượt tiền thực tế lúc ghi (số dư đã đổi sau khi mở form) bị chặn và không ghi gì', async () => {
+  it('phần quỹ chi không bị chặn theo số còn lại của quỹ (số dư có thể âm)', async () => {
     await seed(200_000);
-    await spend(100_000); // một khoản khác làm quỹ còn 100.000 trong lúc form mở
-    await expect(spend(350_000, { mode: 'personal', payer: 'B', fundPart: 200_000 })).rejects.toBeInstanceOf(FundInputError);
-    expect((await raw()).expenses).toHaveLength(1);
+    await spend(100_000); // một khoản khác làm quỹ còn 100.000
+    await spend(350_000, { mode: 'personal', payer: 'B', fundPart: 200_000 });
+    expect((await raw()).expenses).toHaveLength(2);
+    expect(fundPosition(await loadFundData(), 'f1').cash).toBe(200_000 - 100_000 - 350_000);
   });
 
   it('phần quỹ không hợp lệ (0, bằng hoặc lớn hơn tổng) bị từ chối', async () => {
@@ -86,7 +87,7 @@ describe('chi vượt số dư: chia nguồn tiền quỹ / cá nhân ứng', ()
 
 describe('5. sửa và xoá khoản đã chia nguồn tiền', () => {
   const create = async () => {
-    await seed(500_000); // sau khoản chia còn 300.000 tiền thực tế để quỹ trả cho người ứng
+    await seed(500_000); // sau khoản chia số còn lại là 150.000
     return (await spend(350_000, { mode: 'personal', payer: 'B', fundPart: 200_000 })) as string;
   };
 
@@ -97,7 +98,7 @@ describe('5. sửa và xoá khoản đã chia nguồn tiền', () => {
     const stored = await raw();
     expect(stored.expenses).toHaveLength(1);
     expect(stored.expenses[0]).toMatchObject({ id, title: 'Đổi tên', amount: 400_000, fundPart: 200_000, mode: 'personal', payer: 'B' });
-    expect(fundPosition(await loadFundData(), 'f1')).toMatchObject({ cash: 300_000, owed: 200_000, spent: 400_000 });
+    expect(fundPosition(await loadFundData(), 'f1')).toMatchObject({ cash: 100_000, owed: 200_000, spent: 400_000 });
   });
 
   it('không cho giảm tổng xuống dưới phần quỹ đã chi cộng số quỹ đã trả cho cá nhân', async () => {

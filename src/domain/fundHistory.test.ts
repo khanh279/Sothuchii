@@ -37,7 +37,7 @@ describe('buildFundHistory', () => {
     const h = buildFundHistory(data, 'all', { mode: 'all' });
     const flat = h.days.flatMap((d) => d.entries);
     expect(flat.find((e) => e.id === 'c2')).toMatchObject({ title: 'Đóng quỹ', meta: '1 người đóng', amount: 30_000, kind: 'contribution' });
-    expect(flat.find((e) => e.id === 'e2')).toMatchObject({ title: 'Chi quỹ', meta: 'Chi quỹ', kind: 'expense' });
+    expect(flat.find((e) => e.id === 'e2')).toMatchObject({ title: 'Chi quỹ', meta: 'Quỹ chi', kind: 'expense' });
     expect(flat.find((e) => e.id === 'c1')?.amount).toBe(150_000);
   });
 
@@ -125,8 +125,8 @@ describe('buildFundHistory với chi quỹ nâng cao', () => {
 
   it('khoản chi mang người chi / hồ sơ; dòng giao tiền và thanh toán không có trong tổng chi dù cùng kỳ', () => {
     const entries = buildFundHistory(data, 'all', { mode: 'all' }).days.flatMap((day) => day.entries);
-    expect(entries.find((e) => e.id === 'e2')).toMatchObject({ person: 'A', meta: 'Chi quỹ · A ứng' });
-    expect(entries.find((e) => e.id === 'e3')).toMatchObject({ person: 'B', advanceId: 'a1', meta: 'Chi từ tiền ứng · B' });
+    expect(entries.find((e) => e.id === 'e2')).toMatchObject({ person: 'A', meta: 'A ứng chi' });
+    expect(entries.find((e) => e.id === 'e3')).toMatchObject({ person: 'B', advanceId: 'a1', meta: 'Giao B chi' });
     expect(entries.find((e) => e.id === 'a1')).toMatchObject({ kind: 'advance', amount: 200_000 }) // 500k giao − 300k đã hoàn: hoàn tiền không có dòng riêng;
   });
 
@@ -275,13 +275,14 @@ describe('mergePayoutEntries — gộp các lần quỹ GIAO tiền ứng cùng 
 });
 
 describe('lọc lịch sử quỹ theo loại khoản', () => {
-  it('entryCategory: thu quỹ, chi trực tiếp, cá nhân ứng chi (khoản chi có người chi và dòng quỹ trả), giao tiền ứng', () => {
+  it('entryCategory: thu quỹ, chi trực tiếp, cá nhân ứng chi (khoản chi có người chi và dòng quỹ trả), giao cá nhân chi (chi từ tiền giao); lần giao ứng / hoàn là other', () => {
     expect(entryCategory({ kind: 'contribution' })).toBe('contribution');
     expect(entryCategory({ kind: 'expense' })).toBe('direct');
     expect(entryCategory({ kind: 'expense', person: 'An' })).toBe('personal');
+    expect(entryCategory({ kind: 'expense', person: 'An', spendFromAdvance: true })).toBe('advanceSpend');
     expect(entryCategory({ kind: 'payout', person: 'An' })).toBe('personal');
-    expect(entryCategory({ kind: 'advance', person: 'An' })).toBe('advance');
-    expect(entryCategory({ kind: 'refund', person: 'An' })).toBe('advance');
+    expect(entryCategory({ kind: 'advance', person: 'An' })).toBe('other');
+    expect(entryCategory({ kind: 'refund', person: 'An' })).toBe('other');
   });
 
   it('filterDaysByCategory: chỉ giữ đúng loại, bỏ ngày trống; null = không lọc', () => {
@@ -293,7 +294,7 @@ describe('lọc lịch sử quỹ theo loại khoản', () => {
     expect(filterDaysByCategory(days, 'direct').flatMap((d) => d.entries.map((e) => e.id))).toEqual(['e1']);
     expect(filterDaysByCategory(days, 'personal').flatMap((d) => d.entries.map((e) => e.id))).toEqual(['e2']);
     expect(filterDaysByCategory(days, 'contribution')).toHaveLength(1);
-    expect(filterDaysByCategory(days, 'advance')).toEqual([]);
+    expect(filterDaysByCategory(days, 'advanceSpend')).toEqual([]);
     expect(filterDaysByCategory(days, null)).toHaveLength(2);
   });
 });

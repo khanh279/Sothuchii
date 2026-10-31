@@ -101,7 +101,7 @@ export function PeriodFilter({ view, onChange, today, compact = false }: Props) 
  * Ghi chú kỳ BẤM ĐƯỢC (dưới tiêu đề của thẻ ở các trang lịch sử): hiện kỳ đang xem ("Tháng 10/2026", "01/09/2026 – 27/10/2026", "Tất cả") kèm mũi tên nhỏ; bấm vào mở đúng bảng chọn thời gian của
  * `PeriodFilter` (cùng giao diện, cùng quy tắc, và ghi vào cùng kỳ dùng chung của cả ứng dụng qua `onChange`). Thay cho ô chọn kỳ ở góc phải tiêu đề.
  */
-export function PeriodNote({ view, onChange, today }: { view: PeriodView; onChange: (view: PeriodView) => void; today: DateStr }) {
+export function PeriodNote({ view, onChange, today, color }: { view: PeriodView; onChange: (view: PeriodView) => void; today: DateStr; /** Màu chữ và mũi tên (mặc định xám); đổi khi đặt trên nền tối. */ color?: string }) {
   const colors = useColors();
   const [open, setOpen] = useState(false);
   const period = periodOf(view);
@@ -114,11 +114,11 @@ export function PeriodNote({ view, onChange, today }: { view: PeriodView; onChan
         hitSlop={8}
         onPress={() => setOpen(true)}
         style={({ pressed }) => [styles.noteBtn, { opacity: pressed ? 0.7 : 1 }]}>
-        <AppText color={colors.muted} style={styles.noteText} numberOfLines={1}>
+        <AppText color={color ?? colors.muted} style={styles.noteText} numberOfLines={1}>
           {periodTitle(period)}
         </AppText>
         <View style={styles.noteArrow}>
-          <SvgIcon name="chevronRight" size={12} color={colors.muted} strokeWidth={2.4} />
+          <SvgIcon name="chevronRight" size={12} color={color ?? colors.muted} strokeWidth={2.4} />
         </View>
       </Pressable>
       {open && (

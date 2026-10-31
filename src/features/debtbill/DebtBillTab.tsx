@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { DetailLink } from '@/components/detail-link';
-import { ScreenTitle, SectionCard, TitleAction } from '@/components/design';
+import { CardHead, ScreenTitle, SectionCard, TitleAction } from '@/components/design';
 import { LockableScrollView } from '@/components/lockable-scroll-view';
 import { PeriodNote } from '@/components/period-filter';
 import { PageLayout } from '@/constants/layout';
@@ -19,10 +19,10 @@ import { todayStr } from '@/utils/date';
 import { router } from '@/utils/safe-router';
 
 /**
- * Tab "Nợ & bill" (gộp hai tab Chia bill và Công nợ cũ), ba khối cuộn cùng nhau:
- * (1) Thẻ "Các khoản nợ & bill": hai ô "Tôi nợ" / "Nợ tôi" (toàn thời gian) và nút "Chi tiết nợ & bill" mở trang chi tiết (nợ vay theo người, nợ bill theo cặp).
- * (2) Thẻ "Danh sách bill" (kỳ dùng chung ghi dưới tiêu đề, bấm để đổi kỳ): TẤT CẢ những người chi bill (nhiều → ít), không có tiêu đề riêng, và ô bấm "Chi tiết danh sách bill" mở trang danh sách bill.
- * (3) Nút "Lịch sử Nợ & Bill" mở trang Lịch sử Nợ & Bill (xem, sửa, xoá khoản chuyển tiền và bill). Không có logic tính nợ riêng ở đây: dùng lại các hàm domain và các khối hiện có.
+ * Tab "Nợ & bill" (gộp hai tab Chia bill và Công nợ cũ), bốn thẻ cuộn cùng nhau:
+ * (1) Thẻ "Các khoản nợ": hai ô "Tôi nợ" / "Nợ tôi" (toàn thời gian) và bên dưới "Danh sách bill" (kỳ dùng chung ghi dưới tiêu đề, bấm để đổi kỳ): TẤT CẢ những người chi bill (nhiều → ít).
+ * (2) Thẻ nút "Chi tiết danh sách bill". (3) Thẻ nút "Chi tiết nợ & bill" (nợ vay theo người, nợ bill theo cặp). (4) Thẻ nút "Lịch sử Nợ & Bill" (xem, sửa, xoá khoản chuyển tiền và bill).
+ * Không có logic tính nợ riêng ở đây: dùng lại các hàm domain và các khối hiện có.
  */
 export default function DebtBillTab() {
   const colors = useColors();
@@ -46,20 +46,20 @@ export default function DebtBillTab() {
         <ActivityIndicator style={styles.loading} color={colors.primary} />
       ) : (
         <LockableScrollView ref={ref} {...props} contentContainerStyle={[styles.content, { paddingBottom: PageLayout.bottomClearance + insets.bottom }]}>
-          <SectionCard title="Các khoản nợ & bill">
+          {/* Thẻ 1: các khoản nợ (Tôi nợ / Nợ tôi, toàn thời gian) và bên dưới danh sách bill của kỳ (những người chi bill, kỳ chọn được ở ghi chú nhỏ). */}
+          <SectionCard title="Các khoản nợ">
             <View style={styles.inner}>
               <DebtTotalTiles bills={bills} pays={pays} />
-              <DetailLink variant="inner" label="Chi tiết nợ & bill" onPress={() => router.push('/cong-no/no-bill')} />
-            </View>
-          </SectionCard>
-
-          <SectionCard title="Danh sách bill" subtitleNode={<PeriodNote view={view} onChange={setView} today={todayStr()} />}>
-            <View style={styles.inner}>
+              <View style={styles.billHead}>
+                <CardHead title="Danh sách bill" subtitleNode={<PeriodNote view={view} onChange={setView} today={todayStr()} />} />
+              </View>
               <BillSpenderRows rows={card.rows} />
-              <DetailLink variant="inner" label="Chi tiết danh sách bill" onPress={() => router.push('/chia-bill/lich-su')} />
             </View>
           </SectionCard>
 
+          {/* Thẻ 2, 3, 4: ba nút mở các trang chi tiết. */}
+          <DetailLink label="Chi tiết danh sách bill" onPress={() => router.push('/chia-bill/lich-su')} />
+          <DetailLink label="Chi tiết nợ & bill" onPress={() => router.push('/cong-no/no-bill')} />
           <DetailLink label="Lịch sử Nợ & Bill" onPress={() => router.push('/cong-no/chuyen-tien-bill')} />
         </LockableScrollView>
       )}
@@ -74,4 +74,5 @@ const styles = StyleSheet.create({
   notice: { marginHorizontal: 16, padding: 16, borderRadius: 16 },
   noticeText: { fontSize: 15 },
   inner: { gap: 12 },
+  billHead: { marginTop: 4 },
 });

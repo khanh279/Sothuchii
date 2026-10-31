@@ -5,26 +5,20 @@ import { useColors } from '@/hooks/use-colors';
 import { formatGrouped } from '@/utils/format';
 
 /**
- * Số dư của MỘT quỹ ở thẻ quỹ (danh sách Quỹ nhóm; ô chọn quỹ ở trang Thu quỹ / Chi quỹ chỉ hiện số, `hideLabel`): dòng nhãn "Số dư / Số dư thực tế", dòng dưới là hai số cách nhau dấu "/", đơn vị ở cuối.
- * Số dư = tiền đang có trong quỹ (màu số mặc định); số dư thực tế = đã trừ nợ cá nhân (xanh lá khi dương, đỏ khi âm, mặc định khi bằng 0).
+ * Số còn lại thực tế của MỘT quỹ ở thẻ quỹ (danh sách Quỹ nhóm; ô chọn quỹ ở trang Thu quỹ / Chi quỹ chỉ hiện số, `hideLabel`): dòng nhãn "Số dư" và một số duy nhất, đơn vị ở cuối
+ * (xanh lá khi dương, đỏ khi âm, mặc định khi bằng 0).
  */
-export function FundBalanceText({ cash, owed, hideLabel }: { cash: number; owed: number; hideLabel?: boolean }) {
+export function FundBalanceText({ balance, hideLabel }: { balance: number; hideLabel?: boolean }) {
   const colors = useColors();
-  const real = cash - owed;
   return (
     <View style={styles.col}>
       {!hideLabel && (
         <AppText color={colors.muted} style={styles.label} numberOfLines={1}>
-          Số dư / Số dư thực tế
+          Số dư
         </AppText>
       )}
-      <AppText color={colors.ink} style={styles.value} numberOfLines={1}>
-        {formatGrouped(cash)}
-        {' / '}
-        <AppText color={real < 0 ? colors.danger : real > 0 ? colors.success : colors.ink} style={styles.value}>
-          {formatGrouped(real)}
-        </AppText>
-        {' ₫'}
+      <AppText color={balance < 0 ? colors.danger : balance > 0 ? colors.success : colors.ink} style={styles.value} numberOfLines={1}>
+        {formatGrouped(balance)} ₫
       </AppText>
     </View>
   );

@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { FundInputError, createAdvance, loadFundData, saveFundExpense, saveFundTxn, updateFundTxn } from './fundRepository';
-import { PAYOUT_NO_CASH_MESSAGE, fundPosition, maxPayoutNow } from '@/domain/fundAdvance';
+import { fundPosition, maxPayoutNow } from '@/domain/fundAdvance';
 
 jest.mock('@react-native-async-storage/async-storage', () =>
   jest.requireActual('@react-native-async-storage/async-storage/jest/async-storage-mock'),
@@ -27,25 +27,24 @@ beforeEach(async () => {
   await AsyncStorage.clear();
 });
 
-describe('quỹ trả cá nhân chỉ được bằng tiền thực tế trong quỹ', () => {
-  it('quỹ hết tiền: không thanh toán được, báo đúng thông báo và không ghi gì', async () => {
+describe('quỹ trả cá nhân chỉ để đóng công nợ, không bị giới hạn bởi số còn lại của quỹ', () => {
+  it('quỹ hết tiền vẫn trả được; số còn lại không đổi vì khoản chi đã tính lúc ghi', async () => {
     await seed(0);
     const e = await personal(300_000);
-    await expect(saveFundTxn({ kind: 'payout', expenseId: e, amount: 1, date: D })).rejects.toThrow(PAYOUT_NO_CASH_MESSAGE);
-    expect((await raw()).fundTxns ?? []).toEqual([]);
+    expect(fundPosition(await loadFundData(), 'f1')).toMatchObject({ cash: -300_000, owed: 300_000 });
+    await saveFundTxn({ kind: 'payout', expenseId: e, amount: 100_000, date: D });
+    expect((await raw()).fundTxns).toHaveLength(1);
     const data = await loadFundData();
-    expect(maxPayoutNow(data, { fundId: 'f1', remaining: 300_000 })).toBe(0);
+    expect(maxPayoutNow({ remaining: 200_000 })).toBe(200_000);
+    expect(fundPosition(data, 'f1')).toMatchObject({ cash: -300_000, owed: 200_000 });
   });
 
-  it('quỹ còn tiền nhưng ít hơn số nợ: tối đa bằng số dư (đúng bằng được, hơn 1 đồng thì chặn)', async () => {
+  it('chỉ bị giới hạn bởi số quỹ còn nợ (đúng bằng được, hơn 1 đồng thì chặn)', async () => {
     await seed(200_000);
     const e = await personal(300_000);
-    const data = await loadFundData();
-    expect(maxPayoutNow(data, { fundId: 'f1', remaining: 300_000 })).toBe(200_000);
-    await expect(saveFundTxn({ kind: 'payout', expenseId: e, amount: 200_001, date: D })).rejects.toThrow('Tối đa có thể thanh toán: 200.000');
-    await saveFundTxn({ kind: 'payout', expenseId: e, amount: 200_000, date: D });
-    expect(fundPosition(await loadFundData(), 'f1')).toMatchObject({ cash: 0, owed: 100_000 });
-    // hết tiền rồi thì khoản còn lại 100.000 không trả được nữa
+    await expect(saveFundTxn({ kind: 'payout', expenseId: e, amount: 300_001, date: D })).rejects.toThrow('Số tiền vượt số quỹ còn nợ.');
+    await saveFundTxn({ kind: 'payout', expenseId: e, amount: 300_000, date: D });
+    expect(fundPosition(await loadFundData(), 'f1')).toMatchObject({ cash: -100_000, owed: 0 });
     await expect(saveFundTxn({ kind: 'payout', expenseId: e, amount: 1, date: D })).rejects.toBeInstanceOf(FundInputError);
   });
 
@@ -57,10 +56,10 @@ describe('quỹ trả cá nhân chỉ được bằng tiền thực tế trong q
     await expect(updateFundTxn(t, { amount: 300_001, date: D })).rejects.toBeInstanceOf(FundInputError);
   });
 
-  it('hoàn tiền ứng là tiền vào quỹ nên không bị giới hạn bởi số dư (kể cả quỹ hết tiền)', async () => {
+  it('giao tiền ứng chưa chi và hoàn tiền ứng chỉ đổi công nợ, không đổi số còn lại của quỹ', async () => {
     await seed(100_000);
-    const a = await createAdvance({ fundId: 'f1', person: 'C', title: 'Ứng', date: D, amount: 100_000 }); // quỹ về 0
-    expect(fundPosition(await loadFundData(), 'f1').cash).toBe(0);
+    const a = await createAdvance({ fundId: 'f1', person: 'C', title: 'Ứng', date: D, amount: 100_000 });
+    expect(fundPosition(await loadFundData(), 'f1')).toMatchObject({ cash: 100_000, held: 100_000 });
     await saveFundTxn({ kind: 'refund', advanceId: a, amount: 100_000, date: D });
     expect(fundPosition(await loadFundData(), 'f1')).toMatchObject({ cash: 100_000, held: 0 });
   });

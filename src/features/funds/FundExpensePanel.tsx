@@ -6,8 +6,8 @@ import { FormLabel, formStyles } from '@/components/expense-form-parts';
 import { InlineSelect } from '@/components/inline-select';
 import { SvgIcon } from '@/components/svg-icon';
 import { AppRadius } from '@/constants/palette';
-import { advanceSummary, fundCash, fundPosition, planAdvanceSpend } from '@/domain/fundAdvance';
-import { fundBalance, fundBulkNames, fundContributors, fundMembers } from '@/domain/funds';
+import { advanceSummary, fundCash, planAdvanceSpend } from '@/domain/fundAdvance';
+import { fundBulkNames, fundContributors, fundMembers } from '@/domain/funds';
 import { ContributionForm } from '@/features/funds/ContributionForm';
 import { FundBalanceText } from '@/features/funds/FundBalanceText';
 import { FundExpenseForm } from '@/features/funds/FundExpenseForm';
@@ -52,7 +52,7 @@ export function FundExpensePanel({ data, onChanged, onAdded, mode = 'chi', initi
             key={item.id}
             name={item.name}
             balance={formatVnd(fundCash(data, item.id))}
-            balanceNode={<FundBalanceText hideLabel cash={fundPosition(data, item.id).cash} owed={fundPosition(data, item.id).owed} />}
+            balanceNode={<FundBalanceText hideLabel balance={fundCash(data, item.id)} />}
             label={`${item.name}, số dư ${formatVnd(fundCash(data, item.id))}`}
             onPress={() => setPickedId(item.id)}
           />
@@ -71,7 +71,7 @@ export function FundExpensePanel({ data, onChanged, onAdded, mode = 'chi', initi
         options={data.funds.map((item) => ({
           key: item.id,
           name: item.name,
-          trailingNode: <FundBalanceText hideLabel cash={fundPosition(data, item.id).cash} owed={fundPosition(data, item.id).owed} />,
+          trailingNode: <FundBalanceText hideLabel balance={fundCash(data, item.id)} />,
           icon: (
             <View style={[styles.badge, { backgroundColor: colors.primarySoft }]}>
               <SvgIcon name="people" size={16} color={colors.primary} strokeWidth={2} />
@@ -97,8 +97,6 @@ export function FundExpensePanel({ data, onChanged, onAdded, mode = 'chi', initi
         ]}
         planSpend={(spendPerson, spendAmount) => planAdvanceSpend(data, fund.id, spendPerson, spendAmount)}
         showTitle={false}
-        balance={fundBalance(data, fund.id)}
-        cash={fundPosition(data, fund.id).cash}
         onChanged={onChanged}
         onAdded={onAdded}
       />

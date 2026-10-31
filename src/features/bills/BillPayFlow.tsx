@@ -29,8 +29,8 @@ interface Props {
 }
 
 /**
- * Luồng thanh toán dùng chung cho chi tiết bill và bill gộp: nút Thanh toán cố định ở đáy trang; một cặp thì mở bảng thanh toán (toàn bộ / một phần) ngay,
- * nhiều cặp thì chọn cặp trước. Ghi bằng `recordMergedPaymentSynced`: khoản trả CHỈ trừ vào các khoản của đúng cặp trong `billIds`, bill cũ trước, bill mới sau; số còn phải trả tính lại ngay lúc ghi nên không ghi quá.
+ * Luồng thanh toán dùng chung cho chi tiết bill và bill gộp: nút Thanh toán cố định ở đáy trang; luôn mở bảng "Chọn khoản thanh toán" trước (kể cả chỉ còn một khoản),
+ * chọn một khoản thì mở bảng thanh toán (toàn bộ / một phần). Ghi bằng `recordMergedPaymentSynced`: khoản trả CHỈ trừ vào các khoản của đúng cặp trong `billIds`, bill cũ trước, bill mới sau; số còn phải trả tính lại ngay lúc ghi nên không ghi quá.
  */
 export function BillPayFlow({ billIds, pairs, scope, visible, reload }: Props) {
   const toast = useToast();
@@ -43,10 +43,7 @@ export function BillPayFlow({ billIds, pairs, scope, visible, reload }: Props) {
       <PayActionBar
         visible={visible}
         bottom={16}
-        onPress={() => {
-          if (pairs.length === 1) setPayKey(pairs[0].key);
-          else setChooseOpen(true);
-        }}
+        onPress={() => setChooseOpen(true)}
       />
       {chooseOpen && (
         <SheetFrame onClose={() => setChooseOpen(false)}>

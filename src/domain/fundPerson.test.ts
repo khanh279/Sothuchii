@@ -1,6 +1,7 @@
 import type { FundData } from '@/types/fund';
 
-import { filterCashMovementDays, buildFundHistory, fundCashSummary } from './fundHistory';
+import { fundPosition } from './fundAdvance';
+import { buildFundHistory } from './fundHistory';
 import { buildPersonFundDetail, filterPersonDetailBySide } from './fundPerson';
 
 // DỮ LIỆU MẪU tự tạo, không phải dữ liệu thật. Tiền là ĐỒNG.
@@ -22,30 +23,18 @@ const data: FundData = {
 };
 const ALL = { mode: 'all' } as const;
 
-describe('filterCashMovementDays (lịch sử chỉ gồm khoản làm đổi số dư thực tế)', () => {
+describe('lịch sử quỹ ghi nhận mọi khoản', () => {
   const history = buildFundHistory(data, 'all', ALL);
-  const kept = filterCashMovementDays(history.days, data).flatMap((day) => day.entries);
 
-  it('giữ đóng quỹ, chi trực tiếp, giao ứng (đã trừ hoàn tiền), quỹ trả; bỏ cá nhân ứng chi và chi từ tiền ứng', () => {
-    expect(kept.map((entry) => entry.id).sort()).toEqual(['a1', 'c1', 't2', 'x1', 'x4']);
+  it('gồm đóng quỹ, chi trực tiếp, cá nhân ứng chi, chi từ tiền ứng, giao ứng (đã trừ hoàn tiền) và quỹ trả', () => {
+    const ids = history.days.flatMap((day) => day.entries.map((entry) => entry.id)).sort();
+    expect(ids).toEqual(['a1', 'c1', 't2', 'x1', 'x2', 'x3', 'x4']);
   });
 
-  it('khoản chia nguồn chỉ hiện phần quỹ chi (phần làm đổi số dư thực tế)', () => {
-    expect(kept.find((entry) => entry.id === 'x4')?.amount).toBe(120_000);
-    expect(kept.find((entry) => entry.id === 'x1')?.amount).toBe(100_000);
-  });
-
-  it('không sửa dữ liệu gốc và bỏ ngày không còn dòng nào', () => {
-    expect(history.days.flatMap((day) => day.entries)).toHaveLength(7);
-    const onlyPersonal = filterCashMovementDays([{ date: '2025-10-04', entries: history.days.flatMap((d) => d.entries).filter((e) => e.id === 'x2') }], data);
-    expect(onlyPersonal).toEqual([]);
-  });
-
-  it('fundCashSummary: chi = tiền quỹ đã trừ (x1 + phần quỹ x4 + quỹ trả cá nhân), giao ứng = các lần giao còn lại sau hoàn', () => {
-    const given = kept.filter((entry) => entry.kind === 'advance').reduce((sum, entry) => sum + entry.amount, 0);
-    const payouts = kept.filter((entry) => entry.kind === 'payout').reduce((sum, entry) => sum + entry.amount, 0);
-    expect(payouts).toBeGreaterThan(0);
-    expect(fundCashSummary(filterCashMovementDays(history.days, data))).toEqual({ spent: 100_000 + 120_000 + payouts, given });
+  it('tổng chi = mọi khoản chi ghi nhận (trực tiếp + cá nhân ứng + chi từ tiền ứng); số còn lại = thu − tổng chi', () => {
+    expect(history.totalOut).toBe(100_000 + 200_000 + 150_000 + 300_000);
+    expect(history.totalIn - history.totalOut).toBe(250_000);
+    expect(fundPosition(data, 'f1').cash).toBe(250_000);
   });
 });
 

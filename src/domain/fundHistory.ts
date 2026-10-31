@@ -3,10 +3,10 @@
  */
 
 import { isInPeriod } from '@/domain/expenses';
-import { expenseFundPart } from '@/domain/fundAdvance';
+import { advanceSummary, expenseFundPart, expenseKind, personalDebt } from '@/domain/fundAdvance';
 import { DEFAULT_CONTRIBUTION_TITLE, contributionTotal, fundBalance, fundPeriodTotals, sortFundsByAbsBalance } from '@/domain/funds';
 import type { DateStr, Period } from '@/types/expense';
-import type { Fund, FundData, FundExpenseMode } from '@/types/fund';
+import type { Fund, FundData } from '@/types/fund';
 import type { Vnd } from '@/types/money';
 import { formatVnDate } from '@/utils/date';
 
@@ -29,7 +29,7 @@ export interface FundHistoryEntry {
   title: string;
   fundId: string;
   amount: Vnd;
-  /** Dòng phụ: "N người đóng", "Chi quỹ", "Chi quỹ · A ứng", "Giao A ứng"... */
+  /** Dòng phụ: "N người đóng", "Quỹ chi", "A ứng chi", "Giao A chi", "Giao A ứng"... */
   meta: string;
   /** Người liên quan (người chi / nhận ứng / nhận thanh toán), nếu có. */
   person?: string;
@@ -134,7 +134,7 @@ export function buildFundHistory(
   }
   for (const e of data.expenses) {
     if (!ids.has(e.fundId) || !isInPeriod(e.date, period)) continue;
-    const meta = e.mode === 'personal' ? `Chi quỹ · ${e.payer || 'cá nhân'} ứng` : e.mode === 'advance' ? `Chi từ tiền ứng · ${e.payer || ''}`.trim() : 'Chi quỹ';
+    const meta = e.mode === 'personal' ? `${e.payer || 'Cá nhân'} ứng chi` : e.mode === 'advance' ? (e.payer ? `Giao ${e.payer} chi` : 'Giao cá nhân chi') : 'Quỹ chi';
     const fundPart = expenseFundPart(e);
     entries.push({
       kind: 'expense',
@@ -208,6 +208,65 @@ export function buildFundHistory(
   };
 }
 
+/** Trạng thái quyết toán của các khoản cá nhân ứng chi: 'none' = không có khoản nào. */
+export type SettlementState = 'none' | 'settled' | 'unsettled' | 'partial';
+
+/** Toàn bộ đã quyết toán (còn nợ 0) → 'settled'; chưa quyết toán chút nào (còn nợ = tổng) → 'unsettled'; còn lại → 'partial'. */
+export function settlementOf(amount: Vnd, remaining: Vnd): SettlementState {
+  if (amount <= 0) return 'none';
+  if (remaining <= 0) return 'settled';
+  return remaining >= amount ? 'unsettled' : 'partial';
+}
+
+/** Chi tiết "Chi trong kỳ" của thẻ Tổng quan một quỹ (đồng, đều ≥ 0). */
+export interface FundSpendBreakdown {
+  /** Chi trực tiếp: các khoản quỹ chi trực tiếp. */
+  direct: Vnd;
+  /** Cá nhân ứng chi: các khoản cá nhân ứng tiền túi chi (số tiền khoản chi). */
+  personal: Vnd;
+  /** Giao cá nhân chi: các khoản cá nhân chi từ tiền quỹ giao (số đã chi thực tế). */
+  advance: Vnd;
+  /** Chi trong kỳ = chi trực tiếp + cá nhân ứng chi + giao cá nhân chi. */
+  total: Vnd;
+  /** Của các khoản cá nhân ứng chi trong kỳ: tổng phải trả cho cá nhân và số quỹ còn nợ (để ghi chú còn nợ / đã quyết toán / chưa quyết toán). */
+  personalOwed: Vnd;
+  personalRemaining: Vnd;
+  /** Tổng TẤT CẢ tiền quỹ giao cá nhân trong kỳ (theo ngày giao, đã trừ tiền hoàn), kể cả lần giao chưa phát sinh chi. */
+  given: Vnd;
+}
+
+/**
+ * Các thành phần của "Chi trong kỳ", tính theo NGÀY CHI của từng khoản (cùng cách chia ba nhóm như bộ lọc ở Lịch sử quỹ): quỹ chi trực tiếp, cá nhân ứng chi, giao cá nhân chi (chi từ tiền giao).
+ * `given` (tổng giao) tính riêng theo ngày giao của các lần giao. Chỉ đọc, không đổi dữ liệu.
+ */
+export function fundSpendBreakdown(data: Pick<FundData, 'funds' | 'expenses'> & Partial<Pick<FundData, 'advances' | 'txns' | 'contribs'>>, filter: FundFilter, period: Period): FundSpendBreakdown {
+  const ids = new Set((filter === 'all' ? data.funds : data.funds.filter((fund) => fund.id === filter)).map((fund) => fund.id));
+  const ctx = { contribs: data.contribs ?? [], expenses: data.expenses, advances: data.advances, txns: data.txns };
+  let direct = 0;
+  let personal = 0;
+  let advance = 0;
+  let personalOwed = 0;
+  let personalRemaining = 0;
+  for (const e of data.expenses) {
+    if (!ids.has(e.fundId) || !isInPeriod(e.date, period)) continue;
+    const kind = expenseKind(e);
+    if (kind === 'direct') direct += e.amount;
+    else if (kind === 'advance') advance += e.amount;
+    else {
+      personal += e.amount;
+      const debt = personalDebt(ctx, e);
+      personalOwed += debt.amount;
+      personalRemaining += debt.remaining;
+    }
+  }
+  let given = 0;
+  for (const a of data.advances ?? []) {
+    if (!ids.has(a.fundId) || !isInPeriod(a.date, period)) continue;
+    given += a.amount - advanceSummary(ctx, a).refunded;
+  }
+  return { direct, personal, advance, total: direct + personal + advance, personalOwed, personalRemaining, given };
+}
+
 export interface OverviewFundRow {
   fund: Fund;
   bal: Vnd;
@@ -252,26 +311,27 @@ export function filterDaysByPerson(days: readonly FundHistoryDay[], person: stri
   return days.map((day) => ({ ...day, entries: day.entries.filter((entry) => involves(entry, person)) })).filter((day) => day.entries.length > 0);
 }
 
-/** Loại khoản dùng để lọc Lịch sử quỹ. */
-export type FundHistoryCategory = 'contribution' | 'direct' | 'personal' | 'advance';
+/** Loại khoản dùng để lọc Lịch sử quỹ; 'other' (lần giao tiền ứng) không hiện trong Lịch sử quỹ. */
+export type FundHistoryCategory = 'contribution' | 'direct' | 'personal' | 'advanceSpend' | 'other';
 
 /** Các loại lọc theo thứ tự hiển thị (sau chip "Tất cả"). */
 export const FUND_HISTORY_CATEGORIES: readonly { value: FundHistoryCategory; label: string }[] = [
   { value: 'contribution', label: 'Thu quỹ' },
   { value: 'direct', label: 'Quỹ chi trực tiếp' },
   { value: 'personal', label: 'Cá nhân ứng chi' },
-  { value: 'advance', label: 'Giao tiền ứng trước' },
+  { value: 'advanceSpend', label: 'Giao cá nhân chi' },
 ];
 
 /**
- * Dòng lịch sử thuộc loại nào: đóng quỹ → Thu quỹ; giao tiền ứng → Giao tiền ứng trước; khoản chi có người chi (cá nhân ứng tiền túi) và dòng quỹ trả cá nhân ("A ứng chi") → Cá nhân ứng chi;
- * khoản chi còn lại → Quỹ chi trực tiếp. Dòng hoàn tiền ứng (nếu còn) tính cùng Giao tiền ứng trước.
+ * Dòng lịch sử thuộc loại nào: đóng quỹ → Thu quỹ; khoản chi có người chi ứng tiền túi và dòng quỹ trả cá nhân → Cá nhân ứng chi; khoản cá nhân chi TỪ TIỀN QUỸ GIAO → Giao cá nhân chi
+ * (chỉ phần đã chi thực tế, không phải cả lần giao); khoản chi còn lại → Quỹ chi trực tiếp. Lần giao tiền ứng ('advance') và hoàn tiền → 'other'.
  */
 export function entryCategory(entry: Pick<FundHistoryEntry, 'kind' | 'person' | 'spendFromAdvance'>): FundHistoryCategory {
   if (entry.kind === 'contribution') return 'contribution';
-  if (entry.kind === 'advance' || entry.kind === 'refund') return 'advance';
+  if (entry.kind === 'advance' || entry.kind === 'refund') return 'other';
   if (entry.kind === 'payout') return 'personal';
-  return entry.person?.trim() && !entry.spendFromAdvance ? 'personal' : 'direct';
+  if (entry.spendFromAdvance) return 'advanceSpend';
+  return entry.person?.trim() ? 'personal' : 'direct';
 }
 
 /** Giữ lại các dòng thuộc một loại (`null` = không lọc); bỏ ngày không còn dòng nào. Chỉ lọc hiển thị. */
@@ -292,37 +352,3 @@ export function historyMembers(days: readonly FundHistoryDay[]): string[] {
   return [...names].sort((x, y) => x.localeCompare(y));
 }
 
-/**
- * Dòng lịch sử có làm đổi SỐ DƯ THỰC TẾ (tiền mặt) của quỹ hay không. Có: đóng quỹ (+), quỹ chi trực tiếp (−, và phần quỹ chi của khoản chia nguồn),
- * giao tiền ứng (−), hoàn tiền ứng (+), quỹ trả cá nhân (−). Không: khoản cá nhân tự ứng tiền túi chi (chưa có tiền quỹ ra) và khoản chi từ tiền ứng
- * (tiền do cá nhân đang giữ) — hai loại này xem ở thẻ Công nợ quỹ. Với khoản chia nguồn, số tiền hiện là PHẦN QUỸ CHI (phần làm đổi số dư thực tế).
- */
-export function cashMovementEntry(entry: FundHistoryEntry, expenseMode: FundExpenseMode | undefined): FundHistoryEntry | null {
-  if (entry.kind === 'advance' && entry.funder) return null; // tiền của cá nhân ứng, không phải tiền mặt của quỹ
-  if (entry.kind !== 'expense') return entry;
-  if (!expenseMode) return entry;
-  if (expenseMode === 'personal' && entry.split) return { ...entry, amount: entry.split.fund };
-  return null;
-}
-
-/** Giữ lại các dòng làm đổi số dư thực tế của quỹ (xem `cashMovementEntry`); bỏ ngày không còn dòng nào. */
-export function filterCashMovementDays(days: readonly FundHistoryDay[], data: Pick<FundData, 'expenses'>): FundHistoryDay[] {
-  const modes = new Map(data.expenses.map((expense) => [expense.id, expense.mode]));
-  return days.map((day) => ({ ...day, entries: day.entries.flatMap((entry) => cashMovementEntry(entry, modes.get(entry.id)) ?? []) })).filter((day) => day.entries.length > 0);
-}
-
-/**
- * Hai số của thẻ Tổng quan quỹ tính trên các dòng làm đổi số dư thực tế TRONG kỳ (kết quả của `filterCashMovementDays`):
- * `spent` = tiền quỹ đã trừ cho khoản chi (chi trực tiếp, phần quỹ chi của khoản chia nguồn và tiền quỹ quyết toán cho cá nhân), `given` = tiền giao cá nhân ứng (đã trừ phần cá nhân hoàn lại).
- */
-export function fundCashSummary(cashDays: readonly FundHistoryDay[]): { spent: Vnd; given: Vnd } {
-  let spent = 0;
-  let given = 0;
-  for (const day of cashDays) {
-    for (const entry of day.entries) {
-      if (entry.kind === 'expense' || entry.kind === 'payout') spent += entry.amount;
-      else if (entry.kind === 'advance') given += entry.amount;
-    }
-  }
-  return { spent, given };
-}

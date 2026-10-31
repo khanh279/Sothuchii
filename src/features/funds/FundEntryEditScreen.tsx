@@ -6,8 +6,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from '@/components/app-text';
 import { FormPage } from '@/components/form-page';
 import { ScreenTitle } from '@/components/design';
-import { fundPosition } from '@/domain/fundAdvance';
-import { fundBalance } from '@/domain/funds';
 import { ContributionForm } from '@/features/funds/ContributionForm';
 import { FundActionSheet } from '@/features/funds/FundActionSheet';
 import { FundExpenseForm } from '@/features/funds/FundExpenseForm';
@@ -84,8 +82,6 @@ export default function FundEntryEditScreen() {
           existing={expense}
           existingAdvance={advance}
           showTitle={false}
-          balance={fundBalance(data, fund.id)}
-          cash={fundPosition(data, fund.id).cash}
           onChanged={leave}
         />
       </FormPage>

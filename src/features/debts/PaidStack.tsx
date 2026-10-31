@@ -59,7 +59,10 @@ export function PersonPaidCard({ lists }: { lists: PersonDebtLists }) {
     </AppText>
   );
   return (
-    <PaidStack count={paidLoans.length + paidBills.length} keys={[...paidLoans.flatMap((view) => loanKey(view) ?? []), ...paidBills.map(billKey)]}>
+    <PaidStack
+      count={paidLoans.length + paidBills.length}
+      keys={[...paidLoans.flatMap((view) => loanKey(view) ?? []), ...paidBills.map(billKey)]}
+      hiddenKeys={[...paidLoanViews(lists.loanList, new Set()).flatMap((view) => loanKey(view) ?? []), ...lists.paidBillItems.map(billKey)].filter((key) => hidden.has(key))}>
       {paidLoans.length > 0 && (
         <>
           {group('Nợ vay')}
@@ -76,15 +79,18 @@ export function PersonPaidCard({ lists }: { lists: PersonDebtLists }) {
   );
 }
 
-/** `keys`: khoá các khoản đã trả đang hiện, dùng để ẩn (và hoàn tác ẩn) khi "Xóa lịch sử". */
-export function PaidStack({ count, keys, children }: { count: number; keys: readonly string[]; children: ReactNode }) {
+/**
+ * `keys`: khoá các khoản đã trả đang hiện, dùng để ẩn (và hoàn tác ẩn) khi "Xóa lịch sử".
+ * `hiddenKeys`: khoá các khoản đã trả của trang này đang bị ẩn; có thì trong thẻ có nút "Hiển thị lại" để đưa chúng trở lại (thẻ vẫn hiện dù đã ẩn hết).
+ */
+export function PaidStack({ count, keys, hiddenKeys = [], children }: { count: number; keys: readonly string[]; hiddenKeys?: readonly string[]; children: ReactNode }) {
   const colors = useColors();
   const toast = useToast();
   const { hide, unhide } = useHiddenPaid();
   const [open, setOpen] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
-  if (count <= 0) return null;
+  if (count <= 0 && hiddenKeys.length === 0) return null;
   return (
     <View style={[styles.stack, { backgroundColor: colors.surface }]}>
       <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((value) => !value)} style={styles.head}>
@@ -98,11 +104,24 @@ export function PaidStack({ count, keys, children }: { count: number; keys: read
       {open && (
         <>
           {children}
-          <Pressable accessibilityRole="button" accessibilityLabel="Xóa lịch sử" onPress={() => setConfirm(true)} style={styles.clear}>
-            <AppText weight="semibold" color={colors.danger} style={styles.clearText}>
-              Xóa lịch sử
-            </AppText>
-          </Pressable>
+          {count > 0 && (
+            <Pressable accessibilityRole="button" accessibilityLabel="Xóa lịch sử" onPress={() => setConfirm(true)} style={styles.clear}>
+              <AppText weight="semibold" color={colors.danger} style={styles.clearText}>
+                Xóa lịch sử
+              </AppText>
+            </Pressable>
+          )}
+          {hiddenKeys.length > 0 && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Hiển thị lại lịch sử đã xóa"
+              onPress={() => void unhide(hiddenKeys).catch(() => toast.show('Không hiển thị lại được. Hãy thử lại.'))}
+              style={[styles.restore, { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}>
+              <AppText weight="semibold" color={colors.primary} style={styles.clearText}>
+                {`Hiển thị lại ${hiddenKeys.length} khoản đã xóa`}
+              </AppText>
+            </Pressable>
+          )}
         </>
       )}
       {confirm && (
@@ -143,4 +162,5 @@ const styles = StyleSheet.create({
   group: { fontSize: 12.5, lineHeight: 17, marginTop: 4 },
   clear: { alignSelf: 'center', minHeight: 40, paddingHorizontal: 16, justifyContent: 'center' },
   clearText: { fontSize: 14 },
+  restore: { alignSelf: 'center', minHeight: 36, paddingHorizontal: 16, marginBottom: 10, borderRadius: 999, borderWidth: 1, justifyContent: 'center' },
 });

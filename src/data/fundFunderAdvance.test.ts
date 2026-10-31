@@ -13,19 +13,18 @@ beforeEach(async () => {
 });
 
 describe('giao ứng do cá nhân ứng tiền túi (quỹ hết tiền)', () => {
-  it('ghi được dù quỹ hết tiền; quỹ nợ người ứng, người nhận giữ tiền; trùng người bị từ chối', async () => {
+  it('ghi được dù quỹ hết tiền; quỹ nợ người ứng, người nhận giữ tiền; trùng người bị từ chối; số còn lại chưa đổi vì chưa chi', async () => {
     const base = { fundId: 'f1', person: 'Bình', title: '', date: '2025-10-03', amount: 100_000 };
     await expect(createAdvance({ ...base, funder: 'Bình' })).rejects.toBeInstanceOf(FundInputError);
-    await expect(createAdvance(base)).rejects.toBeInstanceOf(FundInputError); // không có người ứng thì vẫn bị chặn vì quỹ hết tiền
     const id = await createAdvance({ ...base, funder: 'An' });
     const data = await loadFundData();
     expect(data.advances).toMatchObject([{ id, person: 'Bình', funder: 'An', amount: 100_000 }]);
     expect(fundPosition(data, 'f1')).toMatchObject({ cash: 0, owed: 100_000, held: 100_000 });
   });
 
-  it('hoàn hết cho quỹ không xoá hồ sơ; quỹ trả được An sau khi có tiền hoàn, ghi đúng người nhận', async () => {
+  it('hoàn hết cho quỹ không xoá hồ sơ; quỹ trả được An, ghi đúng người nhận, chỉ đóng công nợ', async () => {
     const id = await createAdvance({ fundId: 'f1', person: 'Bình', title: '', date: '2025-10-03', amount: 100_000, funder: 'An' });
-    await expect(saveFundTxn({ kind: 'payout', advanceId: id, toFunder: true, amount: 10_000, date: '2025-10-04' })).rejects.toBeInstanceOf(FundInputError); // quỹ chưa có tiền
+    await expect(saveFundTxn({ kind: 'payout', advanceId: id, toFunder: true, amount: 100_001, date: '2025-10-04' })).rejects.toBeInstanceOf(FundInputError); // vượt số quỹ nợ An
     await refundAdvancesForPerson({ fundId: 'f1', person: 'Bình', amount: 100_000, date: '2025-10-04' });
     expect((await loadFundData()).advances).toHaveLength(1);
     await saveFundTxn({ kind: 'payout', advanceId: id, toFunder: true, amount: 100_000, date: '2025-10-05' });

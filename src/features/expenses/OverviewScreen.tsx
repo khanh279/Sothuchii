@@ -15,7 +15,7 @@ import { BillStatCard } from '@/features/bills/BillOverviewCard';
 import { DebtSplitCard, DebtStatCard } from '@/features/debts/DebtOverviewCards';
 import { useDebtData } from '@/features/debts/hooks';
 import { PageLayout } from '@/constants/layout';
-import { PeriodBar } from '@/features/expenses/PeriodBar';
+import { ScreenTitle } from '@/components/design';
 import { SettingsMenuButton } from '@/features/expenses/SettingsMenuButton';
 import { FundStatCard } from '@/features/funds/FundOverviewCard';
 import { RecentTransactions } from '@/features/expenses/RecentTransactions';
@@ -26,7 +26,7 @@ import { useColors } from '@/hooks/use-colors';
 import { todayStr } from '@/utils/date';
 
 /**
- * Màn Tổng quan: ô chọn kỳ dính ở mép trên, thẻ "Đã chi" và chi tiêu cá nhân theo mục.
+ * Màn Tổng quan: tiêu đề dính ở mép trên (nút bánh răng Cài đặt ở góc phải), thẻ "Tổng chi tiêu" kèm ghi chú kỳ nhỏ chọn được, và chi tiêu cá nhân theo mục.
  * Bốn thẻ chỉ để xem, chia 2 hàng: Công nợ (trái) + Tôi nợ / Nợ tôi (phải); Chia bill (trái) + Quỹ nhóm (phải) (không bấm); mỗi mục có tab riêng. "Giao dịch gần đây" gộp chi tiêu, chi quỹ, bill và chuyển tiền.
  */
 export default function OverviewScreen() {
@@ -55,21 +55,24 @@ export default function OverviewScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
-      {/* Phần tử đầu tiên là ô chọn kỳ và được ghim lại khi cuộn (sticky). */}
+      {/* Phần tử đầu tiên là tiêu đề (kèm nút bánh răng Cài đặt ở góc phải) và được ghim lại khi cuộn (sticky). */}
       <ScrollView ref={scrollRef} {...scrollProps} stickyHeaderIndices={[0]} contentContainerStyle={{ paddingBottom: PageLayout.bottomClearance + insets.bottom }}>
-        <PeriodBar title="Tổng quan" view={view} onChange={setView} today={today} />
+        <View style={{ backgroundColor: colors.bg }}>
+          <ScreenTitle title="Tổng quan" topInset={insets.top} right={<SettingsMenuButton />} />
+        </View>
         <View style={styles.body}>
           {message ? (
             <View style={[styles.notice, { backgroundColor: colors.dangerSoft }]}>
               <AppText color={colors.danger} style={styles.noticeText}>
                 {message}
               </AppText>
-              {/* Thẻ Tổng chi tiêu (có nút Cài đặt ở góc) không hiện khi lỗi: giữ một nút Cài đặt ở đây để vẫn vào được Thiết lập (sao lưu / khôi phục). */}
-              <SettingsMenuButton variant="plain" />
             </View>
           ) : (
             <SpentCard
               period={period}
+              view={view}
+              onViewChange={setView}
+              today={today}
               loaded={loaded}
               total={total}
               count={items.length}

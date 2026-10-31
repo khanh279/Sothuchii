@@ -157,7 +157,10 @@ export default function LoanDebtScreen() {
         {body}
         {/* Mọi khoản vay đã trả xong: một thẻ riêng ở cuối, tách khỏi thẻ nợ phía trên. */}
         {!!detail && !selecting && (
-          <PaidStack count={paidLoans.length} keys={paidLoans.flatMap((view) => loanKey(view) ?? [])}>
+          <PaidStack
+            count={paidLoans.length}
+            keys={paidLoans.flatMap((view) => loanKey(view) ?? [])}
+            hiddenKeys={paidLoanViews(detail.views, new Set()).flatMap((view) => loanKey(view) ?? []).filter((key) => hidden.has(key))}>
             <LoanLinesList views={detail.views} mode="paid" hidden={hidden} />
           </PaidStack>
         )}

@@ -5,15 +5,16 @@ import { LockableScrollView } from '@/components/lockable-scroll-view';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { CardHead, ChipRow, EmptyState, ScreenTitle, type StatusTone } from '@/components/design';
+import { CardHead, ChipRow, EmptyState, ScreenTitle, TitleAction, type StatusTone } from '@/components/design';
 import { HistoryCard } from '@/components/history-card';
+import { OptionSheet } from '@/components/option-sheet';
 import { PeriodNote } from '@/components/period-filter';
 import { TOAST_BOTTOM_HISTORY, useToast } from '@/components/toast';
 import { AppRadius } from '@/constants/palette';
 import { deleteAdvanceSynced, deleteContributionSynced, deleteFundExpenseSynced, deleteFundTxnSynced } from '@/data/fundService';
 import { dayHeading } from '@/domain/expenses';
 import { ADVANCE_STATE_LABEL, advanceById, advanceSummary, type AdvanceState, personalDebt, personalDebtLabel, type PayState } from '@/domain/fundAdvance';
-import { FUND_HISTORY_CATEGORIES, buildFundHistory, filterCashMovementDays, filterDaysByCategory, mergePayoutEntries, type FundHistoryCategory, type FundHistoryEntry } from '@/domain/fundHistory';
+import { FUND_HISTORY_CATEGORIES, buildFundHistory, fundSpendBreakdown, filterDaysByCategory, mergePayoutEntries, type FundHistoryCategory, type FundHistoryEntry } from '@/domain/fundHistory';
 import { FundEntryIcon } from '@/features/funds/FundEntryIcon';
 import { describeFundError, useFundData } from '@/features/funds/hooks';
 import { useColors } from '@/hooks/use-colors';
@@ -28,7 +29,7 @@ const ADVANCE_TONE: Record<AdvanceState, StatusTone> = { settled: 'get', partial
 const CATEGORY_OPTIONS = [{ value: 'all' as const, label: 'Tất cả' }, ...FUND_HISTORY_CATEGORIES];
 
 /**
- * Trang "Lịch sử quỹ" (mở từ nút "Lịch sử quỹ" ở trang một quỹ): CHỈ các khoản làm đổi số dư thực tế của quỹ (`filterCashMovementDays`), gom theo ngày, lọc theo loại khoản bằng hàng nút
+ * Trang "Lịch sử quỹ" (mở từ nút "Lịch sử quỹ" ở trang một quỹ): các khoản ghi nhận của quỹ (thu, quỹ chi trực tiếp, cá nhân ứng chi, giao cá nhân chi, quỹ trả công nợ; không có các lần giao tiền ứng), gom theo ngày, lọc theo loại khoản bằng hàng nút
  * (Tất cả, thu quỹ, quỹ chi trực tiếp, cá nhân ứng chi, giao tiền ứng trước…), vuốt dòng để Sửa / Xoá, chạm để xem chi tiết. Tiêu đề nhỏ của thẻ = tên chip đang chọn; kỳ là kỳ dùng chung,
  * đổi bằng cách bấm ghi chú ngày dưới tiêu đề nhỏ. Tham số route: `fund` (`all` hoặc id quỹ).
  */
@@ -42,6 +43,9 @@ export default function FundLedgerScreen() {
 
   const { data, loaded, error, reload } = useFundData();
   const [openId, setOpenId] = useState<string | null>(null);
+  /** Tờ chọn Thu quỹ / Chi tiêu quỹ của nút "+ Thu, chi quỹ"; đang xem một quỹ thì mở thẳng form của quỹ đó. */
+  const [txnOpen, setTxnOpen] = useState(false);
+  const fundParams = params.fund && params.fund !== 'all' ? { fund: params.fund } : {};
   /** Loại khoản đang lọc; 'all' = Tất cả (mặc định). */
   const [category, setCategory] = useState<FundHistoryCategory | 'all'>('all');
 
@@ -62,12 +66,79 @@ export default function FundLedgerScreen() {
     }
   }
 
-  // Lịch sử chỉ gồm khoản làm đổi số dư thực tế của quỹ; lọc theo loại khoản.
-  const cashDays = useMemo(() => filterCashMovementDays(history.days, data), [history.days, data]);
-  const cashCount = cashDays.reduce((total, day) => total + day.entries.length, 0);
+  // Lịch sử gồm thu, chi trực tiếp, cá nhân ứng chi và giao cá nhân chi (chi từ tiền giao). KHÔNG hiện các lần giao tiền ứng và các lần quỹ trả công nợ (thanh toán công nợ chỉ cập nhật trạng thái còn nợ / đã thanh toán của khoản gốc). Lọc theo loại khoản.
+  const allDays = useMemo(() => history.days.map((day) => ({ ...day, entries: day.entries.filter((entry) => entry.kind !== 'advance' && entry.kind !== 'payout') })).filter((day) => day.entries.length > 0), [history.days]);
+  const cashCount = allDays.reduce((total, day) => total + day.entries.length, 0);
   // Trong cùng một ngày, các lần quỹ trả cho cùng một khoản A ứng chi (cùng người, cùng nội dung) gộp thành một dòng.
-  const shownDays = useMemo(() => mergePayoutEntries(filterDaysByCategory(cashDays, category === 'all' ? null : category)), [cashDays, category]);
+  const shownDays = useMemo(() => mergePayoutEntries(filterDaysByCategory(allDays, category === 'all' ? null : category)), [allDays, category]);
   const shownCount = shownDays.reduce((total, day) => total + day.entries.length, 0);
+
+  /**
+   * Tóm tắt góc phải đầu thẻ theo danh sách đang xem: Tất cả → + thu, − chi; Thu quỹ → + thu; Quỹ chi trực tiếp → − chi; Cá nhân ứng chi → − chi và dòng dưới trạng thái quyết toán
+   * (đã quyết toán / chưa quyết toán / còn nợ …); Giao cá nhân chi → − chi và dòng dưới tổng giao. Tính trên đúng các dòng đang hiện (đã lọc theo kỳ và loại).
+   */
+  const headSummary = useMemo(() => {
+    let income = 0;
+    let spent = 0;
+    let owedAmount = 0;
+    let owedRemaining = 0;
+    for (const day of shownDays) {
+      for (const entry of day.entries) {
+        if (entry.kind === 'contribution') income += entry.amount;
+        else if (entry.kind === 'expense') {
+          spent += entry.amount;
+          for (const id of entry.mergedIds ?? [entry.id]) {
+            const expense = data.expenses.find((e) => e.id === id);
+            if (!expense) continue;
+            if (expense.mode === 'personal') {
+              const debt = personalDebt(data, expense);
+              owedAmount += debt.amount;
+              owedRemaining += debt.remaining;
+            }
+          }
+        }
+      }
+    }
+    // Tổng giao: TẤT CẢ tiền quỹ giao cá nhân trong kỳ (kể cả lần giao chưa phát sinh chi), không chỉ những lần đã có khoản chi.
+    const given = fundSpendBreakdown(data, history.filter === 'all' ? 'all' : history.filter, period).given;
+    return { income, spent, owedAmount, owedRemaining, given };
+  }, [shownDays, data, history.filter, period]);
+  const headLine = (text: string, color: string, bold = true) => (
+    <AppText weight={bold ? 'semibold' : 'regular'} color={color} style={styles.headLine} numberOfLines={1}>
+      {text}
+    </AppText>
+  );
+  const headRight =
+    category === 'all' ? (
+      <>
+        {headLine(`+${formatVnd(headSummary.income)}`, colors.success)}
+        {headLine(`−${formatVnd(headSummary.spent)}`, colors.danger)}
+      </>
+    ) : category === 'contribution' ? (
+      headLine(`+${formatVnd(headSummary.income)}`, colors.success)
+    ) : (
+      <>
+        {headLine(`−${formatVnd(headSummary.spent)}`, colors.danger)}
+        {category === 'personal' &&
+          headSummary.owedAmount > 0 &&
+          (headSummary.owedRemaining <= 0
+            ? headLine('Đã quyết toán', colors.success)
+            : headSummary.owedRemaining >= headSummary.owedAmount
+              ? headLine('Chưa quyết toán', colors.danger)
+              : headLine(`Còn nợ ${formatVnd(headSummary.owedRemaining)}`, colors.warning))}
+        {category === 'advanceSpend' && headLine(`Tổng giao ${formatVnd(headSummary.given)}`, colors.muted, false)}
+      </>
+    );
+
+  /** Khoản cá nhân chi từ tiền quỹ giao: tổng tiền của (các) lần giao mà khoản chi này thuộc về, đã trừ các khoản hoàn tiền, dòng trạng thái "Tổng giao …" dưới số tiền. */
+  function givenTotal(entry: FundHistoryEntry): number {
+    const advanceIds = new Set((entry.mergedIds ?? [entry.id]).map((id) => data.expenses.find((e) => e.id === id)?.advanceId).filter((id): id is string => !!id));
+    // Đã hoàn lại bao nhiêu thì tổng giao giảm bấy nhiêu (tiền hoàn trừ thẳng vào lần giao).
+    return [...advanceIds].reduce((sum, id) => {
+      const advance = advanceById(data, id);
+      return advance ? sum + advance.amount - advanceSummary(data, advance).refunded : sum;
+    }, 0);
+  }
 
   /** Nhãn trạng thái của một dòng: khoản cá nhân ứng → trạng thái thanh toán; dòng thuộc hồ sơ ứng trước → trạng thái quyết toán. */
   function statusOf(entry: FundHistoryEntry): { label: string; tone: StatusTone } | null {
@@ -75,8 +146,10 @@ export default function FundLedgerScreen() {
       const expense = data.expenses.find((e) => e.id === entry.id);
       if (expense?.mode === 'personal') {
         const debt = personalDebt(data, expense);
+        // Chưa thanh toán chút nào: "Chưa quyết toán" (đỏ); trả một phần: "Còn nợ <số còn lại>" (cam); trả đủ: "Đã quyết toán" (xanh).
         const tone: Record<PayState, StatusTone> = { paid: 'get', partial: 'warn', unpaid: 'owe' };
-        return { label: personalDebtLabel(debt.state, debt.remaining, formatVnd, debt.paid), tone: tone[debt.state] };
+        const label = debt.state === 'unpaid' ? ADVANCE_STATE_LABEL.unsettled : personalDebtLabel(debt.state === 'partial' ? 'unpaid' : debt.state, debt.remaining, formatVnd);
+        return { label, tone: tone[debt.state] };
       }
     }
     // Dòng quỹ trả cá nhân: khoản A ứng chi gốc đã được quỹ trả xong thì hiện "Đã quyết toán" màu xanh, chưa xong thì ghi chú "Một phần".
@@ -103,8 +176,8 @@ export default function FundLedgerScreen() {
         return spent > 0 ? { label: 'Chi một phần', tone: 'warn' } : { label: 'Chưa chi', tone: 'owe' };
       }
     }
-    // Khoản chi từ tiền ứng ("Quỹ giao A ứng chi"): chỉ là dòng chi để xem, như ô lịch sử ở trang Nợ quỹ, không nhãn trạng thái.
-    if (entry.kind === 'expense' && entry.spendFromAdvance) return null;
+    // Khoản cá nhân chi từ tiền quỹ giao: dòng trạng thái dưới số tiền ghi tổng tiền của (các) lần giao.
+    if (entry.kind === 'expense' && entry.spendFromAdvance) return { label: `Tổng giao ${formatVnd(givenTotal(entry))}`, tone: 'info' };
     if (entry.advanceId && entry.kind === 'expense') {
       const advance = advanceById(data, entry.advanceId);
       if (advance) {
@@ -118,7 +191,17 @@ export default function FundLedgerScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
       <Stack.Screen options={{ title: 'Lịch sử quỹ', headerShown: false }} />
-      <ScreenTitle title="Lịch sử quỹ" topInset={insets.top} />
+      <ScreenTitle title="Lịch sử quỹ" topInset={insets.top} right={<TitleAction label="Thu, chi quỹ" onPress={() => setTxnOpen(true)} />} />
+      {txnOpen && (
+        <OptionSheet
+          title="Thu, chi quỹ"
+          onClose={() => setTxnOpen(false)}
+          options={[
+            { icon: 'wallet', label: 'Thu quỹ', onPress: () => router.push({ pathname: '/quy/thu-quy', params: fundParams }) },
+            { icon: 'people', label: 'Chi tiêu quỹ', onPress: () => router.push({ pathname: '/quy/chi-tieu', params: fundParams }) },
+          ]}
+        />
+      )}
       {error ? (
         <View style={[styles.notice, { backgroundColor: colors.dangerSoft }]}>
           <AppText color={colors.danger} style={styles.noticeText}>
@@ -135,6 +218,7 @@ export default function FundLedgerScreen() {
                 title={CATEGORY_OPTIONS.find((option) => option.value === category)?.label ?? 'Tất cả'}
                 subtitleNode={<PeriodNote view={view} onChange={setView} today={today} />}
                 rightTop={`${shownCount} khoản`}
+                rightBottom={<View style={styles.headRight}>{headRight}</View>}
               />
             </View>
             <View style={styles.body}>
@@ -149,7 +233,7 @@ export default function FundLedgerScreen() {
 
               {shownDays.length === 0 ? (
                 <EmptyState
-                  text={category !== 'all' && cashCount > 0 ? 'Không có khoản nào thuộc loại này trong khoảng này' : 'Không có khoản nào làm đổi số dư quỹ trong khoảng này'}
+                  text={category !== 'all' && cashCount > 0 ? 'Không có khoản nào thuộc loại này trong khoảng này' : 'Không có khoản nào trong khoảng này'}
                   icon="check"
                 />
               ) : (
@@ -202,7 +286,7 @@ export default function FundLedgerScreen() {
                             singleLineSubtitle={!!entry.split}
                             subtitle={
                               entry.split
-                                ? `${name ? `${name} · ` : ''}${entry.person ? `${entry.person} ứng` : 'Cá nhân ứng'}: ${formatVnd(entry.split.personal)}`
+                                ? `${name ? `${name} · ` : ''}${entry.person ? `${entry.person} ứng chi` : 'Cá nhân ứng chi'}: ${formatVnd(entry.split.personal)}`
                                 : name
                                   ? `${name} · ${entry.meta}`
                                   : entry.meta
@@ -233,7 +317,10 @@ const styles = StyleSheet.create({
   notice: { marginHorizontal: 16, padding: 16, borderRadius: 16 },
   noticeText: { fontSize: 15 },
   card: { borderRadius: AppRadius.card, overflow: 'hidden' },
-  cardHead: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 6 },
+  // Cao cố định (đủ ba dòng bên phải) để hàng chip bên dưới luôn nằm đúng một vị trí, dù đang xem loại nào.
+  cardHead: { height: 72, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4 },
+  headRight: { alignItems: 'flex-end' },
+  headLine: { fontSize: 12, lineHeight: 16 },
   body: { paddingHorizontal: 12, paddingBottom: 8 },
   day: {},
   dayHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, paddingHorizontal: 2, marginTop: 8, marginBottom: 4 },

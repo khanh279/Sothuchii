@@ -23,18 +23,19 @@ describe('cá nhân ứng tiền cho người khác chi (quỹ hết tiền)', (
   it('Bình chi 60.000: Bình còn nợ quỹ 40.000; quỹ nợ An 100.000 − 40.000 = 60.000 = số đã chi (ròng)', () => {
     const d = data({ expenses: [spend(60_000)] });
     const p = fundPosition(d, F);
-    expect(p).toMatchObject({ cash: 0, held: 40_000, owed: 100_000, balance: -60_000 });
+    expect(p).toMatchObject({ cash: -60_000, held: 40_000, owed: 100_000, balance: -60_000 });
     expect(p.owed - p.held).toBe(60_000);
     expect(advanceSummary(d, advance)).toMatchObject({ held: 40_000, funderOwed: 100_000 });
   });
 
-  it('Bình hoàn 40.000 thừa vào quỹ → quỹ có tiền mặt 40.000; trả An được và công nợ An giảm; không trả quá tiền mặt', () => {
+  it('Bình hoàn 40.000 thừa vào quỹ → chỉ đóng công nợ của Bình, số còn lại không đổi; trả An được và công nợ An giảm; không trả quá số quỹ nợ An', () => {
     const d = data({ expenses: [spend(60_000)], txns: [refund(40_000)] });
-    expect(fundPosition(d, F)).toMatchObject({ cash: 40_000, held: 0, owed: 100_000 });
-    expect(checkPayout(d, { advanceId: 'a1', toFunder: true }, 50_000)).toMatchObject({ ok: false });
+    expect(fundPosition(d, F)).toMatchObject({ cash: -60_000, held: 0, owed: 100_000 });
+    expect(checkPayout(d, { advanceId: 'a1', toFunder: true }, 100_001)).toMatchObject({ ok: false });
+    expect(checkPayout(d, { advanceId: 'a1', toFunder: true }, 50_000)).toEqual({ ok: true, amount: 50_000 });
     expect(checkPayout(d, { advanceId: 'a1', toFunder: true }, 40_000)).toEqual({ ok: true, amount: 40_000 });
     const paid = data({ expenses: [spend(60_000)], txns: [refund(40_000), payoutAn(40_000)] });
-    expect(fundPosition(paid, F)).toMatchObject({ cash: 0, owed: 60_000 });
+    expect(fundPosition(paid, F)).toMatchObject({ cash: -60_000, owed: 60_000 });
     expect(advanceSummary(paid, advance)).toMatchObject({ funderOwed: 60_000, paidExtra: 0, held: 0 });
   });
 

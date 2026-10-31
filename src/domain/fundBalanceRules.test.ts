@@ -1,6 +1,6 @@
 import type { Advance, Contribution, FundData, FundExpense, FundTxn } from '@/types/fund';
 
-import { FUND_INSUFFICIENT_MESSAGE, checkAdvanceGive, checkDirectSpend, defaultExpenseKind, fundCash, maxAdvanceGive } from './fundAdvance';
+import { checkAdvanceGive, checkDirectSpend, fundCash } from './fundAdvance';
 import { buildFundHistory, filterDaysByPerson, historyMembers } from './fundHistory';
 
 // DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng. Tiền: ĐỒNG.
@@ -11,55 +11,36 @@ const advance = (id: string, amount: number, person = 'A'): Advance => ({ id, fu
 const txn = (id: string, kind: FundTxn['kind'], amount: number, over: Partial<FundTxn> = {}): FundTxn => ({ id, fundId: F, kind, person: 'A', amount, date: '2025-10-08', ...over });
 const data = (over: Partial<FundData> = {}): FundData => ({ funds: [{ id: F, name: 'Quỹ' }], contribs: [contrib('c1', 1_000_000)], expenses: [], advances: [], txns: [], cur: F, ...over });
 
-describe('hình thức chi mặc định theo số dư', () => {
-  it('quỹ hết tiền (0 hoặc âm) → cá nhân ứng chi; còn tiền → chi trực tiếp', () => {
-    expect(defaultExpenseKind(0)).toBe('personal');
-    expect(defaultExpenseKind(-5)).toBe('personal');
-    expect(defaultExpenseKind(1)).toBe('direct');
+describe('số còn lại thực tế của quỹ = thu − mọi khoản chi ghi nhận', () => {
+  it('chi trực tiếp, cá nhân ứng chi và phần cá nhân đã chi từ tiền ứng đều làm giảm; giao ứng chưa chi, hoàn tiền, quỹ trả thì không đổi', () => {
+    expect(fundCash(data(), F)).toBe(1_000_000);
+    expect(fundCash(data({ expenses: [expense('e1', 200_000)] }), F)).toBe(800_000);
+    expect(fundCash(data({ expenses: [expense('p1', 100_000, { mode: 'personal', payer: 'A' })] }), F)).toBe(900_000);
+    const advanced = data({ advances: [advance('a1', 300_000)] });
+    expect(fundCash(advanced, F)).toBe(1_000_000);
+    const spent = data({ advances: [advance('a1', 300_000)], expenses: [expense('s1', 120_000, { mode: 'advance', advanceId: 'a1', payer: 'A' })] });
+    expect(fundCash(spent, F)).toBe(880_000);
+    const settled = { ...spent, txns: [txn('t1', 'refund', 180_000, { advanceId: 'a1' }), txn('t2', 'payout', 50_000, { expenseId: 'none' })] };
+    expect(fundCash(settled, F)).toBe(880_000);
   });
 
-  it('tiền thực tế trừ tiền đã giao ứng nên quỹ giao hết tiền cũng có mặc định cá nhân ứng', () => {
-    const d = data({ advances: [advance('a1', 1_000_000)] });
-    expect(fundCash(d, F)).toBe(0);
-    expect(defaultExpenseKind(fundCash(d, F))).toBe('personal');
-  });
-});
-
-describe('checkDirectSpend', () => {
-  it('đủ tiền (kể cả đúng bằng) thì được; vượt thì chặn với đúng thông báo', () => {
-    expect(checkDirectSpend(data(), F, 1_000_000)).toEqual({ ok: true, amount: 1_000_000 });
-    expect(checkDirectSpend(data(), F, 1_000_001)).toEqual({ ok: false, message: FUND_INSUFFICIENT_MESSAGE });
-    expect(FUND_INSUFFICIENT_MESSAGE).toBe('Không thể ghi chi tiêu do số dư quỹ không đủ.');
-  });
-
-  it('quỹ 0 đồng chặn mọi khoản chi trực tiếp; số ≤ 0 báo nhập số', () => {
-    expect(checkDirectSpend(data({ contribs: [] }), F, 1)).toEqual({ ok: false, message: FUND_INSUFFICIENT_MESSAGE });
-    expect(checkDirectSpend(data(), F, 0)).toMatchObject({ ok: false });
-  });
-
-  it('đang sửa: số cũ của chính khoản chi trực tiếp được hoàn lại; khoản cá nhân ứng không được hoàn', () => {
-    const d = data({ expenses: [expense('e1', 600_000), expense('p1', 100_000, { mode: 'personal', payer: 'A' })] });
-    expect(fundCash(d, F)).toBe(400_000);
-    expect(checkDirectSpend(d, F, 1_000_000, 'e1')).toMatchObject({ ok: true });
-    expect(checkDirectSpend(d, F, 1_000_001, 'e1')).toMatchObject({ ok: false });
-    expect(checkDirectSpend(d, F, 500_000, 'p1')).toMatchObject({ ok: false });
+  it('số dư có thể âm và không còn hình thức chi nào bị khoá theo số dư', () => {
+    expect(fundCash(data({ contribs: [], expenses: [expense('e1', 50_000)] }), F)).toBe(-50_000);
   });
 });
 
-describe('checkAdvanceGive', () => {
-  it('đúng bằng số dư thì được, vượt thì chặn và báo số tối đa; 0 vẫn được', () => {
-    expect(checkAdvanceGive(data(), F, 1_000_000)).toEqual({ ok: true, amount: 1_000_000 });
-    expect(checkAdvanceGive(data(), F, 0)).toEqual({ ok: true, amount: 0 });
-    const over = checkAdvanceGive(data(), F, 1_000_001);
-    expect(over.ok).toBe(false);
-    expect(!over.ok && over.message).toContain('Số tiền giao vượt quá số dư quỹ');
-    expect(checkAdvanceGive(data(), F, -1)).toMatchObject({ ok: false });
+describe('kiểm tra số tiền khi chi / giao ứng (không chặn theo số dư quỹ)', () => {
+  it('chi quỹ chỉ cần số tiền > 0, kể cả khi quỹ hết tiền', () => {
+    expect(checkDirectSpend(1_000_001)).toEqual({ ok: true, amount: 1_000_001 });
+    expect(checkDirectSpend(0)).toMatchObject({ ok: false });
+    expect(checkDirectSpend(-5)).toMatchObject({ ok: false });
   });
 
-  it('số tối đa theo tiền thực tế: đã giao / chi trực tiếp thì giảm, hoàn tiền thì tăng', () => {
-    const d = data({ advances: [advance('a1', 300_000)], expenses: [expense('e1', 200_000)], txns: [txn('t1', 'refund', 100_000, { advanceId: 'a1' })] });
-    expect(maxAdvanceGive(d, F)).toBe(600_000);
-    expect(maxAdvanceGive(d, F, 'a1')).toBe(900_000); // đang sửa a1: tính lại 300.000 đã giao
+  it('giao ứng: ≥ 0 là hợp lệ (0 = giao việc chưa cấp tiền), không bị chặn bởi số dư; âm hoặc không phải số thì báo lỗi', () => {
+    expect(checkAdvanceGive(5_000_000)).toEqual({ ok: true, amount: 5_000_000 });
+    expect(checkAdvanceGive(0)).toEqual({ ok: true, amount: 0 });
+    expect(checkAdvanceGive(-1)).toMatchObject({ ok: false });
+    expect(checkAdvanceGive(Number.NaN)).toMatchObject({ ok: false });
   });
 });
 

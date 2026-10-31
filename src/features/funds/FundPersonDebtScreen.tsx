@@ -9,15 +9,13 @@ import { DetailNotice } from '@/components/detail-parts';
 import { CheckSlot } from '@/components/check-slot';
 import { EmptyState, PrimaryButton, ScreenTitle, SecondaryButton } from '@/components/design';
 import { PaymentConfirmSheet } from '@/components/payment-panel';
-import { HistoryCard } from '@/components/history-card';
 import { PayPageFrame } from '@/components/pay-page-frame';
 import { useToast } from '@/components/toast';
-import { deleteFundExpenseSynced } from '@/data/fundService';
 import { PAY_ACTION_BAR_CLEARANCE, PayActionBar } from '@/components/pay-action-bar';
-import { advanceSummary, combinedPayoutLimit, overflowExpense, fundPersonBalances, fundPersonTargets } from '@/domain/fundAdvance';
+import { advanceSummary, overflowExpense, fundPersonBalances, fundPersonTargets, personalDebt } from '@/domain/fundAdvance';
 import { PERSON_ITEM_LABEL, buildPersonFundDetail, filterPersonDetailBySide, type PersonDebtSide, type PersonFundItem } from '@/domain/fundPerson';
+import { PaidStack, useHiddenPaid } from '@/features/debts/PaidStack';
 import { FundPayFlow, isFundPayBlocked, useFundPay } from '@/features/funds/FundPayFlow';
-import { FundEntryIcon } from '@/features/funds/FundEntryIcon';
 import { describeFundError, useFundData } from '@/features/funds/hooks';
 import { AdvanceSpendCard, advanceSpendItems } from '@/features/funds/AdvanceSpendCard';
 import { useColors } from '@/hooks/use-colors';
@@ -46,9 +44,8 @@ export default function FundPersonDebtScreen() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [paying, setPaying] = useState(false);
   const { payMany } = useFundPay(reload);
-  /** Dòng khoản cá nhân ứng chi đang vuốt mở (chỉ một dòng mở một lúc). */
-  const [openId, setOpenId] = useState<string | null>(null);
   const isHeld = side === 'held';
+  const { hidden } = useHiddenPaid();
   /** Trang "Nợ quỹ": đang mở danh sách các lần giao dưới dòng "Tổng giao A ứng". */
   const [lotsOpen, setLotsOpen] = useState(false);
 
@@ -58,14 +55,12 @@ export default function FundPersonDebtScreen() {
     return side ? filterPersonDetailBySide(full, side) : full;
   }, [data, fund, person, side]);
   const targets = useMemo(() => fundPersonTargets(data, fund, person).filter((item) => !side || (item.kind === 'payout') === (side === 'owed')), [data, fund, person, side]);
-  /** Có khoản thanh toán được ngay (quỹ trả cần quỹ còn tiền thực tế; hoàn tiền ứng thì luôn được). */
-  const canPay = loaded && !error && !isHeld && targets.some((item) => !isFundPayBlocked(data, item));
+  /** Có khoản thanh toán được ngay (còn khoản quỹ nợ hoặc tiền ứng còn giữ). */
+  const canPay = loaded && !error && !isHeld && targets.some((item) => !isFundPayBlocked(item));
   /** Các hồ sơ ứng trước người đó còn giữ tiền (mỗi hồ sơ một khoản hoàn tiền ứng còn lại). */
   const heldAdvances = targets.filter((item) => item.kind === 'refund' && item.advanceId);
-  const noCash = targets.some((item) => isFundPayBlocked(data, item));
   const pickedTargets = targets.filter((item) => item.kind === 'payout' && pickedKeys.has(item.key));
   const pickedTotal = pickedTargets.reduce((sum, item) => sum + item.remaining, 0);
-  const pickedLimit = combinedPayoutLimit(data, pickedTargets);
   const fundNames = [...new Set(pickedTargets.map((item) => data.funds.find((entry) => entry.id === item.fundId)?.name ?? 'Quỹ'))];
   const picker = fundNames.length === 1 ? fundNames[0] : 'Quỹ';
 
@@ -84,10 +79,6 @@ export default function FundPersonDebtScreen() {
   }
   function pressPickedPay() {
     if (pickedTargets.length === 0) return;
-    if (pickedTotal > pickedLimit) {
-      toast.show(`Quỹ chỉ còn ${formatVnd(pickedLimit)}, không đủ thanh toán ${formatVnd(pickedTotal)}.`);
-      return;
-    }
     setConfirmOpen(true);
   }
   /** Ghi từng khoản đã chọn, mỗi khoản trả đủ số còn nợ của chính nó. */
@@ -110,17 +101,10 @@ export default function FundPersonDebtScreen() {
     router.push({ pathname: '/quy/ung-chi', params: { mode: 'refund', person: person.trim(), fund } });
   }
 
-  /** Xóa một khoản cá nhân ứng chi (sau khi bấm Xóa lần hai ở dòng vuốt), rồi tải lại số liệu. */
-  async function removeSpend(id: string) {
-    try {
-      await deleteFundExpenseSynced(id);
-      setOpenId(null);
-      toast.show('Đã xóa khoản chi');
-      await reload();
-    } catch (e) {
-      toast.show(describeFundError(e));
-    }
-  }
+  /** Khoá chọn thanh toán của một dòng A ứng chi (khoản cá nhân ứng chi hoặc phần chi vượt tiền được giao). */
+  const pickKey = (entry: { kind: string; id: string }) => (entry.kind === 'overflow' ? `payout:a:${entry.id}` : `payout:e:${entry.id}`);
+  /** Mở trang chi tiết của một dòng A ứng chi. */
+  const openDetail = (entry: { kind: string; id: string }) => router.push({ pathname: '/quy/chi-tiet', params: entry.kind === 'overflow' ? { kind: 'overflow', id: entry.id } : { kind: 'expense', id: entry.id } });
 
   let body;
   if (error) body = <DetailNotice text={error} tone="error" />;
@@ -155,9 +139,12 @@ export default function FundPersonDebtScreen() {
             .map((target) => ({
               kind: 'overflow',
               id: target.advanceId ?? '',
-              title: 'Chi vượt tiền ứng',
+              title: 'Chi vượt tiền giao',
               date: spendOver(target)?.date ?? target.date,
-              note: spendOver(target)?.title,
+              note: (() => {
+                const over = spendOver(target);
+                return over ? `${over.title} · ${formatVnd(over.amount)}` : undefined;
+              })(),
               amount: target.remaining,
             }))
         : [];
@@ -172,6 +159,24 @@ export default function FundPersonDebtScreen() {
     if (!isHeld && side !== 'owed' && detail.spentPersonal > 0) rows.push({ label: 'Cá nhân ứng tiền túi chi', value: formatVnd(detail.spentPersonal) });
     if (!isHeld && side !== 'owed' && detail.refunded > 0) rows.push({ label: 'Đã hoàn lại quỹ', value: formatVnd(detail.refunded) });
     if (!isHeld && side !== 'owed' && detail.paid > 0) rows.push({ label: 'Quỹ đã trả', value: formatVnd(detail.paid) });
+    // Ngăn xếp "Đã thanh toán" (trang Quỹ nợ): các khoản quỹ đã trả xong cho người này — khoản cá nhân ứng chi đã trả đủ và phần chi vượt tiền ứng đã trả đủ; mờ, gạch ngang, có thể "Xóa lịch sử" (chỉ ẩn).
+    const who = person.trim();
+    const allPaidRows =
+      side === 'owed'
+        ? [
+            ...data.expenses
+              .filter((e) => e.mode === 'personal' && e.payer?.trim() === who && (fund === 'all' || e.fundId === fund) && personalDebt(data, e).state === 'paid' && personalDebt(data, e).amount > 0)
+              .map((e) => ({ key: `fund:e:${e.id}`, title: e.title || 'Chi quỹ', date: e.date, amount: personalDebt(data, e).amount })),
+            ...(data.advances ?? [])
+              .filter((a) => a.person.trim() === who && (fund === 'all' || a.fundId === fund))
+              .map((a) => ({ a, summary: advanceSummary(data, a) }))
+              .filter(({ summary }) => summary.paidExtra > 0 && summary.owed === 0)
+              .map(({ a, summary }) => ({ key: `fund:a:${a.id}`, title: 'Chi vượt tiền ứng', date: overflowExpense(data, a.fundId, who)?.date ?? a.date, amount: summary.paidExtra })),
+          ]
+            .sort((x, y) => (x.date < y.date ? 1 : x.date > y.date ? -1 : 0))
+        : [];
+    const hiddenPaidKeys = allPaidRows.filter((row) => hidden.has(row.key)).map((row) => row.key);
+    const paidRows = allPaidRows.filter((row) => !hidden.has(row.key));
     body = (
       <>
         <PayPageFrame
@@ -216,81 +221,72 @@ export default function FundPersonDebtScreen() {
             <EmptyState text="Chưa có khoản nào" icon="check" />
           ) : (
             <View>
-              {items.map((entry, index) =>
-                entry.kind === 'personalSpend' ? (
-                  // Khoản cá nhân ứng chi: vuốt dòng sang trái để Sửa / Xóa (chạm vào dòng không mở gì). Đang chọn khoản để thanh toán: có ô tích, chạm dòng để tích, không vuốt.
-                  <View key={`${entry.kind}:${entry.id}`} style={[styles.swipeItem, styles.pickRow]}>
-                    <CheckSlot active={selecting} checked={pickedKeys.has(`payout:e:${entry.id}`)} label={entry.title} onToggle={() => togglePick(`payout:e:${entry.id}`)} />
+              {items.map((entry, index) => {
+                // Khoản A ứng chi (cá nhân ứng chi hoặc chi vượt tiền giao): dòng phẳng trên nền trắng, ngăn cách bằng đường kẻ mảnh; KHÔNG vuốt Sửa / Xóa, chạm dòng chỉ để xem chi tiết.
+                // Đang chọn khoản để thanh toán: có ô tích, chạm dòng để tích.
+                const spendRow = entry.kind === 'personalSpend' || entry.kind === 'overflow';
+                const partial = entry.kind === 'personalSpend' && (remainingOf.get(entry.id) ?? entry.amount) < entry.amount;
+                const title = entry.kind === 'overflow' ? 'Chi vượt tiền giao' : entry.title;
+                return (
+                  <Pressable
+                    key={`${entry.kind}:${entry.id}`}
+                    disabled={!spendRow}
+                    accessibilityRole={spendRow ? 'button' : undefined}
+                    accessibilityLabel={spendRow ? `${title}, -${formatVnd(entry.amount)}` : undefined}
+                    onPress={() => (selecting ? togglePick(pickKey(entry)) : openDetail(entry))}
+                    style={[styles.item, index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line }]}
+                  >
+                    {spendRow && <CheckSlot active={selecting} gap={10} checked={pickedKeys.has(pickKey(entry))} label={title} onToggle={() => togglePick(pickKey(entry))} />}
                     <View style={styles.flex}>
-                    <HistoryCard
-                      {...(selecting
-                        ? { open: false, onOpen: () => togglePick(`payout:e:${entry.id}`), onClose: () => undefined, onPressRow: () => togglePick(`payout:e:${entry.id}`), locked: true, onPressLocked: () => togglePick(`payout:e:${entry.id}`), onEdit: () => undefined, onDelete: () => undefined }
-                        : {
-                            open: openId === entry.id,
-                            onOpen: () => setOpenId(entry.id),
-                            onClose: () => setOpenId((current) => (current === entry.id ? null : current)),
-                            onEdit: () => {
-                              setOpenId(null);
-                              router.push({ pathname: '/quy/sua', params: { kind: 'expense', id: entry.id } });
-                            },
-                            onDelete: () => void removeSpend(entry.id),
-                          })}
-                      accessibilityLabel={`${entry.title}, -${formatVnd(entry.amount)}`}
-                      icon={<FundEntryIcon kind="expense" mode="personal" />}
-                      title={entry.title}
-                      subtitle={formatVnDate(entry.date)}
-                      amount={`−${formatVnd(entry.amount)}`}
-                      tone="owe"
-                      badge={(remainingOf.get(entry.id) ?? entry.amount) < entry.amount ? `Đã thanh toán ${formatVnd(entry.amount - (remainingOf.get(entry.id) ?? 0))}` : undefined}
-                      badgeTone="warn"
-                    />
-                    </View>
-                  </View>
-                ) : (
-                <Pressable
-                  key={`${entry.kind}:${entry.id}`}
-                  disabled={entry.kind !== 'overflow'}
-                  accessibilityRole={entry.kind === 'overflow' ? 'button' : undefined}
-                  onPress={() => (selecting ? togglePick(`payout:a:${entry.id}`) : router.push({ pathname: '/quy/chi-tiet', params: { kind: 'overflow', id: entry.id } }))}
-                  style={[styles.item, index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line }]}
-                >
-                  {entry.kind === 'overflow' && <CheckSlot active={selecting} gap={10} checked={pickedKeys.has(`payout:a:${entry.id}`)} label={entry.title} onToggle={() => togglePick(`payout:a:${entry.id}`)} />}
-                  <View style={styles.flex}>
-                    <AppText weight="semibold" style={styles.itemTitle} numberOfLines={2}>
-                      {entry.title}
-                    </AppText>
-                    <AppText color={colors.muted} style={styles.itemSub}>
-                      {entry.kind === 'overflow'
-                        ? [entry.note, formatVnDate(entry.date)].filter(Boolean).join(' · ')
-                        : isHeld
-                          ? (entry.note ?? '')
-                          : side === 'owed'
-                            ? formatVnDate(entry.date)
-                            : `${PERSON_ITEM_LABEL[entry.kind]} · ${formatVnDate(entry.date)}`}
-                    </AppText>
-                  </View>
-                  <View style={styles.itemRight}>
-                    <AppText weight="bold" color={entry.kind === 'refund' ? colors.success : entry.kind === 'payout' ? colors.muted : undefined} style={styles.itemAmount}>
-                      {formatVnd(entry.amount)}
-                    </AppText>
-                    {/* Khoản đã được quỹ trả một phần: ghi chú nhỏ số ĐÃ THANH TOÁN ngay dưới số tiền. */}
-                    {side === 'owed' && (remainingOf.get(entry.id) ?? entry.amount) < entry.amount && (
-                      <AppText color={colors.warning} style={styles.itemSub}>
-                        Đã thanh toán {formatVnd(entry.amount - (remainingOf.get(entry.id) ?? 0))}
+                      <AppText weight="semibold" style={styles.itemTitle} numberOfLines={2}>
+                        {title}
                       </AppText>
-                    )}
-                  </View>
-                </Pressable>
-                ),
-              )}
+                      <AppText color={colors.muted} style={styles.itemSub}>
+                        {entry.kind === 'overflow'
+                          ? [formatVnDate(entry.date), entry.note].filter(Boolean).join('\n')
+                          : isHeld
+                            ? (entry.note ?? '')
+                            : side === 'owed'
+                              ? formatVnDate(entry.date)
+                              : `${PERSON_ITEM_LABEL[entry.kind]} · ${formatVnDate(entry.date)}`}
+                      </AppText>
+                    </View>
+                    <View style={styles.itemRight}>
+                      <AppText weight="bold" color={spendRow ? colors.danger : entry.kind === 'refund' ? colors.success : entry.kind === 'payout' ? colors.muted : undefined} style={styles.itemAmount}>
+                        {spendRow ? '−' : ''}
+                        {formatVnd(entry.amount)}
+                      </AppText>
+                      {/* Khoản đã được quỹ trả một phần: ghi chú nhỏ số CÒN NỢ ngay dưới số tiền (màu cam). */}
+                      {partial && (
+                        <AppText color={colors.warning} style={styles.itemSub}>
+                          Còn nợ {formatVnd(remainingOf.get(entry.id) ?? 0)}
+                        </AppText>
+                      )}
+                    </View>
+                  </Pressable>
+                );
+              })}
             </View>
           )}
         </PayPageFrame>
-        {/* Quỹ không đủ tiền quyết toán: chữ đỏ nhỏ căn trái, không đặt trong ô, nằm sát mép dưới khung. */}
-        {noCash && (
-          <AppText color={colors.danger} style={styles.noCash}>
-            Số dư quỹ không đủ để quyết toán khoản nợ
-          </AppText>
+        {(paidRows.length > 0 || hiddenPaidKeys.length > 0) && (
+          <PaidStack count={paidRows.length} keys={paidRows.map((row) => row.key)} hiddenKeys={hiddenPaidKeys}>
+            {paidRows.map((row, index) => (
+              <View key={row.key} style={[styles.item, index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line }]}>
+                <View style={styles.flex}>
+                  <AppText weight="medium" color={colors.muted} style={[styles.itemTitle, styles.paidText]} numberOfLines={2}>
+                    {row.title}
+                  </AppText>
+                  <AppText color={colors.muted} style={styles.itemSub}>
+                    {formatVnDate(row.date)} · Đã thanh toán
+                  </AppText>
+                </View>
+                <AppText weight="bold" color={colors.muted} style={[styles.itemAmount, styles.paidText]}>
+                  {formatVnd(row.amount)}
+                </AppText>
+              </View>
+            ))}
+          </PaidStack>
         )}
         {isHeld && heldAdvances.length > 0 && (
           <View style={styles.actions}>
@@ -393,11 +389,8 @@ function HeldLine({
 type ListItem = Omit<PersonFundItem, 'kind'> & { kind: PersonFundItem['kind'] | 'overflow'; note?: string };
 
 const styles = StyleSheet.create({
-  swipeItem: { paddingVertical: 3 },
-  pickRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   cancel: { minHeight: 36, paddingHorizontal: 8, justifyContent: 'center' },
   cancelText: { fontSize: 16, lineHeight: 22 },
-  noCash: { fontSize: 12.5, lineHeight: 17, paddingHorizontal: 4, marginTop: -6 },
   actions: { gap: 10 },
   heldLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingVertical: 8 },
   screen: { flex: 1 },
@@ -408,6 +401,7 @@ const styles = StyleSheet.create({
   summaryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   item: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 },
   itemTitle: { fontSize: 15, lineHeight: 20 },
+  paidText: { textDecorationLine: 'line-through' },
   itemSub: { fontSize: 12.5, lineHeight: 17 },
   itemRight: { alignItems: 'flex-end' },
   itemAmount: { fontSize: 15 },

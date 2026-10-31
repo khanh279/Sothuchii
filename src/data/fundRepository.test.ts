@@ -253,7 +253,7 @@ describe('chi quỹ nâng cao (lưu trữ)', () => {
     const id = await saveFundExpense({ fundId: 'f1', title: 'Mua vật tư', date: D, amount: 300_000, mode: 'personal', payer: 'A' });
     let data = await loadFundData();
     expect(data.expenses).toEqual([{ id, fundId: 'f1', title: 'Mua vật tư', date: D, amount: 300_000, mode: 'personal', payer: 'A' }]);
-    expect(fundPosition(data, 'f1')).toMatchObject({ spent: 300_000, owed: 300_000, cash: 10_000_000 });
+    expect(fundPosition(data, 'f1')).toMatchObject({ spent: 300_000, owed: 300_000, cash: 9_700_000 });
 
     await saveFundTxn({ kind: 'payout', expenseId: id!, amount: 100_000, date: D });
     await saveFundTxn({ kind: 'payout', expenseId: id!, amount: 200_000, date: D });
@@ -271,19 +271,19 @@ describe('chi quỹ nâng cao (lưu trữ)', () => {
     expect((await raw()).expenses).toEqual([]);
   });
 
-  it('giao tiền ứng (0 đồng bị từ chối), chi từ tiền ứng, hoàn thừa: tổng chi chỉ tăng ở khoản chi, tiền quỹ không trừ hai lần', async () => {
+  it('giao tiền ứng (0 đồng bị từ chối), chi từ tiền ứng, hoàn thừa: tổng chi chỉ tăng ở khoản chi, số còn lại chỉ giảm đúng số đã chi', async () => {
     await seed(base());
     const a = await createAdvance({ fundId: 'f1', person: 'A', title: 'Mua vật tư', date: D, amount: 500_000 });
     await expect(createAdvance({ fundId: 'f1', person: 'B', title: 'Giao việc', date: D, amount: 0 })).rejects.toThrow('Nhập số tiền lớn hơn 0'); // phải khác 0
     let data = await loadFundData();
-    expect(fundPosition(data, 'f1')).toMatchObject({ cash: 9_500_000, spent: 0, held: 500_000 });
+    expect(fundPosition(data, 'f1')).toMatchObject({ cash: 10_000_000, spent: 0, held: 500_000 });
     expect(data.advances!.map((x) => x.id)).toEqual([a]);
 
     await saveFundExpense({ fundId: 'f1', title: 'Giấy', date: D, amount: 200_000, mode: 'advance', advanceId: a });
     await saveFundExpense({ fundId: 'f1', title: 'Bút', date: D, amount: 100_000, mode: 'advance', advanceId: a });
     data = await loadFundData();
     expect(data.expenses.every((e) => e.advanceId === a && e.payer === 'A')).toBe(true);
-    expect(fundPosition(data, 'f1')).toMatchObject({ cash: 9_500_000, spent: 300_000, held: 200_000 });
+    expect(fundPosition(data, 'f1')).toMatchObject({ cash: 9_700_000, spent: 300_000, held: 200_000 });
 
     await expect(saveFundTxn({ kind: 'refund', advanceId: a, amount: 300_000, date: D })).rejects.toBeInstanceOf(FundInputError); // vượt số còn giữ
     await saveFundTxn({ kind: 'refund', advanceId: a, amount: 200_000, date: D });

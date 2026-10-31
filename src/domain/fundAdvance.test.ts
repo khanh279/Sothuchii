@@ -17,7 +17,6 @@ import {
   planAdvanceRefund,
   planAdvanceSpend,
   planCombinedPayout,
-  directSpendAvailable,
 } from './fundAdvance';
 
 // DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng. Tiền: ĐỒNG.
@@ -44,11 +43,11 @@ const data = (over: Partial<FundData> = {}): FundData => ({
   ...over,
 });
 
-/** Đẳng thức bắt buộc: số dư (thu − chi) = tiền thực tế + tiền cá nhân giữ − quỹ nợ cá nhân; và số dư khớp công thức có sẵn. */
+/** Đẳng thức bắt buộc: chỉ MỘT số dư — số còn lại thực tế (`cash`) = số dư (thu − tổng chi) = công thức có sẵn `fundBalance`. */
 function expectConsistent(d: FundData) {
   const p = fundPosition(d, F);
   expect(p.balance).toBe(fundBalance(d, F));
-  expect(p.balance).toBe(p.cash + p.held - p.owed);
+  expect(p.cash).toBe(p.balance);
   return p;
 }
 
@@ -67,17 +66,17 @@ describe('1. quỹ chi trực tiếp', () => {
 describe('2–3. cá nhân tự ứng tiền', () => {
   const e = expense('p1', 300_000, { mode: 'personal', payer: 'A' });
 
-  it('ghi chi 300.000 ngay: tổng chi +300.000, quỹ nợ A 300.000, tiền thực tế chưa giảm', () => {
+  it('ghi chi 300.000 ngay: tổng chi +300.000, quỹ nợ A 300.000, số còn lại giảm ngay 300.000', () => {
     const d = data({ expenses: [e] });
     const p = expectConsistent(d);
-    expect(p).toMatchObject({ spent: 300_000, directSpent: 0, owed: 300_000, cash: 10_000_000, balance: 9_700_000, advanced: true });
+    expect(p).toMatchObject({ spent: 300_000, directSpent: 0, owed: 300_000, cash: 9_700_000, balance: 9_700_000, advanced: true });
     expect(personalDebt(d, e)).toMatchObject({ amount: 300_000, paid: 0, remaining: 300_000, state: 'unpaid' });
   });
 
-  it('thanh toán một phần rồi toàn bộ: chỉ đổi tiền thực tế và công nợ, tổng chi không đổi, khoản chi gốc còn nguyên', () => {
+  it('thanh toán một phần rồi toàn bộ: chỉ đổi công nợ, tổng chi và số còn lại không đổi, khoản chi gốc còn nguyên', () => {
     const partial = data({ expenses: [e], txns: [txn('t1', 'payout', 100_000, { expenseId: 'p1' })] });
     const p1 = expectConsistent(partial);
-    expect(p1).toMatchObject({ spent: 300_000, owed: 200_000, cash: 9_900_000, balance: 9_700_000 });
+    expect(p1).toMatchObject({ spent: 300_000, owed: 200_000, cash: 9_700_000, balance: 9_700_000 });
     expect(personalDebt(partial, e)).toMatchObject({ paid: 100_000, remaining: 200_000, state: 'partial' });
 
     const full = data({ expenses: [e], txns: [txn('t1', 'payout', 100_000, { expenseId: 'p1' }), txn('t2', 'payout', 200_000, { expenseId: 'p1' })] });
@@ -99,18 +98,18 @@ describe('2–3. cá nhân tự ứng tiền', () => {
 describe('4–5. quỹ giao tiền ứng trước', () => {
   const adv = advance('a1', 500_000);
 
-  it('giao 500.000: tiền thực tế −500.000, CHƯA tăng tổng chi, trạng thái "chưa quyết toán"', () => {
+  it('giao 500.000: số còn lại và tổng chi CHƯA đổi (cá nhân đang giữ 500.000), trạng thái "chưa quyết toán"', () => {
     const d = data({ advances: [adv] });
     const p = expectConsistent(d);
-    expect(p).toMatchObject({ cash: 9_500_000, spent: 0, held: 500_000, owed: 0, balance: 10_000_000 });
+    expect(p).toMatchObject({ cash: 10_000_000, spent: 0, held: 500_000, owed: 0, balance: 10_000_000 });
     expect(advanceSummary(d, adv)).toMatchObject({ given: 500_000, spent: 0, balance: 500_000, state: 'unsettled' });
   });
 
-  it('chi ít hơn (300.000) rồi hoàn thừa 200.000: tổng chi 300.000, tiền quỹ +200.000, đã quyết toán', () => {
+  it('chi ít hơn (300.000) rồi hoàn thừa 200.000: tổng chi 300.000, số còn lại 9.700.000 trước và sau hoàn, đã quyết toán', () => {
     const afterExpense = data({ advances: [adv], expenses: [expense('x1', 300_000, { mode: 'advance', payer: 'A', advanceId: 'a1' })] });
     const p1 = expectConsistent(afterExpense);
-    // chi từ tiền ứng KHÔNG trừ tiền quỹ lần nữa: tiền thực tế vẫn 9.500.000
-    expect(p1).toMatchObject({ cash: 9_500_000, spent: 300_000, held: 200_000, owed: 0, balance: 9_700_000 });
+    // số còn lại giảm đúng phần đã chi; phần chưa chi (cá nhân nợ quỹ) không tính là chi
+    expect(p1).toMatchObject({ cash: 9_700_000, spent: 300_000, held: 200_000, owed: 0, balance: 9_700_000 });
     expect(advanceSummary(afterExpense, adv)).toMatchObject({ spent: 300_000, balance: 200_000, held: 200_000, state: 'partial' });
 
     const settled = data({ ...afterExpense, txns: [txn('r1', 'refund', 200_000, { advanceId: 'a1' })] });
@@ -128,7 +127,7 @@ describe('4–5. quỹ giao tiền ứng trước', () => {
   it('6. chi vượt (700.000 / 500.000): quỹ nợ A 200.000; trả thêm 200.000 thì đã quyết toán, tổng chi không tăng lần hai', () => {
     const over = data({ advances: [adv], expenses: [expense('x1', 700_000, { mode: 'advance', payer: 'A', advanceId: 'a1' })] });
     const p1 = expectConsistent(over);
-    expect(p1).toMatchObject({ spent: 700_000, owed: 200_000, held: 0, cash: 9_500_000 });
+    expect(p1).toMatchObject({ spent: 700_000, owed: 200_000, held: 0, cash: 9_300_000 });
     expect(advanceSummary(over, adv)).toMatchObject({ balance: -200_000, owed: 200_000, state: 'partial' });
 
     const paid = data({ ...over, txns: [txn('t1', 'payout', 200_000, { advanceId: 'a1' })] });
@@ -293,17 +292,17 @@ describe('thanh toán gộp các khoản quỹ nợ một người', () => {
   const base = (cash: number) =>
     data({ contribs: [contrib(cash)], expenses: [spend('p2', 200_000, '2025-10-06'), spend('p1', 100_000, '2025-10-03'), spend('p3', 300_000, '2025-10-09')] });
 
-  it('giới hạn = tổng còn nợ khi quỹ đủ tiền; thiếu tiền thì bằng tiền thực tế của quỹ', () => {
+  it('giới hạn = tổng còn nợ, kể cả khi quỹ hết tiền hay âm (trả nợ không chặn theo số còn lại)', () => {
     const rich = base(10_000_000);
-    expect(combinedPayoutLimit(rich, fundPersonTargets(rich, F, 'A'))).toBe(600_000);
+    expect(combinedPayoutLimit(fundPersonTargets(rich, F, 'A'))).toBe(600_000);
     const poor = base(250_000);
-    expect(combinedPayoutLimit(poor, fundPersonTargets(poor, F, 'A'))).toBe(250_000);
+    expect(combinedPayoutLimit(fundPersonTargets(poor, F, 'A'))).toBe(600_000);
   });
 
   it('một phần: trả khoản cũ nhất trước rồi lần lượt các khoản sau cho đến hết số tiền', () => {
     const d = base(10_000_000);
     const targets = fundPersonTargets(d, F, 'A');
-    const parts = planCombinedPayout(d, targets, 250_000);
+    const parts = planCombinedPayout(targets, 250_000);
     expect(parts.map((part) => [part.target.expenseId, part.amount])).toEqual([
       ['p1', 100_000], // 3/10 cũ nhất: trả hết
       ['p2', 150_000], // 6/10: trả một phần với số còn lại
@@ -312,7 +311,7 @@ describe('thanh toán gộp các khoản quỹ nợ một người', () => {
 
   it('toàn bộ: mỗi khoản trả đúng số còn nợ, theo thứ tự cũ → mới', () => {
     const d = base(10_000_000);
-    const parts = planCombinedPayout(d, fundPersonTargets(d, F, 'A'), 600_000);
+    const parts = planCombinedPayout(fundPersonTargets(d, F, 'A'), 600_000);
     expect(parts.map((part) => [part.target.expenseId, part.amount])).toEqual([
       ['p1', 100_000],
       ['p2', 200_000],
@@ -320,12 +319,13 @@ describe('thanh toán gộp các khoản quỹ nợ một người', () => {
     ]);
   });
 
-  it('quỹ thiếu tiền: tổng các phần không vượt tiền thực tế, khoản cũ vẫn được ưu tiên', () => {
+  it('quỹ hết tiền vẫn chia đủ: tổng các phần bằng số trả, khoản cũ vẫn được ưu tiên; số vượt tổng nợ thì phần dư bị bỏ', () => {
     const d = base(250_000);
-    const parts = planCombinedPayout(d, fundPersonTargets(d, F, 'A'), 600_000);
+    const parts = planCombinedPayout(fundPersonTargets(d, F, 'A'), 250_000);
     expect(parts.reduce((sum, part) => sum + part.amount, 0)).toBe(250_000);
     expect(parts[0]).toMatchObject({ amount: 100_000 });
     expect(parts[0].target.expenseId).toBe('p1');
+    expect(planCombinedPayout(fundPersonTargets(d, F, 'A'), 900_000).reduce((sum, part) => sum + part.amount, 0)).toBe(600_000);
   });
 });
 
@@ -366,15 +366,6 @@ describe('overflowExpense — khoản chi làm A chi vượt tiền được gia
     const e = (id: string, date: string, amount: number): FundExpense => ({ id, fundId: F, title: id, date, amount, mode: 'advance', advanceId: 'a1' }) as FundExpense;
     expect(overflowExpense(data({ advances: [adv], expenses: [e('x', '2025-01-02', 300_000)] }), F, 'A')).toBeNull();
     expect(overflowExpense(data({ advances: [adv], expenses: [e('x', '2025-01-02', 300_000), e('y', '2025-01-03', 400_000)] }), F, 'A')?.id).toBe('y');
-  });
-});
-
-describe('directSpendAvailable', () => {
-  it('tiền thực tế cộng số cũ của khoản đang sửa, không âm', () => {
-    expect(directSpendAvailable(500_000)).toBe(500_000);
-    expect(directSpendAvailable(100_000, 40_000)).toBe(140_000);
-    expect(directSpendAvailable(-20_000)).toBe(0);
-    expect(directSpendAvailable(-20_000, 5000)).toBe(0);
   });
 });
 

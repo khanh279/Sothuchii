@@ -10,7 +10,7 @@ import { FundInputError } from '@/data/fundRepository';
 import { saveFundTxnSynced } from '@/data/fundService';
 import { PayInputError } from '@/data/payRepository';
 import { newExpenseId } from '@/domain/expenses';
-import { combinedPayoutLimit, fundCash, fundPersonTargets, maxPayoutNow, planCombinedPayout, type FundPayTarget } from '@/domain/fundAdvance';
+import { combinedPayoutLimit, fundPersonTargets, maxPayoutNow, planCombinedPayout, type FundPayTarget } from '@/domain/fundAdvance';
 import { describeFundError } from '@/features/funds/hooks';
 import type { PersonDebtSide } from '@/domain/fundPerson';
 import { useColors } from '@/hooks/use-colors';
@@ -20,8 +20,8 @@ import { formatVnd } from '@/utils/format';
 
 export const FUND_PAY_KIND_LABEL = { payout: 'Quỹ trả', refund: 'Hoàn tiền ứng' } as const;
 
-/** Khoản quỹ trả mà quỹ không còn tiền thực tế: chưa thanh toán được. */
-export const isFundPayBlocked = (data: FundData, item: FundPayTarget) => item.kind === 'payout' && maxPayoutNow(data, item) <= 0;
+/** Khoản quỹ trả đã hết nợ: không còn gì để thanh toán. Trả nợ không bị giới hạn bởi số còn lại của quỹ. */
+export const isFundPayBlocked = (item: FundPayTarget) => item.kind === 'payout' && maxPayoutNow(item) <= 0;
 
 /**
  * Ghi một lần thanh toán quỹ / hoàn tiền ứng bằng `saveFundTxnSynced` (kiểm tra lại số dư lúc ghi). Mã giao dịch sinh một lần cho mỗi khoản được chọn
@@ -76,10 +76,9 @@ export function useFundPay(reload: () => Promise<void> | void) {
   };
 }
 
-/** Bảng thanh toán một khoản quỹ: hai nút toàn bộ / một phần (quỹ trả bị giới hạn bởi tiền thực tế trong quỹ, hoàn tiền ứng thì không). */
+/** Bảng thanh toán một khoản quỹ: hai nút toàn bộ / một phần (chỉ giới hạn bởi số còn nợ / còn giữ, không theo số còn lại của quỹ). */
 export function FundPayPanel({
   item,
-  cash,
   payer,
   receiver,
   onPay,
@@ -87,14 +86,13 @@ export function FundPayPanel({
   onFailure,
 }: {
   item: FundPayTarget;
-  cash: number;
   payer: string;
   receiver: string;
   onPay: (amount: number) => Promise<void>;
   onDone: () => void;
   onFailure: (e: unknown) => void;
 }) {
-  const limited = item.kind === 'payout' ? Math.max(0, Math.min(item.remaining, cash)) : item.remaining;
+  const limited = item.remaining;
   const partialOfRemaining = item.kind === 'payout' && limited < item.remaining;
   const choices: PayChoice[] = [
     { id: 'max', label: partialOfRemaining ? 'Thanh toán tối đa' : 'Thanh toán toàn bộ', amount: limited },
@@ -138,7 +136,7 @@ export function FundPayFlow(props: FlowProps) {
 }
 
 /**
- * Trang "Quỹ nợ": các khoản quỹ nợ người đó được GỘP thành MỘT lần thanh toán, không chọn từng khoản. Toàn bộ = trả hết số trả được ngay (mỗi quỹ tối đa bằng tiền thực tế của quỹ);
+ * Trang "Quỹ nợ": các khoản quỹ nợ người đó được GỘP thành MỘT lần thanh toán, không chọn từng khoản. Toàn bộ = trả hết số trả được ngay (tối đa bằng tổng còn nợ);
  * một phần = nhập số, ưu tiên khoản CŨ NHẤT trước rồi lần lượt các khoản sau cho đến hết (`planCombinedPayout`).
  */
 function FundOwedFlow({ data, person, scope, reload, onClose, onSelectItems }: FlowProps) {
@@ -146,7 +144,7 @@ function FundOwedFlow({ data, person, scope, reload, onClose, onSelectItems }: F
   const toast = useToast();
   const { payMany } = useFundPay(reload);
   const owed = fundPersonTargets(data, scope, person).filter((item) => item.kind === 'payout');
-  const limit = combinedPayoutLimit(data, owed);
+  const limit = combinedPayoutLimit(owed);
   if (limit <= 0) return null;
 
   const totalOwed = owed.reduce((sum, item) => sum + item.remaining, 0);
@@ -166,7 +164,7 @@ function FundOwedFlow({ data, person, scope, reload, onClose, onSelectItems }: F
         receiver={person}
         onSelectItems={onSelectItems}
         warning={limited ? `Quỹ chỉ có thể quyết toán tối đa ${formatVnd(limit)}` : undefined}
-        onPay={(amount) => payMany(planCombinedPayout(data, owed, amount))}
+        onPay={(amount) => payMany(planCombinedPayout(owed, amount))}
         onDone={onClose}
         onFailure={(e) => toast.show(describeFundError(e))}
       />
@@ -178,7 +176,7 @@ function FundSingleFlow({ data, person, scope, side, reload, onClose }: FlowProp
   const colors = useColors();
   const toast = useToast();
   const { pay } = useFundPay(reload);
-  const targets = fundPersonTargets(data, scope, person).filter((item) => !isFundPayBlocked(data, item) && (!side || (item.kind === 'payout') === (side === 'owed')));
+  const targets = fundPersonTargets(data, scope, person).filter((item) => !isFundPayBlocked(item) && (!side || (item.kind === 'payout') === (side === 'owed')));
   const [pickedKey, setPickedKey] = useState<string | null>(() => (targets.length === 1 ? targets[0].key : null));
   /** Đang chuyển từ tờ chọn khoản sang tờ thanh toán: tờ chọn đóng xong thì KHÔNG đóng cả luồng. */
   const switching = useRef(false);
@@ -212,18 +210,16 @@ function FundSingleFlow({ data, person, scope, side, reload, onClose }: FlowProp
     );
   }
 
-  const cash = fundCash(data, target.fundId);
   return (
     <PaymentSheet
       heading={target.kind === 'payout' ? `${fundName(target.fundId)} trả ${person}` : `${person} hoàn tiền cho ${fundName(target.fundId)}`}
-      amountText={formatVnd(target.kind === 'payout' ? Math.max(0, Math.min(target.remaining, cash)) : target.remaining)}
+      amountText={formatVnd(target.remaining)}
       amountColor={target.kind === 'refund' ? colors.success : colors.danger}
       onClose={onClose}
     >
       <FundPayPanel
         key={target.key}
         item={target}
-        cash={cash}
         payer={target.kind === 'payout' ? fundName(target.fundId) : person}
         receiver={target.kind === 'payout' ? person : fundName(target.fundId)}
         onPay={(amount) => pay(target, amount)}

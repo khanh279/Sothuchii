@@ -1,44 +1,33 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { BackHandler, Pressable, StyleSheet, View } from 'react-native';
 import { AppTextInput as TextInput } from '@/components/app-text-input';
 
 import { AmountInput } from '@/components/amount-input';
-import { ConfirmDialog } from '@/components/design';
 import { AppText } from '@/components/app-text';
 import { CalendarPanel } from '@/components/calendar-panel';
 import { DateField } from '@/components/date-field';
 import { PhotoField } from '@/features/photos/PhotoViews';
 import { AmountField, FormLabel, PickButton, PickPanel, formStyles, FormSaveButton } from '@/components/expense-form-parts';
 import { InlineSelect } from '@/components/inline-select';
+import { pressStyle } from '@/components/press-feedback';
 import { SvgIcon } from '@/components/svg-icon';
 import { useToast } from '@/components/toast';
 import { AppFonts } from '@/constants/fonts';
 import { FundInputError } from '@/data/fundRepository';
 import { createAdvanceSynced, saveFundExpenseSynced, updateAdvanceSynced } from '@/data/fundService';
 import { AppRadius } from '@/constants/palette';
-import { FUND_TITLE_MAX, fundExpenseSavedMessage, overspends, validateFundExpense } from '@/domain/fundForms';
+import { FUND_TITLE_MAX, fundExpenseSavedMessage, validateFundExpense } from '@/domain/fundForms';
 import { newExpenseId } from '@/domain/expenses';
-import { FUND_INSUFFICIENT_MESSAGE, defaultExpenseKind, directSpendAvailable, splitByCash, type ExpenseKind, type SpendSplit } from '@/domain/fundAdvance';
-import { formatVnd } from '@/utils/format';
+import type { ExpenseKind } from '@/domain/fundAdvance';
 import { clearQuickDraft, peekQuickDraft } from '@/utils/quick-draft';
 import { describeFundError } from '@/features/funds/hooks';
 import { PersonSelect } from '@/features/funds/PersonSelect';
-import { ShortfallDialog } from '@/features/funds/ShortfallDialog';
-import { PersonPicker } from '@/features/people/PersonPicker';
 import { useColors } from '@/hooks/use-colors';
 import type { Advance, Fund, FundExpense } from '@/types/fund';
-import type { Vnd } from '@/types/money';
 import { todayStr } from '@/utils/date';
 
 interface Props {
   fund: Fund;
-  /** Số dư của quỹ TRƯỚC khi lưu (để cảnh báo vượt quỹ). */
-  balance: Vnd;
-  /**
-   * Tiền thực tế đang có trong quỹ (`fundCash`): căn cứ để chặn chi trực tiếp / giao tiền ứng vượt số dư và để chọn hình thức mặc định
-   * (quỹ hết tiền → "Cá nhân ứng chi"). Bỏ trống = dùng `balance`. Lúc bấm lưu, tầng lưu trữ kiểm tra lại với số dư mới nhất.
-   */
-  cash?: Vnd;
   /** Có giá trị = đang sửa khoản chi này. */
   existing?: FundExpense | null;
   /** Có giá trị = đang sửa hồ sơ giao tiền ứng này (nội dung, ngày, số tiền giao; người nhận giữ nguyên). */
@@ -56,7 +45,7 @@ interface Props {
   showTitle?: boolean;
   /** Những người thuộc quỹ này (`fundMembers`): có thì ô "Người chi" / "Người nhận ứng" chỉ xổ chọn trong số họ; bỏ trống = chọn trong danh sách người chung như cũ. */
   members?: readonly string[];
-  /** Những người đang giữ tiền ứng của quỹ: mỗi người thêm một lựa chọn "Quỹ giao tiền A chi" ở Hình thức chi (khoản chi tính vào tiền A ứng trước; nhiều lần giao gộp chung, chi vào lần cũ nhất trước). */
+  /** Những người đang giữ tiền quỹ giao mà chưa chi hết: có thì "Giao cá nhân chi" hỏi thêm "Quỹ giao cá nhân" hay "Chi từ khoản đã giao". */
   heldPersons?: readonly string[];
   /** Chia khoản chi của một người vào các lần giao ứng của họ (cũ nhất trước): `planAdvanceSpend` của dữ liệu quỹ hiện tại. */
   planSpend?: (person: string, amount: number) => { advanceId: string; fundId: string; amount: number }[];
@@ -68,152 +57,162 @@ interface Props {
 /** Ba hình thức chi quỹ (thứ tự và tên theo nghiệp vụ); mặc định khi mở form là quỹ chi trực tiếp. */
 const KIND_OPTIONS: { kind: ExpenseKind; label: string; icon: 'wallet' | 'person' | 'tabTransactions' }[] = [
   { kind: 'direct', label: 'Quỹ chi trực tiếp', icon: 'wallet' },
-  { kind: 'personal', label: 'Cá nhân ứng tiền chi trước', icon: 'person' },
-  { kind: 'advance', label: 'Quỹ giao tiền ứng trước', icon: 'tabTransactions' },
+  { kind: 'personal', label: 'Cá nhân ứng chi', icon: 'person' },
+  { kind: 'advance', label: 'Giao cá nhân chi', icon: 'tabTransactions' },
 ];
 
+/** Cách giao tiền ứng khi chọn "Giao cá nhân chi" mà đang có người giữ tiền giao chưa chi hết: giao thêm cho người (mới) hoặc ghi chi từ khoản đã giao. */
+export type AdvanceMode = 'give' | 'spend';
+
 /**
- * Hai trường bổ sung của form chi quỹ (chỉ khi THÊM MỚI): "Hình thức chi" và, với hai hình thức liên quan đến cá nhân, "Người chi" /
- * "Người nhận ứng" (chọn từ danh sách người có sẵn, như khi đóng quỹ). Hình thức trực tiếp không hiện thêm trường nào.
+ * Trường "Hình thức chi" của form chi quỹ (chỉ khi THÊM MỚI; đúng ba lựa chọn, không bị khoá theo số dư quỹ). Chọn "Cá nhân ứng chi" thì NGAY TRONG ô này danh sách người xổ ra (mục cuối
+ * "Thành viên khác" để nhập tên). Chọn "Giao cá nhân chi": chưa có khoản giao nào hoặc các khoản giao đã chi hết → xổ thẳng danh sách người nhận tiền ứng; còn người đang giữ tiền giao chưa chi hết →
+ * hỏi trước "Quỹ giao cá nhân" (danh sách thành viên như thường) hay "Chi từ khoản đã giao" (chỉ những người đang giữ tiền giao chưa chi hết). Chọn xong ô quay lại hiện hình thức kèm tên người.
  */
 function KindFields({
   kind,
-  locked,
   person,
   members,
-  funded,
-  funder,
-  spendKey,
-  spendOptions,
+  heldPersons,
+  advanceMode,
   onKind,
-  onFunded,
-  onSpend,
+  onAdvanceMode,
   onPerson,
-  onPersonPick,
-  onFunder,
-  onFunderPick,
 }: {
   kind: ExpenseKind;
-  /** true: quỹ hết tiền — ô Hình thức chi chỉ còn các lựa chọn cá nhân ứng tiền (tự chi / ứng cho người khác chi) và chi từ tiền người đang giữ ứng. */
-  locked?: boolean;
   person: string;
-  members?: readonly string[];
-  /** Chỉ khi `locked`: đang chọn "Cá nhân ứng tiền cho người khác chi" (`funder` = người ứng tiền túi, `person` = người nhận tiền ứng để chi). */
-  funded: boolean;
-  funder: string;
-  /** Hồ sơ ứng trước đang chọn cho "Quỹ giao tiền A chi" (null = không chọn). */
-  spendKey: string | null;
-  spendOptions: readonly { key: string; name: string }[];
+  members: readonly string[];
+  /** Những người đang giữ tiền quỹ giao mà chưa chi hết. */
+  heldPersons: readonly string[];
+  advanceMode: AdvanceMode | null;
   onKind: (kind: ExpenseKind) => void;
-  onFunded: () => void;
-  onSpend: (advanceId: string) => void;
-  onPerson: () => void;
-  onPersonPick: (name: string) => void;
-  onFunder: () => void;
-  onFunderPick: (name: string) => void;
+  onAdvanceMode: (mode: AdvanceMode | null) => void;
+  onPerson: (name: string) => void;
 }) {
   const colors = useColors();
-  /** Biểu tượng riêng của "Quỹ giao tiền A chi" (hoá đơn), khác biểu tượng người của "Cá nhân ứng chi trước". */
-  const receiptBadge = (
+  /** 'sub': đang chọn cách giao; 'person': đang chọn người; 'idle': ô hình thức thu gọn. */
+  const [step, setStep] = useState<'idle' | 'sub' | 'person'>('idle');
+  /** Vừa bấm "Đổi hình thức chi": ô hình thức hiện lại với danh sách đã xổ sẵn. */
+  const [reopen, setReopen] = useState(false);
+  const hasHeld = heldPersons.length > 0;
+  const spending = kind === 'advance' && advanceMode === 'spend';
+  const names = spending ? heldPersons : members;
+  const typed = !!person && !names.includes(person);
+  const iconBadge = (name: 'wallet' | 'person' | 'tabTransactions') => (
     <View style={[styles.fundBadge, { backgroundColor: colors.primarySoft }]}>
-      <SvgIcon name="receipt" size={16} color={colors.primary} strokeWidth={2} />
+      <SvgIcon name={name} size={16} color={colors.primary} strokeWidth={2} />
     </View>
   );
-  return (
-    <>
+  const pill = (label: string, icon: ReactNode, onPress: () => void) => (
+    <View style={styles.kindLinks}>
+      <Pressable accessibilityRole="button" hitSlop={6} onPress={onPress} style={({ pressed }) => [styles.kindPill, { backgroundColor: colors.primarySoft, borderColor: colors.primary }, pressStyle(pressed)]}>
+        {icon}
+        <AppText weight="semibold" color={colors.primary} style={styles.kindLink}>
+          {label}
+        </AppText>
+      </Pressable>
+    </View>
+  );
+  const backIcon = (
+    <View style={{ transform: [{ rotate: '180deg' }] }}>
+      <SvgIcon name="chevronRight" size={14} color={colors.primary} strokeWidth={2.4} />
+    </View>
+  );
+  const goBack = () => {
+    setStep('idle');
+    if (!typed) setReopen(true);
+  };
+
+  if (step === 'sub' && kind === 'advance') {
+    return (
       <View style={formStyles.field}>
-        <FormLabel>Hình thức chi</FormLabel>
+        <FormLabel>Giao cá nhân chi</FormLabel>
         <InlineSelect
-          accessibilityLabel="Hình thức chi"
-          selectedKey={spendKey ? `spend:${spendKey}` : locked && funded ? FUNDED_KEY : kind}
+          initiallyOpen
+          accessibilityLabel="Cách giao cá nhân chi"
+          selectedKey={advanceMode ?? ''}
+          placeholder="Chọn cách giao"
+          placeholderIcon={iconBadge('tabTransactions')}
           onSelect={(key) => {
-            if (key === FUNDED_KEY) onFunded();
-            else if (key.startsWith('spend:')) onSpend(key.slice('spend:'.length));
-            else onKind(key as ExpenseKind);
+            onAdvanceMode(key as AdvanceMode);
+            onPerson('');
+            setStep('person');
           }}
           options={[
-            // Quỹ hết tiền: không còn chi trực tiếp; "Cá nhân ứng tiền cho người khác chi" thay cho "Quỹ giao tiền ứng trước" (quỹ không có tiền để giao).
-            ...KIND_OPTIONS.filter((option) => !locked || option.kind === 'personal').map((option) => ({
-              key: option.kind as string,
-              name: option.label,
-              icon: (
-                <View style={[styles.fundBadge, { backgroundColor: colors.primarySoft }]}>
-                  <SvgIcon name={option.icon} size={16} color={colors.primary} strokeWidth={2} />
-                </View>
-              ),
-            })),
-            ...(locked ? [{ key: FUNDED_KEY, name: 'Cá nhân ứng tiền cho người khác chi', icon: receiptBadge }] : []),
-            ...spendOptions.map((option) => ({ key: `spend:${option.key}`, name: option.name, icon: receiptBadge })),
+            { key: 'give', name: 'Quỹ giao cá nhân', icon: iconBadge('tabTransactions') },
+            { key: 'spend', name: 'Chi từ khoản đã giao', icon: iconBadge('wallet') },
           ]}
         />
-        {/* Quỹ hết tiền: dòng cảnh báo đỏ nhỏ, đủ MỘT hàng, ngay dưới ô Hình thức chi. */}
-        {locked && (
-          <AppText color={colors.danger} style={styles.noCash} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} accessibilityRole="alert">
-            {NO_CASH_LINE}
-          </AppText>
-        )}
+        {pill('Đổi hình thức chi', backIcon, goBack)}
       </View>
-      {locked && funded && !spendKey && (
-        <View style={formStyles.field}>
-          <FormLabel>Người ứng tiền</FormLabel>
-          {members ? (
-            <PersonSelect members={members} value={funder} onChange={onFunderPick} accessibilityLabel="Người ứng tiền" />
-          ) : (
-            <Pressable
-              style={[formStyles.pickCurrent, { backgroundColor: colors.bg, borderColor: colors.line }]}
-              onPress={onFunder}
-              accessibilityRole="button"
-              accessibilityLabel={`Người ứng tiền: ${funder || 'chưa chọn'}`}
-            >
-              <View style={[styles.fundBadge, { backgroundColor: colors.primarySoft }]}>
-                <SvgIcon name="person" size={16} color={colors.primary} strokeWidth={2} />
-              </View>
-              <AppText weight="semibold" color={funder ? colors.ink : colors.muted} style={formStyles.pickName} numberOfLines={1}>
-                {funder || 'Chọn người'}
-              </AppText>
-              <SvgIcon name="chevronRight" size={16} color={colors.muted} strokeWidth={2} />
-            </Pressable>
-          )}
-        </View>
-      )}
-      {kind !== 'direct' && !spendKey && (
-        <View style={formStyles.field}>
-          <FormLabel>{kind === 'personal' ? 'Người chi' : 'Người nhận tiền ứng'}</FormLabel>
-          {members ? (
-            <PersonSelect members={members} value={person} onChange={onPersonPick} accessibilityLabel={kind === 'personal' ? 'Người chi' : 'Người nhận tiền ứng'} />
-          ) : (
-            <Pressable
-              style={[formStyles.pickCurrent, { backgroundColor: colors.bg, borderColor: colors.line }]}
-              onPress={onPerson}
-              accessibilityRole="button"
-              accessibilityLabel={`${kind === 'personal' ? 'Người chi' : 'Người nhận tiền ứng'}: ${person || 'chưa chọn'}`}
-            >
-              <View style={[styles.fundBadge, { backgroundColor: colors.primarySoft }]}>
-                <SvgIcon name="person" size={16} color={colors.primary} strokeWidth={2} />
-              </View>
-              <AppText weight="semibold" color={person ? colors.ink : colors.muted} style={formStyles.pickName} numberOfLines={1}>
-                {person || 'Chọn người'}
-              </AppText>
-              <SvgIcon name="chevronRight" size={16} color={colors.muted} strokeWidth={2} />
-            </Pressable>
-          )}
-        </View>
-      )}
-    </>
+    );
+  }
+
+  if (step === 'person' && kind !== 'direct') {
+    const label = kind === 'personal' ? 'Người chi' : spending ? 'Người đang giữ tiền giao' : 'Người nhận tiền ứng';
+    return (
+      <View style={formStyles.field}>
+        <FormLabel>{label}</FormLabel>
+        <PersonSelect
+          initiallyOpen
+          allowOther={!spending}
+          members={names}
+          value={person}
+          accessibilityLabel={label}
+          onChange={(name) => {
+            onPerson(name);
+            if (name && names.includes(name)) setStep('idle');
+          }}
+        />
+        {pill(typed ? 'Xong' : 'Đổi hình thức chi', typed ? <SvgIcon name="check" size={14} color={colors.primary} strokeWidth={2.4} /> : backIcon, goBack)}
+      </View>
+    );
+  }
+
+  const selectedName = (option: (typeof KIND_OPTIONS)[number]) => {
+    if (option.kind !== kind || option.kind === 'direct' || !person) return option.label;
+    return spending ? `Chi từ khoản đã giao · ${person}` : `${option.label} · ${person}`;
+  };
+  return (
+    <View style={formStyles.field}>
+      <FormLabel>Hình thức chi</FormLabel>
+      <InlineSelect
+        key={reopen ? 'reopen' : 'closed'}
+        initiallyOpen={reopen}
+        accessibilityLabel="Hình thức chi"
+        selectedKey={kind}
+        onSelect={(key) => {
+          const next = key as ExpenseKind;
+          onKind(next);
+          setReopen(false);
+          if (next === 'direct') setStep('idle');
+          else if (next === 'advance' && hasHeld) {
+            onAdvanceMode(null);
+            setStep('sub');
+          } else {
+            onAdvanceMode(next === 'advance' ? 'give' : null);
+            setStep('person');
+          }
+        }}
+        options={KIND_OPTIONS.map((option) => ({ key: option.kind as string, name: selectedName(option), icon: iconBadge(option.icon) }))}
+      />
+      {kind === 'advance' && hasHeld
+        ? pill('Đổi cách giao / người', <SvgIcon name="person" size={14} color={colors.primary} strokeWidth={2.2} />, () => {
+            setReopen(false);
+            setStep('sub');
+          })
+        : kind !== 'direct' &&
+          pill(person ? 'Đổi người' : kind === 'personal' ? 'Chọn người chi' : 'Chọn người nhận tiền ứng', <SvgIcon name="person" size={14} color={colors.primary} strokeWidth={2.2} />, () => {
+            setReopen(false);
+            setStep('person');
+          })}
+    </View>
   );
 }
 
-/** Dòng cảnh báo một hàng dưới ô Hình thức chi khi quỹ hết tiền. */
-const NO_CASH_LINE = 'Số dư quỹ là 0 đ. Khoản chi sẽ do cá nhân ứng tiền chi trước';
-
-/** Khoá lựa chọn "Cá nhân ứng tiền cho người khác chi" trong ô Hình thức chi (không phải một `ExpenseKind`). */
-const FUNDED_KEY = 'funded';
-
-/** Form chi quỹ: hình thức chi, số tiền (ĐỒNG, nhập thẳng), nội dung, ngày. Chi vượt số dư vẫn lưu nhưng có cảnh báo. */
+/** Form chi quỹ: hình thức chi, số tiền (ĐỒNG, nhập thẳng), nội dung, ngày. Không chặn theo số dư quỹ: số dư có thể âm. */
 export function FundExpenseForm({
   fund,
-  balance,
-  cash = balance,
   existing,
   existingAdvance,
   onChanged,
@@ -223,7 +222,7 @@ export function FundExpenseForm({
   onPickFund,
   showTitle = true,
   members,
-  heldPersons,
+  heldPersons = [],
   planSpend,
 }: Props) {
   const colors = useColors();
@@ -241,59 +240,25 @@ export function FundExpenseForm({
   const [pickerOpen, setPickerOpen] = useState(false);
   /** Mã các ảnh đính kèm (hóa đơn…); lưu cùng khoản chi quỹ. */
   const [photos, setPhotos] = useState<string[]>(existing?.ph ? [...existing.ph] : (quick?.ph ?? []));
-  // Hình thức do người dùng tự chọn; chưa chọn thì theo số dư quỹ hiện tại (hết tiền → cá nhân ứng chi, còn tiền → chi trực tiếp). Không tự đổi sau khi đã chọn.
+  // Hình thức do người dùng tự chọn; mặc định là quỹ chi trực tiếp (không đổi theo số dư quỹ).
   const [pickedKind, setPickedKind] = useState<ExpenseKind | null>(null);
-  /** Quỹ hết tiền: đã chọn "Cá nhân ứng tiền cho người khác chi" — `funder` ứng tiền túi, `person` nhận tiền ứng để chi. */
-  const [fundedPicked, setFundedPicked] = useState(false);
-  const [funder, setFunder] = useState('');
-  const [funderOpen, setFunderOpen] = useState(false);
-  /** Đã chọn "Quỹ giao tiền A chi": tên người A mà khoản chi này tính vào tiền ứng của họ. */
-  const [advanceSpendId, setAdvanceSpendId] = useState<string | null>(null);
-  const spendOptions = (heldPersons ?? []).map((name) => ({ key: name, name: `Quỹ giao tiền ${name} chi` }));
-  function pickSpend(spendPerson: string) {
-    setFundedPicked(false);
-    setAdvanceSpendId(spendPerson);
-    setPickedKind('direct');
-    setSplitIntent(false);
-    setShortfall(false);
-    setError('');
-  }
-  function pickFunded() {
-    setAdvanceSpendId(null);
-    setFundedPicked(true);
-    setSplitIntent(false);
-    setShortfall(false);
-    setError('');
-  }
-  /** Đổi hình thức chi: xoá các ý định / cảnh báo của hình thức cũ. */
+  /** "Giao cá nhân chi": giao tiền cho người (give) hay ghi chi từ khoản đã giao (spend); null = chưa chọn / không có lựa chọn. */
+  const [advanceMode, setAdvanceMode] = useState<AdvanceMode | null>(null);
+  /** Đổi hình thức chi: xoá lỗi của hình thức cũ. */
   function pickKind(next: ExpenseKind) {
-    setFundedPicked(false);
-    setAdvanceSpendId(null);
     setPickedKind(next);
-    setSplitIntent(false);
-    setShortfall(false);
+    setAdvanceMode(null);
+    setPerson('');
     setError('');
   }
-  /** Quỹ hết tiền (số dư ≤ 0) khi THÊM MỚI: chỉ có "Cá nhân ứng chi", ô Hình thức chi bị khoá, không mở ra để chọn hình thức khác. */
-  const lockKind = !existing && !existingAdvance && cash <= 0;
-  const funded = lockKind && fundedPicked && !advanceSpendId;
-  const kind: ExpenseKind = lockKind ? (funded ? 'advance' : 'personal') : (pickedKind ?? defaultExpenseKind(cash));
-  /** Vừa bị chặn vì số dư không đủ: hiện hai hình thức còn lại để người dùng tự chọn. */
-  /** Thẻ thông báo nổi "Không đủ số dư quỹ" (hiện khi bấm ghi chi tiêu trực tiếp vượt số dư). */
-  const [shortfall, setShortfall] = useState(false);
-  /** Sau khi chọn "Cá nhân ứng chi" ở thẻ thông báo: chọn người chi xong thì đi tiếp sang bước xác nhận ghi nhận. */
-  const [continueAfterPerson, setContinueAfterPerson] = useState(false);
-  /** Người dùng đã chọn "Cá nhân ứng chi" từ gợi ý khi quỹ không đủ: khi lưu sẽ chia nguồn tiền (quỹ chi phần có sẵn, cá nhân ứng phần còn thiếu) sau khi xác nhận. */
-  const [splitIntent, setSplitIntent] = useState(false);
-  const [pendingSplit, setPendingSplit] = useState<SpendSplit | null>(null);
+  const kind: ExpenseKind = pickedKind ?? 'direct';
   const [person, setPerson] = useState(existingAdvance?.person ?? '');
-  const [personOpen, setPersonOpen] = useState(false);
   // Mã bản ghi sinh MỘT LẦN cho mỗi lần nhập: bấm lưu nhiều lần hoặc thử lại sau lỗi không tạo bản ghi trùng.
   const [clientId, setClientId] = useState(() => newExpenseId(Date.now()));
   const adding = !existing && !existingAdvance;
-  /** Số tối đa có thể giao ứng lúc này (đang sửa hồ sơ thì tính lại cả số đã giao). */
-  const giveMax = Math.max(0, cash + (existingAdvance?.amount ?? 0));
-  const givingAdvance = existingAdvance ? true : adding && kind === 'advance';
+  /** Ghi chi từ khoản đã giao của một người (không tạo lần giao mới). */
+  const spendFromAdvance = adding && kind === 'advance' && advanceMode === 'spend';
+  const givingAdvance = existingAdvance ? true : adding && kind === 'advance' && !spendFromAdvance;
   const overlayOpen = calendarOpen || pickerOpen;
 
   // Android: nút Back đóng lịch / bảng chọn quỹ trước khi rời màn hình.
@@ -307,18 +272,18 @@ export function FundExpenseForm({
     return () => subscription.remove();
   }, [overlayOpen]);
 
-  async function save(confirmed = false, forced?: { person: string }) {
+  async function save() {
     if (busy) return;
-    // "Quỹ giao tiền A chi": ghi như khoản chi từ tiền ứng của A (tính vào khoản A ứng trước, không trừ tiền quỹ thêm lần nữa).
-    if (advanceSpendId && adding) {
-      const spendProblem = validateFundExpense({ title, date, fundId: fund.id, amount });
+    // Chi từ khoản đã giao: ghi như khoản chi từ tiền ứng của người đó (chia vào các lần giao cũ nhất trước; phần vượt dồn vào lần giao mới nhất).
+    if (spendFromAdvance) {
+      const spendProblem = !person ? 'Chọn người đang giữ tiền giao.' : validateFundExpense({ title, date, fundId: fund.id, amount });
       if (spendProblem) {
         setError(spendProblem);
         return;
       }
       setBusy(true);
       try {
-        const parts = planSpend?.(advanceSpendId, amount) ?? [];
+        const parts = planSpend?.(person, amount) ?? [];
         if (parts.length === 0) {
           setError('Người này chưa có khoản giao tiền ứng.');
           return;
@@ -341,7 +306,9 @@ export function FundExpenseForm({
         setPhotos([]);
         setDate(todayStr());
         setError('');
-        setAdvanceSpendId(null);
+        setPickedKind(null);
+        setAdvanceMode(null);
+        setPerson('');
         setClientId(newExpenseId(Date.now()));
         onAdded?.();
       } catch (e) {
@@ -351,19 +318,14 @@ export function FundExpenseForm({
       }
       return;
     }
-    // `forced`: vừa chọn "Cá nhân ứng chi" + người chi từ thẻ thông báo (state chưa kịp cập nhật nên truyền trực tiếp).
-    const who = forced ? forced.person : person;
-    const mode: ExpenseKind = forced ? 'personal' : existingAdvance ? 'advance' : adding ? kind : 'direct';
+    const who = person;
+    const mode: ExpenseKind = existingAdvance ? 'advance' : adding ? kind : 'direct';
     // Mọi hình thức đều phải có số tiền khác 0 (giao tiền ứng mới 0 đồng sẽ trùng với "cá nhân ứng chi trước").
     const problem =
       mode === 'advance'
         ? !who
           ? 'Chọn người nhận tiền ứng.'
-          : funded && !funder
-            ? 'Chọn người ứng tiền.'
-            : funded && funder === who
-              ? 'Người ứng tiền phải khác người nhận tiền ứng.'
-              : !date
+          : !date
             ? 'Chọn ngày giao.'
             : amount < 0 || (adding && amount === 0)
               ? amount < 0
@@ -377,26 +339,6 @@ export function FundExpenseForm({
       setError(problem);
       return;
     }
-    // Kiểm tra số dư trước khi gửi (tầng lưu trữ kiểm tra lại lần nữa với số dư mới nhất, nên số dư đổi sau khi mở form vẫn không lọt).
-    if (mode === 'advance' && !funded && amount > giveMax && amount > (existingAdvance?.amount ?? 0)) {
-      setError('Số tiền giao vượt quá số dư quỹ');
-      return;
-    }
-    if (mode === 'direct' && !existing?.mode) {
-      const previous = existing ? existing.amount : 0;
-      if (amount > directSpendAvailable(cash, previous) && amount > previous) {
-        // Thêm mới: thẻ thông báo nổi kèm lối chọn Cá nhân ứng chi; đang sửa thì chỉ báo lỗi.
-        if (adding) setShortfall(true);
-        else setError(FUND_INSUFFICIENT_MESSAGE);
-        return;
-      }
-    }
-    const plan = mode === 'personal' && adding && (splitIntent || !!forced) ? splitByCash(cash, amount) : null;
-    // Đi từ thẻ thông báo "Không đủ số dư quỹ": luôn xem lại phân bổ (kể cả khi quỹ hết tiền, cá nhân ứng toàn bộ) rồi mới ghi.
-    if ((plan || forced) && !confirmed) {
-      setPendingSplit(plan ?? { fundPart: 0, personalPart: amount });
-      return;
-    }
     setBusy(true);
     try {
       if (existingAdvance) {
@@ -407,7 +349,7 @@ export function FundExpenseForm({
         }
         toast.show('Đã lưu thay đổi');
       } else if (mode === 'advance') {
-        await createAdvanceSynced({ clientId, fundId: fund.id, person: who, title: title.trim(), date, amount, ...(funded ? { funder } : {}) });
+        await createAdvanceSynced({ clientId, fundId: fund.id, person: who, title: title.trim(), date, amount });
         toast.show('Đã ghi nhận giao tiền ứng');
       } else {
         const result = await saveFundExpenseSynced({
@@ -419,13 +361,12 @@ export function FundExpenseForm({
           amount,
           ph: photos,
           ...(mode === 'personal' ? { mode: 'personal' as const, payer: who } : {}),
-          ...(plan ? { fundPart: plan.fundPart } : {}),
         });
         if (result.value === null) {
           setError('Không tìm thấy khoản chi này. Có thể nó đã bị xoá.');
           return;
         }
-        toast.show(fundExpenseSavedMessage(!!existing, overspends(balance, amount, existing?.amount ?? 0)));
+        toast.show(fundExpenseSavedMessage(!!existing, false));
       }
       if (!existing) {
         setAmount(0);
@@ -433,57 +374,19 @@ export function FundExpenseForm({
         setDate(todayStr());
         setError('');
         setPickedKind(null);
-        setShortfall(false);
-        setSplitIntent(false);
+        setAdvanceMode(null);
         setPerson('');
         setPhotos([]);
-        setFunder('');
-        setFundedPicked(false);
         setClientId(newExpenseId(Date.now()));
       }
       if (existing || existingAdvance) onChanged();
       else onAdded?.();
     } catch (e) {
-      const message = e instanceof FundInputError ? e.message : describeFundError(e);
-      // Số dư vừa đổi sau khi mở form: cũng dùng thẻ thông báo nổi thay vì dòng lỗi.
-      if (adding && message === FUND_INSUFFICIENT_MESSAGE) setShortfall(true);
-      else setError(message);
+      setError(e instanceof FundInputError ? e.message : describeFundError(e));
     } finally {
       setBusy(false);
-      setPendingSplit(null);
     }
   }
-
-  // Chi vượt số dư (thêm mới): hộp thoại cho thấy số dư / khoản chi / còn thiếu và chọn NGƯỜI CHI; Xác nhận ghi ngay (quỹ chi phần đang có, người chi ứng phần còn thiếu).
-  const shortfallDialog = shortfall && (
-    <ShortfallDialog
-      cash={cash}
-      amount={amount}
-      members={members ?? []}
-      busy={busy}
-      onClose={() => setShortfall(false)}
-      onConfirm={(name) => {
-        setShortfall(false);
-        setPerson(name);
-        void save(true, { person: name });
-      }}
-    />
-  );
-
-  const splitDialog = pendingSplit && (
-    <ConfirmDialog
-      title="Xác nhận chi quỹ"
-      message={`${title.trim() || 'Khoản chi'} · ${formatVnd(amount)}`}
-      note={
-        pendingSplit.fundPart > 0
-          ? `Quỹ chi: ${formatVnd(pendingSplit.fundPart)}\nCá nhân ứng${person ? ` (${person})` : ''}: ${formatVnd(pendingSplit.personalPart)}\nTiền thực tế trong quỹ chỉ giảm ${formatVnd(pendingSplit.fundPart)}; phần cá nhân ứng được quỹ ghi nợ.`
-          : `Cá nhân ứng${person ? ` (${person})` : ''}: ${formatVnd(pendingSplit.personalPart)}\nQuỹ không chi khoản này; phần cá nhân ứng được quỹ ghi nợ.`
-      }
-      busy={busy}
-      onCancel={() => setPendingSplit(null)}
-      onConfirm={() => void save(true)}
-    />
-  );
 
   if (variant === 'page') {
     return (
@@ -496,28 +399,18 @@ export function FundExpenseForm({
 
         {adding && (
           <KindFields
-            kind={kind}
-            locked={lockKind}
-            person={person}
-            members={members}
-            funded={funded}
-            funder={funder}
-            spendKey={advanceSpendId}
-            spendOptions={spendOptions}
-            onKind={pickKind}
-            onFunded={pickFunded}
-            onSpend={pickSpend}
-            onPerson={() => setPersonOpen(true)}
-            onPersonPick={(name) => {
-              setPerson(name);
-              setError('');
-            }}
-            onFunder={() => setFunderOpen(true)}
-            onFunderPick={(name) => {
-              setFunder(name);
-              setError('');
-            }}
-          />
+          kind={kind}
+          person={person}
+          members={members ?? []}
+          heldPersons={heldPersons}
+          advanceMode={advanceMode}
+          onKind={pickKind}
+          onAdvanceMode={setAdvanceMode}
+          onPerson={(name) => {
+            setPerson(name);
+            setError('');
+          }}
+        />
         )}
 
         <AmountField
@@ -565,19 +458,11 @@ export function FundExpenseForm({
         </View>
 
         {!givingAdvance && <PhotoField value={photos} onChange={setPhotos} />}
-
-        {givingAdvance && !funded && (
-          <AppText color={colors.muted} style={styles.hint}>
-            Số tiền tối đa có thể giao: {formatVnd(giveMax)}
-          </AppText>
-        )}
         {!!error && (
           <AppText color={colors.danger} style={formStyles.error} accessibilityRole="alert">
             {error}
           </AppText>
         )}
-        {shortfallDialog}
-        {splitDialog}
 
         <View style={formStyles.actions}>
           <FormSaveButton label={givingAdvance ? 'Lưu khoản giao tiền' : 'Lưu khoản chi'} busy={busy} onPress={() => void save()} />
@@ -624,39 +509,6 @@ export function FundExpenseForm({
             </View>
           </PickPanel>
         )}
-        {personOpen && (
-          <PersonPicker
-            title={kind === 'personal' ? 'Chọn người chi' : 'Chọn người nhận tiền ứng'}
-            selected={person || null}
-            names={members && members.length > 0 ? members : undefined}
-            onClose={() => {
-              setPersonOpen(false);
-              setContinueAfterPerson(false);
-            }}
-            onPick={(name) => {
-              setPerson(name);
-              setError('');
-              setPersonOpen(false);
-              if (continueAfterPerson) {
-                setContinueAfterPerson(false);
-                void save(false, { person: name });
-              }
-            }}
-          />
-        )}
-        {funderOpen && (
-          <PersonPicker
-            title="Chọn người ứng tiền"
-            selected={funder || null}
-            names={members && members.length > 0 ? members : undefined}
-            onClose={() => setFunderOpen(false)}
-            onPick={(name) => {
-              setFunder(name);
-              setError('');
-              setFunderOpen(false);
-            }}
-          />
-        )}
       </View>
     );
   }
@@ -671,24 +523,14 @@ export function FundExpenseForm({
       {adding && (
         <KindFields
           kind={kind}
-          locked={lockKind}
           person={person}
-          members={members}
-          funded={funded}
-          funder={funder}
-          spendKey={advanceSpendId}
-          spendOptions={spendOptions}
+          members={members ?? []}
+          heldPersons={heldPersons}
+          advanceMode={advanceMode}
           onKind={pickKind}
-          onFunded={pickFunded}
-          onSpend={pickSpend}
-          onPerson={() => setPersonOpen(true)}
-          onPersonPick={(name) => {
+          onAdvanceMode={setAdvanceMode}
+          onPerson={(name) => {
             setPerson(name);
-            setError('');
-          }}
-          onFunder={() => setFunderOpen(true)}
-          onFunderPick={(name) => {
-            setFunder(name);
             setError('');
           }}
         />
@@ -731,19 +573,11 @@ export function FundExpenseForm({
       </View>
 
       {!givingAdvance && <PhotoField value={photos} onChange={setPhotos} />}
-
-      {givingAdvance && !funded && (
-        <AppText color={colors.muted} style={styles.hint}>
-          Số tiền tối đa có thể giao: {formatVnd(giveMax)}
-        </AppText>
-      )}
       {!!error && (
         <AppText color={colors.danger} style={styles.error} accessibilityRole="alert">
           {error}
         </AppText>
       )}
-      {shortfallDialog}
-      {splitDialog}
 
       <View>
         <Pressable
@@ -770,39 +604,6 @@ export function FundExpenseForm({
           }}
         />
       )}
-      {personOpen && (
-        <PersonPicker
-          title={kind === 'personal' ? 'Chọn người chi' : 'Chọn người nhận tiền ứng'}
-          selected={person || null}
-          names={members && members.length > 0 ? members : undefined}
-          onClose={() => {
-            setPersonOpen(false);
-            setContinueAfterPerson(false);
-          }}
-          onPick={(name) => {
-            setPerson(name);
-            setError('');
-            setPersonOpen(false);
-            if (continueAfterPerson) {
-              setContinueAfterPerson(false);
-              void save(false, { person: name });
-            }
-          }}
-        />
-      )}
-      {funderOpen && (
-        <PersonPicker
-          title="Chọn người ứng tiền"
-          selected={funder || null}
-          names={members && members.length > 0 ? members : undefined}
-          onClose={() => setFunderOpen(false)}
-          onPick={(name) => {
-            setFunder(name);
-            setError('');
-            setFunderOpen(false);
-          }}
-        />
-      )}
     </View>
   );
 }
@@ -810,7 +611,9 @@ export function FundExpenseForm({
 const styles = StyleSheet.create({
   form: { gap: 12 },
   /** Ô nhập tên (sau "Thành viên khác"): cùng dáng hàng chọn người, có biểu tượng bên trái và nút quay lại danh sách bên phải. */
-  noCash: { fontSize: 12, lineHeight: 16 },
+  kindLinks: { alignItems: 'flex-end', marginTop: 8 },
+  kindLink: { fontSize: 13.5 },
+  kindPill: { minHeight: 34, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1 },
   fundBadge: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   fundList: { gap: 8 },
   fundItem: { minHeight: 52, borderRadius: AppRadius.field, borderWidth: 1, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },

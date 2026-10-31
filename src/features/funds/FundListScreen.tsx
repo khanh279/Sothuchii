@@ -123,7 +123,6 @@ export default function FundListScreen() {
         {data.funds.map((fund) => {
           const position = fundPosition(data, fund.id);
           const balance = position.cash;
-          const owed = position.owed;
           const last = fundLastActivity(data, fund.id);
           return (
             <View key={fund.id} style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.line }]}>
@@ -151,7 +150,7 @@ export default function FundListScreen() {
                     </AppText>
                   </View>
                   <View style={styles.balanceCol}>
-                    <FundBalanceText cash={balance} owed={owed} />
+                    <FundBalanceText balance={balance} />
                   </View>
                   <SvgIcon name="chevronRight" size={16} color={colors.muted} strokeWidth={2} />
                 </View>
