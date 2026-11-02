@@ -16,7 +16,7 @@ describe('khoản cá nhân ứng đã chia nguồn tiền', () => {
 
   it('số còn lại giảm đủ 350.000 (tổng chi tính MỘT lần), quỹ chỉ nợ 150.000 (phần cá nhân ứng)', () => {
     const p = fundPosition(d, F);
-    expect(p).toMatchObject({ cash: -150_000, owed: 150_000, held: 0, spent: 350_000, directSpent: 200_000 });
+    expect(p).toMatchObject({ cash: -150_000, owed: 150_000, held: 0, spent: 350_000 });
     expect(p.balance).toBe(fundBalance(d, F)); // công thức thu − chi giữ nguyên: 200.000 − 350.000
     expect(p.cash).toBe(p.balance);
   });

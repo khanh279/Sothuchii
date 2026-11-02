@@ -275,14 +275,7 @@ export function checkUndoMerge(bills: readonly Bill[], pays: readonly Pay[], gro
   return later
     ? { ok: false, message: `Không thể hoàn tác: đã có giao dịch mới với ${person} sau lần gộp nợ này.` }
     : { ok: true };
-}
-
-/** Hoàn tác một lần gộp nợ = bỏ mọi khoản `grp` đó (số dư trở lại như trước khi gộp). */
-export function withoutMergeGroup(pays: readonly Pay[], group: string): Pay[] {
-  return pays.filter((pay) => pay.grp !== group);
-}
-
-// ───────────────────────── Nhãn dòng sổ ─────────────────────────
+}// ───────────────────────── Nhãn dòng sổ ─────────────────────────
 
 export interface LedgerItem {
   d: DateStr;
@@ -414,62 +407,4 @@ export function pairDebts(bills: readonly Bill[], pays: readonly Pay[], period: 
     })
     .filter((pair) => pair.amt > DEBT_ZERO)
     .sort((a, b) => rank(a) - rank(b) || b.amt - a.amt || a.from.localeCompare(b.from));
-}
-
-export interface PairItem {
-  d: DateStr;
-  c: number;
-  /** Dương: `x` nợ `z` thêm (theo chiều x → z). */
-  s: Vnd;
-  t: string;
-  x: string;
-}
-
-export interface PairNet {
-  items: PairItem[];
-  net: Vnd;
-  from: string;
-  to: string;
-  amt: Vnd;
-}
-
-/** Chi tiết nợ bill giữa hai người `x` và `z` trong kỳ (`nxPairItems` + `nxCtNet`). */
-export function pairNet(
-  bills: readonly Bill[],
-  pays: readonly Pay[],
-  x: string,
-  z: string,
-  period: Period,
-  categoryName: (id: string) => string = () => '',
-): PairNet {
-  const items: PairItem[] = [];
-  for (const bill of bills) {
-    if (!isInPeriod(bill.date, period)) continue;
-    for (const transfer of computeSplit(bill.people).transfers) {
-      const from = clean(transfer.from);
-      const to = clean(transfer.to);
-      const sign = from === x && to === z ? 1 : from === z && to === x ? -1 : 0;
-      if (sign) items.push({ d: String(bill.date), c: bill.createdAt || 0, s: sign * transfer.amt, t: bill.title || 'Không tên', x: categoryName(bill.cat || 'other') || 'Bill' });
-    }
-  }
-  for (const pay of pays) {
-    const amt = +pay.amt || 0;
-    const date = String(pay.date);
-    if (!(amt > 0) || !isInPeriod(date, period) || payLedger(pay) !== 'bill') continue;
-    const from = clean(pay.from);
-    const to = clean(pay.to);
-    const s = from === x && to === z ? -amt : from === z && to === x ? amt : 0;
-    if (!s) continue;
-    const merged = payClass(pay) === 'bt';
-    items.push({ d: date, c: pay.createdAt || 0, s, t: merged ? 'Gộp nợ' : `${from} trả ${to}`, x: merged ? 'Trừ giữa nợ vay và nợ bill' : 'Thanh toán bill' });
-  }
-  items.sort((a, b) => a.d.localeCompare(b.d) || a.c - b.c);
-  const net = roundVnd(items.reduce((sum, item) => sum + item.s, 0));
-  return { items, net, from: net >= 0 ? x : z, to: net >= 0 ? z : x, amt: Math.abs(net) };
-}
-
-/** "Thanh toán toàn bộ" cho cả cặp (`nxCtPay`): null nếu chênh lệch dưới 50 đồng. */
-export function pairPaymentDraft(net: Pick<PairNet, 'from' | 'to' | 'amt'>): PayDraft | null {
-  if (net.amt < DEBT_ZERO) return null;
-  return { kind: 'billpay', from: net.from, to: net.to, amt: net.amt };
 }

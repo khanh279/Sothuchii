@@ -72,17 +72,7 @@ export function seedNamesFrom(rawNames: readonly unknown[]): string[] {
     if (name && name !== FUND_OWNER_NAME && !/^Người \d+$/.test(name) && !/^[A-T]$/.test(name)) names.push(name);
   }
   return names;
-}
-
-/** Các lựa chọn trong bộ chọn một người: "Tôi", danh sách, rồi tên đang chọn mà chưa có trong danh sách. */
-export function pickerOptions(people: readonly string[], selected: string | null): string[] {
-  const options = [FUND_OWNER_NAME, ...people];
-  const name = selected ? cleanPersonName(selected) : '';
-  if (name && !options.includes(name)) options.push(name);
-  return options;
-}
-
-/**
+}/**
  * Các lựa chọn khi chọn NHIỀU người: "Tôi" (luôn có), danh sách người, rồi các tên đang chọn mà chưa có trong
  * danh sách (để không mất tên đã nhập). Thứ tự này cũng là thứ tự người trong bill.
  */

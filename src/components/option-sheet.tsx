@@ -35,12 +35,12 @@ interface Props {
 export function OptionSheet({ title, options, onClose, note }: Props) {
   return (
     <SheetFrame onClose={onClose}>
-      <OptionList title={title} options={options} note={note} onClose={onClose} />
+      <OptionList title={title} options={options} note={note} />
     </SheetFrame>
   );
 }
 
-function OptionList({ title, options, onClose, note }: Props) {
+function OptionList({ title, options, note }: Omit<Props, 'onClose'>) {
   const colors = useColors();
   const hide = useSheetClose();
 

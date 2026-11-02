@@ -128,24 +128,7 @@ export function budgetForMonth(settings: ExpenseSettings, month: MonthKey): Vnd 
 export function setBudget(settings: ExpenseSettings, month: MonthKey, amount: Vnd): ExpenseSettings {
   const safe = Number.isFinite(amount) && amount > 0 ? Math.min(Math.round(amount), MAX_AMOUNT) : 0;
   return { ...settings, budgets: { ...settings.budgets, [month]: safe } };
-}
-
-export type BudgetNote =
-  | { kind: 'starts-here' }
-  | { kind: 'since'; since: MonthKey }
-  | { kind: 'legacy' }
-  | { kind: 'unset' };
-
-/** Ghi chú giải thích mức ngân sách đang áp dụng cho tháng đang chọn trong Thiết lập. */
-export function budgetNote(settings: ExpenseSettings, month: MonthKey): BudgetNote {
-  const start = budgetStartMonth(settings, month);
-  if (start === month) return { kind: 'starts-here' };
-  if (start) return { kind: 'since', since: start };
-  if (budgetForMonth(settings, month)) return { kind: 'legacy' };
-  return { kind: 'unset' };
-}
-
-/** Trong Thiết lập chỉ được chọn tháng đến tối đa 12 tháng sau tháng hiện tại. */
+}/** Trong Thiết lập chỉ được chọn tháng đến tối đa 12 tháng sau tháng hiện tại. */
 export function isBudgetMonthAllowed(month: MonthKey, today: DateStr): boolean {
   return isValidMonthKey(month) && month <= addMonths(monthOf(today), 12);
 }
@@ -220,14 +203,7 @@ export function sanitizeAmountDigits(text: string): string {
 
 export function parseAmountInput(text: string): Vnd {
   return Number(sanitizeAmountDigits(text)) || 0;
-}
-
-/** Nút nhập nhanh +5k… cộng vào số hiện có, giới hạn như PWA. */
-export function addToAmount(current: Vnd, delta: Vnd): Vnd {
-  return Math.min(Math.max(0, current) + delta, MAX_AMOUNT);
-}
-
-export interface ExpenseValidation {
+}export interface ExpenseValidation {
   valid: boolean;
   amountInvalid: boolean;
   dateInvalid: boolean;
@@ -259,16 +235,7 @@ export function newExpenseId(now: number, random: () => number = Math.random): s
 
 export function monthPeriod(today: DateStr): Period {
   return { mode: 'month', month: monthOf(today) };
-}
-
-/** Chuyển tháng/năm trước hoặc sau; kỳ khác giữ nguyên. */
-export function shiftPeriod(period: Period, delta: number): Period {
-  if (period.mode === 'month') return { mode: 'month', month: addMonths(period.month, delta) };
-  if (period.mode === 'year') return { mode: 'year', year: period.year + delta };
-  return period;
-}
-
-/** Không cho xem tương lai. */
+}/** Không cho xem tương lai. */
 export function canGoNext(period: Period, today: DateStr): boolean {
   if (period.mode === 'month') return period.month < monthOf(today);
   if (period.mode === 'year') return period.year < Number(today.slice(0, 4));
@@ -440,32 +407,7 @@ export function periodTitle(period: Period): string {
     case 'custom':
       return `${formatVnDate(period.from)} – ${formatVnDate(period.to)}`;
   }
-}
-
-/** Cụm từ ngắn nối vào câu, ví dụ "tháng 10" (hàm `Vt`). */
-export function periodPhrase(period: Period): string {
-  switch (period.mode) {
-    case 'all':
-      return 'tất cả';
-    case 'month':
-      return `tháng ${Number(period.month.slice(5))}`;
-    case 'year':
-      return `năm ${period.year}`;
-    case 'custom':
-      return `${formatVnDate(period.from)} – ${formatVnDate(period.to)}`;
-  }
-}
-
-/** Nhãn phía trên số tổng ở thẻ Đã chi. */
-export function spentLabel(period: Period): string {
-  if (period.mode === 'all') return 'Đã chi từ trước đến nay';
-  if (period.mode === 'custom') {
-    return `Đã chi từ ${formatVnDate(period.from)} đến ${formatVnDate(period.to)}`;
-  }
-  return `Đã chi trong ${periodPhrase(period)}`;
-}
-
-// ───────────────────────── Tổng hợp ─────────────────────────
+}// ───────────────────────── Tổng hợp ─────────────────────────
 
 export function sumAmounts(items: readonly Pick<Expense, 'a'>[]): Vnd {
   return items.reduce((total, item) => total + item.a, 0);
@@ -535,25 +477,7 @@ export interface DayGroup {
   date: DateStr;
   items: ExpenseWithId[];
   total: Vnd;
-}
-
-/** Nhóm theo ngày: ngày mới trước; trong ngày khoản tạo sau xếp trước. */
-export function groupByDay(items: readonly ExpenseWithId[]): DayGroup[] {
-  const sorted = [...items].sort((x, y) => y.d.localeCompare(x.d) || (y.t || 0) - (x.t || 0));
-  const groups: DayGroup[] = [];
-  for (const item of sorted) {
-    const last = groups[groups.length - 1];
-    if (last && last.date === item.d) {
-      last.items.push(item);
-      last.total += item.a;
-    } else {
-      groups.push({ date: item.d, items: [item], total: item.a });
-    }
-  }
-  return groups;
-}
-
-/** "Hôm nay" hoặc tên thứ trong tuần. */
+}/** "Hôm nay" hoặc tên thứ trong tuần. */
 export function dayHeading(date: DateStr, today: DateStr): string {
   return date === today ? 'Hôm nay' : weekdayName(date);
 }
@@ -601,139 +525,7 @@ export function budgetSummary(
     daysLeft,
     perDay: !over && daysLeft > 0 ? remaining / daysLeft : null,
   };
-}
-
-// ───────────────────────── Biểu đồ cột ─────────────────────────
-
-export interface Bucket {
-  key: string;
-  tip: string;
-  sum: Vnd;
-  now: boolean;
-  future: boolean;
-  /** Nhãn trục hoành, rỗng nếu không hiển thị. */
-  axisLabel: string;
-}
-
-export interface BucketChart {
-  buckets: Bucket[];
-  unit: 'ngày' | 'tháng';
-}
-
-/** Đỉnh trục tung làm tròn "đẹp": 1, 2, 4, 5, 10 × lũy thừa 10 (hàm `Kt`). */
-export function niceMax(value: number): number {
-  if (value <= 0) return 1e5;
-  const base = Math.pow(10, Math.floor(Math.log10(value)));
-  for (const step of [1, 2, 4, 5, 10]) {
-    if (step * base >= value) return step * base;
-  }
-  return 10 * base;
-}
-
-/** Chiều cao cột theo %: cột có tiền tối thiểu 4%, cột trống 2%. */
-export function barHeightPercent(sum: Vnd, scale: number): number {
-  return sum ? Math.max(4, (sum / scale) * 100) : 2;
-}
-
-/** Chia các khoản chi vào cột theo ngày hoặc theo tháng (hàm `Ut`). */
-export function buildBuckets(
-  items: readonly Pick<Expense, 'a' | 'd'>[],
-  period: Period,
-  months: readonly MonthKey[],
-  today: DateStr,
-): BucketChart {
-  const dayBucket = (key: DateStr): Bucket => ({
-    key,
-    tip: `Ngày ${formatVnDate(key)}`,
-    sum: 0,
-    now: key === today,
-    future: key > today,
-    axisLabel: '',
-  });
-  const buckets: Bucket[] = [];
-  let unit: 'ngày' | 'tháng' = 'ngày';
-
-  if (period.mode === 'month') {
-    const count = daysInMonth(period.month);
-    for (let day = 1; day <= count; day++) {
-      const bucket = dayBucket(`${period.month}-${String(day).padStart(2, '0')}`);
-      if ([1, 5, 10, 15, 20, 25].includes(day) || day === count) bucket.axisLabel = String(day);
-      buckets.push(bucket);
-    }
-  } else if (period.mode === 'custom' && daysInclusive(period.from, period.to) <= MAX_DAY_BUCKETS) {
-    const count = daysInclusive(period.from, period.to);
-    const step = Math.ceil(count / 4);
-    for (let i = 0; i < count; i++) {
-      const bucket = dayBucket(addDays(period.from, i));
-      if (i % step === 0 && i <= count - step / 2) bucket.axisLabel = formatVnDate(bucket.key);
-      buckets.push(bucket);
-    }
-  } else {
-    unit = 'tháng';
-    const currentMonth = monthOf(today);
-    const spansYears = months[0].slice(0, 4) !== months[months.length - 1].slice(0, 4);
-    const every = Math.ceil(months.length / (spansYears ? 6 : 12));
-    months.forEach((month, index) => {
-      buckets.push({
-        key: month,
-        tip: `Tháng ${Number(month.slice(5))}/${month.slice(0, 4)}`,
-        sum: 0,
-        now: month === currentMonth,
-        future: month > currentMonth,
-        axisLabel:
-          index % every === 0
-            ? spansYears
-              ? `${Number(month.slice(5))}/${month.slice(2, 4)}`
-              : `T${Number(month.slice(5))}`
-            : '',
-      });
-    });
-  }
-
-  const position = new Map(buckets.map((bucket, index) => [bucket.key, index]));
-  for (const item of items) {
-    const index = position.get(unit === 'ngày' ? item.d : item.d.slice(0, 7));
-    if (index !== undefined) buckets[index].sum += item.a;
-  }
-  return { buckets, unit };
-}
-
-export interface BucketStats {
-  /** Đỉnh trục tung đã làm tròn. */
-  scale: number;
-  maxSum: Vnd;
-  maxBucket: Bucket | null;
-  /** Trung bình mỗi cột đã qua (không tính cột tương lai, tối thiểu chia 1). */
-  average: Vnd;
-}
-
-export function bucketStats(buckets: readonly Bucket[], total: Vnd): BucketStats {
-  const maxSum = Math.max(...buckets.map((b) => b.sum), 0);
-  const elapsed = Math.max(1, buckets.filter((b) => !b.future).length);
-  return {
-    scale: niceMax(maxSum),
-    maxSum,
-    maxBucket: buckets.find((b) => b.sum === maxSum) ?? null,
-    average: total / elapsed,
-  };
-}
-
-/** Kỳ xem (từ tham số route) -> trạng thái ô chọn thời gian; các kiểu xem khác giữ giá trị mặc định. */
-export function periodViewFromPeriod(period: Period, today: DateStr): PeriodView {
-  const base = initialPeriodView(today);
-  switch (period.mode) {
-    case 'month':
-      return { ...base, mode: 'month', month: period.month };
-    case 'year':
-      return { ...base, mode: 'year', year: period.year };
-    case 'all':
-      return { ...base, mode: 'all' };
-    case 'custom':
-      return { ...base, mode: 'custom', from: period.from, to: period.to };
-  }
-}
-
-/** Tỷ lệ % của một mục trên tổng, làm tròn 1 chữ số thập phân (ví dụ 37,5 → 37.5); tổng ≤ 0 thì 0. */
+}/** Tỷ lệ % của một mục trên tổng, làm tròn 1 chữ số thập phân (ví dụ 37,5 → 37.5); tổng ≤ 0 thì 0. */
 export function categoryPercent(sum: Vnd, total: Vnd): number {
   if (!(total > 0) || !(sum > 0)) return 0;
   return Math.round((sum / total) * 1000) / 10;

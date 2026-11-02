@@ -47,11 +47,7 @@ export function syncBillExpenses(): Promise<BillSyncResult> {
   const run = tail.then(doSync);
   tail = run.catch(() => undefined);
   return run;
-}
-
-export const syncDebtExpenses = syncBillExpenses;
-
-async function doSync(): Promise<BillSyncResult> {
+}async function doSync(): Promise<BillSyncResult> {
   const result: BillSyncResult = { added: 0, replaced: 0, unlinked: 0, paysReplaced: 0, paysUnlinked: 0, orphansRemoved: 0, linksWritten: 0, failed: [] };
 
   const rawBills = await readBillsRaw();

@@ -297,21 +297,7 @@ export function buildOverviewFundCard(data: Pick<FundData, 'funds' | 'contribs' 
     totalIn: totals.in,
     totalOut: totals.out,
   };
-}
-
-/** Dòng có liên quan tới `person`: người chi / nhận ứng / nhận thanh toán / hoàn tiền, hoặc một trong những người đóng của lần đóng quỹ. */
-const involves = (entry: FundHistoryEntry, person: string): boolean => entry.person === person || !!entry.people?.includes(person);
-
-/**
- * Giữ lại các dòng lịch sử liên quan tới MỘT thành viên (xem `involves`); bỏ ngày không còn dòng nào.
- * `person` rỗng = không lọc. Chỉ lọc hiển thị: không đổi dữ liệu, tổng thu / chi của `FundHistory` không bị ảnh hưởng.
- */
-export function filterDaysByPerson(days: readonly FundHistoryDay[], person: string): FundHistoryDay[] {
-  if (!person) return [...days];
-  return days.map((day) => ({ ...day, entries: day.entries.filter((entry) => involves(entry, person)) })).filter((day) => day.entries.length > 0);
-}
-
-/** Loại khoản dùng để lọc Lịch sử quỹ; 'other' (lần giao tiền ứng) không hiện trong Lịch sử quỹ. */
+}/** Loại khoản dùng để lọc Lịch sử quỹ; 'other' (lần giao tiền ứng) không hiện trong Lịch sử quỹ. */
 export type FundHistoryCategory = 'contribution' | 'direct' | 'personal' | 'advanceSpend' | 'other';
 
 /** Các loại lọc theo thứ tự hiển thị (sau chip "Tất cả"). */
@@ -339,16 +325,3 @@ export function filterDaysByCategory(days: readonly FundHistoryDay[], category: 
   if (!category) return [...days];
   return days.map((day) => ({ ...day, entries: day.entries.filter((entry) => entryCategory(entry) === category) })).filter((day) => day.entries.length > 0);
 }
-
-/** Thành viên có mặt thật trong lịch sử đang xem (người đóng, người chi / nhận ứng / nhận thanh toán), theo tên, không trùng; không tạo người giả. */
-export function historyMembers(days: readonly FundHistoryDay[]): string[] {
-  const names = new Set<string>();
-  for (const day of days) {
-    for (const entry of day.entries) {
-      if (entry.person?.trim()) names.add(entry.person.trim());
-      for (const name of entry.people ?? []) names.add(name);
-    }
-  }
-  return [...names].sort((x, y) => x.localeCompare(y));
-}
-

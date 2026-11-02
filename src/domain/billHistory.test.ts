@@ -2,8 +2,7 @@ import type { Bill } from '@/types/bill';
 
 import { computeSplit, desiredBillExpense } from './bills';
 import { toSplitPeople } from './billForm';
-import { billTotal, billsInPeriod, buildBillHistory, buildBillOverviewCard, filterBillsByCategory, findBillById, formFromBill } from './billHistory';
-import { EMPTY_SETTINGS } from './expenses';
+import { billTotal, buildBillHistory, buildBillOverviewCard, findBillById, formFromBill } from './billHistory';
 
 // DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng. Tiền là NGHÌN đồng.
 const p = (name: string, paid: number, extra: { w?: number; fix?: number } = {}) => ({ name, paid, ...extra });
@@ -131,41 +130,5 @@ describe('findBillById và billsInPeriod (mở chi tiết bill)', () => {
     expect(findBillById(all, undefined)).toBeNull();
     expect(findBillById(all, null)).toBeNull();
     expect(findBillById([], 'id-a')).toBeNull();
-  });
-
-  it('bill của kỳ: lọc đúng tháng, mới nhất trước, hai bill cùng ngày là hai dòng riêng', () => {
-    expect(billsInPeriod(all, { mode: 'month', month: '2025-10' }).map((b) => b.id)).toEqual(['id-b', 'id-a']);
-    expect(billsInPeriod(all, { mode: 'month', month: '2025-09' }).map((b) => b.id)).toEqual(['id-c']);
-    expect(billsInPeriod(all, { mode: 'month', month: '2025-08' })).toEqual([]);
-  });
-
-  it('đổi kỳ thì danh sách đổi theo; kỳ năm / tất cả / tuỳ chọn', () => {
-    expect(billsInPeriod(all, { mode: 'all' }).map((b) => b.id)).toEqual(['id-b', 'id-a', 'id-c']);
-    expect(billsInPeriod(all, { mode: 'year', year: 2025 })).toHaveLength(3);
-    expect(billsInPeriod(all, { mode: 'year', year: 2024 })).toEqual([]);
-    expect(billsInPeriod(all, { mode: 'custom', from: '2025-09-30', to: '2025-10-01' }).map((b) => b.id)).toEqual(['id-c']);
-  });
-
-  it('không sửa đầu vào và không tạo bản sao bill (trả đúng đối tượng gốc)', () => {
-    const copy = JSON.parse(JSON.stringify(all));
-    const list = billsInPeriod(all, { mode: 'all' });
-    expect(all).toEqual(copy);
-    expect(list.includes(twinA) && list.includes(twinB) && list.includes(other)).toBe(true);
-  });
-});
-
-describe('filterBillsByCategory (chip danh mục ở tab Chia bill)', () => {
-  const mk = (id: string, cat: string): Bill => ({ id, title: id, date: '2025-10-05', createdAt: 1, cat, people: [{ name: 'Tôi', paid: 10, w: 1 }] });
-  const bills = [mk('a', 'food'), mk('b', 'food'), mk('c', 'xoa-roi')];
-
-  it('"all" giữ nguyên tất cả, không đổi danh sách gốc', () => {
-    expect(filterBillsByCategory(bills, EMPTY_SETTINGS, 'all').map((b) => b.id)).toEqual(['a', 'b', 'c']);
-    expect(bills).toHaveLength(3);
-  });
-
-  it('lọc đúng mục; mục không còn tồn tại được quy về mục cuối (Khác) như chi tiêu cá nhân', () => {
-    expect(filterBillsByCategory(bills, EMPTY_SETTINGS, 'food').map((b) => b.id)).toEqual(['a', 'b']);
-    expect(filterBillsByCategory(bills, EMPTY_SETTINGS, 'other').map((b) => b.id)).toEqual(['c']);
-    expect(filterBillsByCategory(bills, EMPTY_SETTINGS, 'transport')).toEqual([]);
   });
 });

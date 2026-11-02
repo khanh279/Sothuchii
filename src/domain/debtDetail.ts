@@ -5,8 +5,7 @@
  */
 
 import { isInPeriod } from '@/domain/expenses';
-import { isOwnerName } from '@/domain/funds';
-import { DEBT_ZERO, canMerge, debtEvents, isNearZero, ledgerItems, mergeAmount, mergeHistory, pairNet, personLedger, type LedgerItem, type MergeRecord } from '@/domain/ledger';
+import { canMerge, debtEvents, isNearZero, ledgerItems, mergeAmount, mergeHistory, personLedger, type LedgerItem, type MergeRecord } from '@/domain/ledger';
 import type { Bill } from '@/types/bill';
 import type { DateStr, Period } from '@/types/expense';
 import type { Vnd } from '@/types/money';
@@ -168,61 +167,5 @@ export function buildDebtDetail(
     canPay: payActions.length > 0,
     payActions,
     history: mergeHistory(pays, who),
-  };
-}
-
-export interface PairDetail {
-  /** Có dòng nào trong kỳ không. */
-  empty: boolean;
-  /** "Tôi nợ X" / "X nợ tôi" / "X nợ Y". */
-  label: string;
-  tone: Tone;
-  /** Số tiền chênh lệch (luôn ≥ 0). */
-  amount: Vnd;
-  monthMode: boolean;
-  days: DayGroup[];
-  months: MonthGroup[];
-  /** Có nút "Thanh toán toàn bộ" (chênh lệch từ 50 đồng). */
-  canPay: boolean;
-  /** Người còn lại khi một bên là "Tôi" (để gộp nợ); null nếu không liên quan đến tôi. */
-  other: string | null;
-  canMerge: boolean;
-  mergeAmount: Vnd;
-}
-
-/** Chi tiết bill giữa hai người `x` và `z` trong kỳ (`nxCt`). */
-export function buildPairDetail(
-  bills: readonly Bill[],
-  pays: readonly Pay[],
-  x: string,
-  z: string,
-  period: Period,
-  categoryName: (id: string) => string = () => '',
-): PairDetail {
-  const net = pairNet(bills, pays, x, z, period, categoryName);
-  const monthMode = isMonthMode(period);
-  const me = isOwnerName(x) || isOwnerName(z);
-  const debtor = net.from;
-  const creditor = net.to;
-  const label = isOwnerName(debtor) ? `Tôi nợ ${creditor}` : isOwnerName(creditor) ? `${debtor} nợ tôi` : `${debtor} nợ ${creditor}`;
-  const tone: Tone = isOwnerName(debtor) ? 'owe' : isOwnerName(creditor) ? 'get' : 'mid';
-  const rows: DebtRow[] = net.items.map((item) => {
-    const v = me ? (isOwnerName(z) ? item.s : -item.s) : debtor === x ? item.s : -item.s;
-    return { d: item.d, v, t: item.t, s: item.x, tone: me ? toneOf(v) : 'mid' };
-  });
-  const other = isOwnerName(x) ? z : isOwnerName(z) ? x : null;
-  const ledger = other ? personLedger(debtEvents(bills, pays), other) : null;
-  return {
-    empty: net.items.length === 0,
-    label,
-    tone,
-    amount: net.amt,
-    monthMode,
-    days: monthMode ? groupDebtRowsByDay(rows, true) : [],
-    months: monthMode ? [] : groupDebtRowsByMonth(rows, true),
-    canPay: net.amt >= DEBT_ZERO,
-    other,
-    canMerge: ledger ? canMerge(ledger) : false,
-    mergeAmount: ledger ? mergeAmount(ledger) : 0,
   };
 }

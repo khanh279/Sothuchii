@@ -2,7 +2,7 @@ import type { Bill } from '@/types/bill';
 import type { Period } from '@/types/expense';
 import type { Pay } from '@/types/pay';
 
-import { billPairKey, buildBillPairs, filterBillsByPair, findBillPair } from './billPairs';
+import { billPairKey, buildBillPairs, findBillPair } from './billPairs';
 import { personBillRows } from './billPerson';
 
 // DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng. Tiền là ĐỒNG.
@@ -69,11 +69,5 @@ describe('findBillPair / filterBillsByPair', () => {
     expect(findBillPair(pairs, billPairKey('An', 'Tôi'))?.from).toBe('Tôi');
     expect(findBillPair(pairs, 'khong-co')).toBeNull();
     expect(findBillPair(pairs, null)).toBeNull();
-  });
-
-  it('lọc lịch sử đúng bill của cặp; không chọn thì giữ nguyên toàn bộ', () => {
-    expect(filterBillsByPair(ALL, findBillPair(pairs, billPairKey('Tôi', 'An'))).map((b) => b.id)).toEqual(['B1', 'B2', 'B3']);
-    expect(filterBillsByPair(ALL, findBillPair(pairs, billPairKey('Chi', 'Bình'))).map((b) => b.id)).toEqual(['B4']);
-    expect(filterBillsByPair(ALL, null)).toHaveLength(ALL.length);
   });
 });

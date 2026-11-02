@@ -1,26 +1,7 @@
 import type { ExpenseRef } from '@/types/expense';
 import type { Contribution, Fund, FundData } from '@/types/fund';
 
-import {
-  FUND_LINKED_EDIT_MESSAGE,
-  contributionTotal,
-  isFundLinkedExpense,
-  desiredLinkedExpense,
-  fundBalance,
-  fundBulkNames,
-  fundContributors,
-  fundMembers,
-  fundLastActivity,
-  fundPeriodTotals,
-  fundTotals,
-  normalizeFundData,
-  ownContributionTotal,
-  planFundExpenseSync,
-  sortFundsByAbsBalance,
-  type FundSyncAction,
-  type LinkedExpenseSnapshot,
-  isOwnerName,
-} from './funds';
+import { FUND_LINKED_EDIT_MESSAGE, contributionTotal, desiredLinkedExpense, fundBalance, fundBulkNames, fundContributors, fundMembers, fundLastActivity, fundPeriodTotals, fundTotals, normalizeFundData, ownContributionTotal, planFundExpenseSync, sortFundsByAbsBalance, type FundSyncAction, type LinkedExpenseSnapshot, isOwnerName } from './funds';
 
 // DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng.
 const TODAY = '2025-10-08';
@@ -139,11 +120,6 @@ describe('normalizeFundData', () => {
 });
 
 describe('khoản chi cá nhân do Quỹ tạo', () => {
-  it('chỉ khoản mang src "quy" bị chặn sửa trực tiếp; khoản tự nhập và Chia bill thì không', () => {
-    expect(isFundLinkedExpense({ src: 'quy' })).toBe(true);
-    expect(isFundLinkedExpense({ src: 'cb' })).toBe(false);
-    expect(isFundLinkedExpense({})).toBe(false);
-  });
 
   it('thông báo đúng câu người dùng chốt', () => {
     expect(FUND_LINKED_EDIT_MESSAGE).toBe('Khoản này được tạo từ Quỹ, vui lòng sửa tại Quỹ');

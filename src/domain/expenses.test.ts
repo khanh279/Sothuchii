@@ -1,55 +1,7 @@
 import { MAX_AMOUNT } from '@/constants/categories';
 import type { ExpenseSettings, ExpenseWithId } from '@/types/expense';
 
-import {
-  EMPTY_SETTINGS,
-  addCustomCategory,
-  addToAmount,
-  allCategories,
-  barHeightPercent,
-  budgetForMonth,
-  budgetNote,
-  budgetSummary,
-  buildBuckets,
-  buildExpense,
-  bucketStats,
-  canGoNext,
-  categoriesInUse,
-  categoryIconName,
-  dayHeading,
-  categoryPercent,
-  donutSegments,
-  filterByCategory,
-  filterByPeriod,
-  groupByDay,
-  initialPeriodView,
-  isBudgetMonthAllowed,
-  isInPeriod,
-  monthsInPeriod,
-  newExpenseId,
-  niceMax,
-  normalizeCustomRange,
-  categoryBudgetStatus,
-  normalizeSettings,
-  parseAmountInput,
-  periodFromParams,
-  periodOf,
-  periodViewFromPeriod,
-  periodPhrase,
-  periodToParams,
-  periodTitle,
-  removeCustomCategory,
-  resolveCategory,
-  sanitizeAmountDigits,
-  savedMessage,
-  setBudget,
-  shiftPeriod,
-  spentLabel,
-  sumAmounts,
-  summarizeByCategory,
-  suggestedDateFor,
-  validateExpenseInput,
-} from './expenses';
+import { EMPTY_SETTINGS, addCustomCategory, allCategories, budgetForMonth, budgetSummary, buildExpense, categoriesInUse, categoryIconName, dayHeading, categoryPercent, donutSegments, filterByCategory, filterByPeriod, initialPeriodView, isBudgetMonthAllowed, isInPeriod, monthsInPeriod, newExpenseId, normalizeCustomRange, categoryBudgetStatus, normalizeSettings, parseAmountInput, periodFromParams, periodOf, periodToParams, removeCustomCategory, resolveCategory, sanitizeAmountDigits, savedMessage, setBudget, sumAmounts, summarizeByCategory, suggestedDateFor, validateExpenseInput } from './expenses';
 
 // DỮ LIỆU MẪU do tôi tự tạo để kiểm thử quy tắc; KHÔNG phải dữ liệu thật của người dùng.
 const TODAY = '2025-10-08';
@@ -109,14 +61,6 @@ describe('settings & ngân sách', () => {
     expect(setBudget(s, '2025-11', NaN).budgets['2025-11']).toBe(0);
     expect(setBudget(s, '2025-11', -5).budgets['2025-11']).toBe(0);
     expect(setBudget(s, '2025-11', 2 * MAX_AMOUNT).budgets['2025-11']).toBe(MAX_AMOUNT);
-  });
-
-  it('budgetNote mô tả mức đang áp dụng', () => {
-    const s: ExpenseSettings = { budget: 0, budgets: { '2025-03': 1 }, cats: [] };
-    expect(budgetNote(s, '2025-03')).toEqual({ kind: 'starts-here' });
-    expect(budgetNote(s, '2025-06')).toEqual({ kind: 'since', since: '2025-03' });
-    expect(budgetNote({ ...EMPTY_SETTINGS, budget: 5 }, '2025-06')).toEqual({ kind: 'legacy' });
-    expect(budgetNote(EMPTY_SETTINGS, '2025-06')).toEqual({ kind: 'unset' });
   });
 
   it('isBudgetMonthAllowed: tối đa 12 tháng sau tháng hiện tại', () => {
@@ -189,12 +133,6 @@ describe('nhập liệu', () => {
     expect(parseAmountInput('abc')).toBe(0);
   });
 
-  it('addToAmount cộng dồn và bị chặn ở mức tối đa', () => {
-    expect(addToAmount(0, 5000)).toBe(5000);
-    expect(addToAmount(45000, 5000)).toBe(50000);
-    expect(addToAmount(MAX_AMOUNT - 1000, 5000)).toBe(MAX_AMOUNT);
-  });
-
   it('validateExpenseInput: biên và lỗi', () => {
     const ok = { a: 50000, c: 'food', n: '', d: TODAY };
     expect(validateExpenseInput(ok, TODAY).valid).toBe(true);
@@ -258,17 +196,6 @@ describe('kỳ xem', () => {
     expect(normalizeCustomRange('2020-10-08', TODAY, TODAY).clamped).toBe(false);
   });
 
-  it('shiftPeriod / canGoNext không cho xem tương lai', () => {
-    expect(shiftPeriod({ mode: 'month', month: '2025-01' }, -1)).toEqual({ mode: 'month', month: '2024-12' });
-    expect(shiftPeriod({ mode: 'year', year: 2025 }, 1)).toEqual({ mode: 'year', year: 2026 });
-    expect(shiftPeriod({ mode: 'all' }, 1)).toEqual({ mode: 'all' });
-    expect(canGoNext({ mode: 'month', month: '2025-10' }, TODAY)).toBe(false);
-    expect(canGoNext({ mode: 'month', month: '2025-09' }, TODAY)).toBe(true);
-    expect(canGoNext({ mode: 'year', year: 2025 }, TODAY)).toBe(false);
-    expect(canGoNext({ mode: 'year', year: 2024 }, TODAY)).toBe(true);
-    expect(canGoNext({ mode: 'all' }, TODAY)).toBe(false);
-  });
-
   it('periodToParams <-> periodFromParams đi về nguyên vẹn', () => {
     const periods = [
       { mode: 'month', month: '2025-03' },
@@ -328,16 +255,6 @@ describe('kỳ xem', () => {
     expect(suggestedDateFor({ mode: 'year', year: 2024 }, TODAY)).toBe(TODAY);
     expect(suggestedDateFor({ mode: 'all' }, TODAY)).toBe(TODAY);
   });
-
-  it('nhãn kỳ', () => {
-    expect(periodTitle({ mode: 'month', month: '2025-10' })).toBe('Tháng 10/2025');
-    expect(periodTitle({ mode: 'year', year: 2025 })).toBe('Năm 2025');
-    expect(periodTitle({ mode: 'all' })).toBe('Tất cả');
-    expect(periodPhrase({ mode: 'month', month: '2025-03' })).toBe('tháng 3');
-    expect(spentLabel({ mode: 'all' })).toBe('Đã chi từ trước đến nay');
-    expect(spentLabel({ mode: 'year', year: 2025 })).toBe('Đã chi trong năm 2025');
-    expect(spentLabel({ mode: 'custom', from: '2025-10-01', to: '2025-10-08' })).toBe('Đã chi từ 01/10/2025 đến 08/10/2025');
-  });
 });
 
 describe('tổng hợp theo mục', () => {
@@ -391,22 +308,6 @@ describe('lịch sử', () => {
     exp('c', 30, 'food', '2025-10-07', 9),
     exp('d', 40, 'da-xoa', '2025-10-01', 2),
   ];
-
-  it('groupByDay: ngày mới trước, trong ngày khoản tạo sau xếp trước', () => {
-    const groups = groupByDay(items);
-    expect(groups.map((g) => g.date)).toEqual(['2025-10-07', '2025-10-05', '2025-10-01']);
-    expect(groups[0].items.map((i) => i.id)).toEqual(['c', 'b']);
-    expect(groups[0].total).toBe(50);
-    expect(groupByDay([])).toEqual([]);
-  });
-
-  it('groupByDay không đổi mảng gốc và chịu được thiếu t', () => {
-    const copy = [...items];
-    groupByDay(items);
-    expect(items).toEqual(copy);
-    const noT = [{ id: 'x', a: 1, c: 'food', n: '', d: '2025-10-01' }] as unknown as ExpenseWithId[];
-    expect(groupByDay(noT)).toHaveLength(1);
-  });
 
   it('lọc theo mục (mục đã xoá thuộc Khác) và danh sách chip', () => {
     expect(filterByCategory(items, EMPTY_SETTINGS, 'food').map((i) => i.id)).toEqual(['a', 'c']);
@@ -462,110 +363,6 @@ describe('budgetSummary', () => {
     expect(budgetSummary(1, month, EMPTY_SETTINGS, TODAY)).toBeNull();
     expect(budgetSummary(1, { mode: 'all' }, s, TODAY)).toBeNull();
     expect(budgetSummary(1, { mode: 'custom', from: '2025-10-01', to: TODAY }, s, TODAY)).toBeNull();
-  });
-});
-
-describe('biểu đồ cột', () => {
-  it('niceMax', () => {
-    expect(niceMax(0)).toBe(1e5);
-    expect(niceMax(-1)).toBe(1e5);
-    expect(niceMax(1)).toBe(1);
-    expect(niceMax(150_000)).toBe(200_000);
-    expect(niceMax(400_000)).toBe(400_000);
-    expect(niceMax(450_000)).toBe(500_000);
-    expect(niceMax(600_000)).toBe(1_000_000);
-    expect(niceMax(1_000_000)).toBe(1_000_000);
-  });
-
-  it('barHeightPercent', () => {
-    expect(barHeightPercent(0, 100)).toBe(2);
-    expect(barHeightPercent(1, 1000)).toBe(4);
-    expect(barHeightPercent(500, 1000)).toBe(50);
-  });
-
-  it('theo ngày trong tháng: số cột, nhãn trục, hôm nay và tương lai', () => {
-    const items = [
-      { a: 100, d: '2025-02-03' },
-      { a: 50, d: '2025-02-03' },
-      { a: 70, d: '2025-02-10' },
-      { a: 999, d: '2025-03-01' }, // ngoài tháng, bị bỏ qua
-    ];
-    const { buckets, unit } = buildBuckets(items, { mode: 'month', month: '2025-02' }, ['2025-02'], '2025-02-10');
-    expect(unit).toBe('ngày');
-    expect(buckets).toHaveLength(28);
-    expect(buckets.filter((b) => b.axisLabel).map((b) => b.axisLabel)).toEqual(['1', '5', '10', '15', '20', '25', '28']);
-    expect(buckets[2].sum).toBe(150);
-    expect(buckets[9]).toMatchObject({ sum: 70, now: true, future: false });
-    expect(buckets[10].future).toBe(true);
-    expect(buckets[0].tip).toBe('Ngày 01/02/2025');
-    const stats = bucketStats(buckets, 220);
-    expect(stats.maxSum).toBe(150);
-    expect(stats.maxBucket?.key).toBe('2025-02-03');
-    expect(stats.scale).toBe(200);
-    expect(stats.average).toBeCloseTo(22, 5); // 220 / 10 ngày đã qua
-  });
-
-  it('kỳ Tuỳ chọn ngắn: theo ngày, nhãn trục 4 điểm', () => {
-    const { buckets, unit } = buildBuckets([], { mode: 'custom', from: '2025-10-01', to: '2025-10-08' }, ['2025-10'], TODAY);
-    expect(unit).toBe('ngày');
-    expect(buckets).toHaveLength(8);
-    expect(buckets.filter((b) => b.axisLabel).map((b) => b.axisLabel)).toEqual(['01/10/2025', '03/10/2025', '05/10/2025', '07/10/2025']);
-  });
-
-  it('kỳ Tuỳ chọn dài hơn 62 ngày: gộp theo tháng', () => {
-    const months = monthsInPeriod({ mode: 'custom', from: '2025-01-01', to: '2025-06-30' }, [], TODAY);
-    const { unit, buckets } = buildBuckets(
-      [{ a: 5, d: '2025-03-20' }],
-      { mode: 'custom', from: '2025-01-01', to: '2025-06-30' },
-      months,
-      TODAY,
-    );
-    expect(unit).toBe('tháng');
-    expect(buckets).toHaveLength(6);
-    expect(buckets[2].sum).toBe(5);
-  });
-
-  it('theo tháng trong năm: nhãn T1..T12, tháng sau hôm nay là tương lai', () => {
-    const months = monthsInPeriod({ mode: 'year', year: 2025 }, [], TODAY);
-    const { buckets, unit } = buildBuckets([{ a: 10, d: '2025-10-05' }], { mode: 'year', year: 2025 }, months, TODAY);
-    expect(unit).toBe('tháng');
-    expect(buckets.map((b) => b.axisLabel)).toEqual(['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12']);
-    expect(buckets[9]).toMatchObject({ sum: 10, now: true });
-    expect(buckets[10].future).toBe(true);
-    expect(buckets[0].tip).toBe('Tháng 1/2025');
-  });
-
-  it('kỳ Tất cả trải nhiều năm: nhãn dạng m/yy, thưa bớt', () => {
-    const months = ['2024-11', '2024-12', '2025-01', '2025-02', '2025-03', '2025-04', '2025-05', '2025-06', '2025-07'];
-    const { buckets } = buildBuckets([], { mode: 'all' }, months, TODAY);
-    // 9 tháng / 6 → hiện cách 2 tháng một nhãn
-    expect(buckets.map((b) => b.axisLabel)).toEqual(['11/24', '', '1/25', '', '3/25', '', '5/25', '', '7/25']);
-  });
-
-  it('không có dữ liệu: thống kê an toàn', () => {
-    const { buckets } = buildBuckets([], { mode: 'month', month: '2025-10' }, ['2025-10'], TODAY);
-    const stats = bucketStats(buckets, 0);
-    expect(stats.maxSum).toBe(0);
-    expect(stats.scale).toBe(1e5);
-    expect(stats.average).toBe(0);
-  });
-});
-
-describe('periodViewFromPeriod', () => {
-  const today = '2025-10-15';
-  it('đi và về với periodOf cho mọi kiểu xem', () => {
-    for (const period of [
-      { mode: 'month', month: '2025-03' },
-      { mode: 'year', year: 2024 },
-      { mode: 'all' },
-      { mode: 'custom', from: '2025-01-01', to: '2025-02-01' },
-    ] as const) {
-      expect(periodOf(periodViewFromPeriod(period, today))).toEqual(period);
-    }
-  });
-
-  it('kiểu không chọn giữ giá trị mặc định (tháng hiện tại, 30 ngày gần nhất)', () => {
-    expect(periodViewFromPeriod({ mode: 'year', year: 2024 }, today)).toMatchObject({ month: '2025-10', from: '2025-09-16', to: today });
   });
 });
 

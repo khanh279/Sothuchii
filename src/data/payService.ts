@@ -21,8 +21,6 @@ import {
   mergeDrafts,
   mergeMessage,
   newMergeGroupId,
-  pairNet,
-  pairPaymentDraft,
   paymentDraft,
   paymentMessage,
   personLedger,
@@ -163,18 +161,7 @@ export async function recordMergedPaymentSynced(from: string, to: string, billId
   const draft = { ...base, lbl: MERGED_PAY_LABEL, bills: [...pair.billIds] };
   await recordDrafts([draft]);
   return thenSync({ recorded: true, message: paymentMessage(draft) });
-}
-
-/** "Thanh toán toàn bộ" cho cả cặp `x` – `z` trong kỳ đang xem. */
-export async function recordPairPaymentSynced(x: string, z: string, period: Period): Promise<SyncedPayChange<RecordResult>> {
-  const [bills, pays] = await Promise.all([loadBills(), loadPays()]);
-  const draft = pairPaymentDraft(pairNet(bills, pays, x, z, period));
-  if (!draft) return { value: NOTHING, syncFailed: false };
-  await recordDrafts([draft]);
-  return thenSync({ recorded: true, message: paymentMessage(draft) });
-}
-
-export interface TransferInput {
+}export interface TransferInput {
   date: string;
   note: string;
   from: string;

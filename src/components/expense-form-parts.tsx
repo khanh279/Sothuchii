@@ -6,24 +6,7 @@ import { AppText } from '@/components/app-text';
 import { pressStyle } from '@/components/press-feedback';
 import { AppRadius } from '@/constants/palette';
 import { useColors } from '@/hooks/use-colors';
-import { tapHaptic } from '@/utils/haptics';
-
-/**
- * Giao diện chung của hai trang nhập "Chi tiêu cá nhân" và "Chi tiêu quỹ" (PWA: hai trang có cùng giao diện): khung form,
- * ô Số tiền kèm các nút nhập nhanh, nhãn, hàng "Ngày | Mục chi / Quỹ", bảng chọn phủ lên khung và hàng nút Lưu.
- */
-
-/** Nút nhập nhanh, đúng như PWA: +5k … +500k và ".000" (nhân 1000). */
-export const QUICK_ADDS = [
-  { label: '+5k', add: 5_000 },
-  { label: '+10k', add: 10_000 },
-  { label: '+20k', add: 20_000 },
-  { label: '+50k', add: 50_000 },
-  { label: '+100k', add: 100_000 },
-  { label: '+500k', add: 500_000 },
-] as const;
-
-/**
+import { tapHaptic } from '@/utils/haptics';/**
  * Nút Lưu lớn của các biểu mẫu: thu nhỏ nhẹ khi nhấn; đang lưu (`busy`) thì hiện vòng quay trước chữ và khóa nút để không lưu hai lần.
  * `disabled` khóa nút mà không hiện vòng quay (ví dụ chưa đủ điều kiện để tiếp tục).
  */
@@ -55,24 +38,7 @@ export function FormLabel({ children }: { children: string }) {
       {children}
     </AppText>
   );
-}
-
-export function QuickButton({ label, onPress, accessibilityLabel }: { label: string; onPress: () => void; accessibilityLabel?: string }) {
-  const colors = useColors();
-  return (
-    <Pressable
-      style={[formStyles.quick, { backgroundColor: colors.surface2 }]}
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel ?? label}>
-      <AppText weight="semibold" style={formStyles.quickText} numberOfLines={1}>
-        {label}
-      </AppText>
-    </Pressable>
-  );
-}
-
-interface AmountFieldProps {
+}interface AmountFieldProps {
   /** Số tiền (đồng). */
   value: number;
   /** Nhận giá trị mới (số tiền gõ vào, hoặc kết quả của nút nhanh). */

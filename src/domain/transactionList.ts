@@ -17,16 +17,8 @@ import type { Vnd } from '@/types/money';
 import type { Pay } from '@/types/pay';
 import { monthOf } from '@/utils/date';
 
-export type TransactionTab = 'all' | 'expense' | 'loan' | 'bill';
-
-export const TRANSACTION_TABS: readonly TransactionTab[] = ['all', 'expense', 'loan', 'bill'];
-
-/** Thêm "chuyển tiền + bill" (không có chi tiêu thường) cho trang Chuyển tiền & bill; trang Tất cả giao dịch chỉ dùng bốn mục `TransactionTab`. */
-export type TransactionFilter = TransactionTab | 'loanBill';
-
-export const isTransactionTab = (value: unknown): value is TransactionTab => TRANSACTION_TABS.includes(value as TransactionTab);
-
-interface EntryBase {
+export type TransactionTab = 'all' | 'expense' | 'loan' | 'bill';/** Thêm "chuyển tiền + bill" (không có chi tiêu thường) cho trang Chuyển tiền & bill; trang Tất cả giao dịch chỉ dùng bốn mục `TransactionTab`. */
+export type TransactionFilter = TransactionTab | 'loanBill';interface EntryBase {
   /** Khoá duy nhất. */
   key: string;
   date: string;

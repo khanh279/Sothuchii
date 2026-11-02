@@ -16,34 +16,7 @@ export const DEFAULT_PERSON_PREFIX = 'Người';
 export interface PersonRow {
   name: string;
   amount: Vnd;
-}
-
-/** Số người đóng: nguyên, từ 1 đến 1000; chữ không hợp lệ coi là 1. */
-export function clampPeopleCount(value: string | number): number {
-  const parsed = typeof value === 'number' ? Math.trunc(value) : parseInt(value, 10);
-  return Math.max(1, Math.min(MAX_PEOPLE, Number.isFinite(parsed) ? parsed : 1));
-}
-
-/** Đổi số dòng: bớt thì cắt cuối, thêm thì dòng mới mang số tiền `each` (0 nếu chưa có). */
-export function resizeRows(rows: readonly PersonRow[], count: number, each: Vnd): PersonRow[] {
-  const target = clampPeopleCount(count);
-  const next = rows.slice(0, target).map((row) => ({ ...row }));
-  while (next.length < target) next.push({ name: '', amount: each || 0 });
-  return next;
-}
-
-/** "Áp dụng cho tất cả": mọi dòng cùng một số tiền, giữ nguyên tên. */
-export function setAllAmounts(rows: readonly PersonRow[], amount: Vnd): PersonRow[] {
-  return rows.map((row) => ({ ...row, amount }));
-}
-
-/** Bật "Áp dụng cho tất cả": lấy số đang gõ, nếu chưa có thì lấy số của dòng đầu (như PWA). */
-export function enableAllMode(rows: readonly PersonRow[], each: Vnd): { each: Vnd; rows: PersonRow[] } {
-  const value = each || (rows.length ? rows[0].amount : 0);
-  return { each: value, rows: setAllAmounts(rows, value) };
-}
-
-/** Tổng tiền và số người có số tiền > 0 (dòng "Tổng (n người)"). */
+}/** Tổng tiền và số người có số tiền > 0 (dòng "Tổng (n người)"). */
 export function contributionSummary(rows: readonly PersonRow[]): { total: Vnd; payers: number } {
   return {
     total: rows.reduce((sum, row) => sum + row.amount, 0),
@@ -107,18 +80,9 @@ export function validateFundExpense(draft: FundExpenseDraft): string | null {
   return null;
 }
 
-/**
- * Khoản chi làm số dư quỹ âm không? `balance` là số dư TRƯỚC khi lưu; khi sửa, `previousAmount` là số tiền cũ
- * của chính khoản đó (được hoàn lại trước khi trừ số mới).
- */
-export function overspends(balance: Vnd, amount: Vnd, previousAmount = 0): boolean {
-  return balance + previousAmount - amount < 0;
-}
-
-/** Thông báo sau khi lưu khoản chi quỹ. Sửa thì luôn "Đã lưu thay đổi"; thêm mới có cảnh báo khi vượt quỹ. */
-export function fundExpenseSavedMessage(editing: boolean, overspent: boolean): string {
-  if (editing) return 'Đã lưu thay đổi';
-  return overspent ? 'Đã lưu. Lưu ý: khoản chi vượt quá quỹ hiện có' : 'Đã lưu khoản chi';
+/** Thông báo sau khi lưu khoản chi quỹ: sửa thì "Đã lưu thay đổi", thêm mới thì "Đã lưu khoản chi". */
+export function fundExpenseSavedMessage(editing: boolean): string {
+  return editing ? 'Đã lưu thay đổi' : 'Đã lưu khoản chi';
 }
 
 /** Thông báo sau khi lưu lần đóng quỹ. */

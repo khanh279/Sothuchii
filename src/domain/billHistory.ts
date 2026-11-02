@@ -5,10 +5,10 @@
 
 import { BILL_OWNER_NAME, DEFAULT_BILL_TITLE, computeSplit, fixedOf, weightOf } from '@/domain/bills';
 import { emptyPerson, type FormPerson } from '@/domain/billForm';
-import { isInPeriod, resolveCategory } from '@/domain/expenses';
+import { isInPeriod } from '@/domain/expenses';
 import { formatVndInput } from '@/domain/money';
 import type { Bill } from '@/types/bill';
-import type { DateStr, ExpenseSettings, Period } from '@/types/expense';
+import type { DateStr, Period } from '@/types/expense';
 import type { Vnd } from '@/types/money';
 
 export interface BillDay {
@@ -46,18 +46,7 @@ export function buildBillHistory(bills: readonly Bill[], period: Period): BillHi
     }
   }
   return { days, count: sorted.length, totalPaid: sorted.reduce((sum, bill) => sum + billTotal(bill), 0) };
-}
-
-/**
- * Giữ các bill thuộc một mục chi (`'all'` giữ tất cả). Mục chi của bill được quy về mục hiện có (mục đã xoá thì về "Khác") bằng
- * `resolveCategory`, cùng quy tắc với chi tiêu cá nhân. Chỉ lọc hiển thị: không sửa bill.
- */
-export function filterBillsByCategory(bills: readonly Bill[], settings: ExpenseSettings, categoryId: string | 'all'): Bill[] {
-  if (categoryId === 'all') return [...bills];
-  return bills.filter((bill) => resolveCategory(settings, bill.cat).id === categoryId);
-}
-
-/** Bill trong kỳ dưới dạng một danh sách phẳng, cùng thứ tự với lịch sử (mới nhất trước); dùng cho mục "Chi tiết" ở Tổng quan. */
+}/** Bill trong kỳ dưới dạng một danh sách phẳng, cùng thứ tự với lịch sử (mới nhất trước); dùng cho mục "Chi tiết" ở Tổng quan. */
 /** Tên những người có trong các bill (theo thứ tự xuất hiện, không trùng) để làm nút lọc theo người. */
 export function billPeopleNames(bills: readonly Pick<Bill, 'people'>[]): string[] {
   const names: string[] = [];
@@ -68,13 +57,7 @@ export function billPeopleNames(bills: readonly Pick<Bill, 'people'>[]): string[
 /** Chỉ giữ các bill có người này tham gia; `person` rỗng = giữ nguyên. Chỉ lọc hiển thị. */
 export function filterBillsByPerson<T extends Pick<Bill, 'people'>>(bills: readonly T[], person: string): T[] {
   return person ? bills.filter((bill) => bill.people.some((item) => item.name === person)) : [...bills];
-}
-
-export function billsInPeriod(bills: readonly Bill[], period: Period): Bill[] {
-  return buildBillHistory(bills, period).days.flatMap((day) => day.bills);
-}
-
-/** Tìm bill theo MÃ (`id`) — không bao giờ theo tên, ngày hay số tiền (có thể trùng nhau). Không thấy thì `null`. */
+}/** Tìm bill theo MÃ (`id`) — không bao giờ theo tên, ngày hay số tiền (có thể trùng nhau). Không thấy thì `null`. */
 export function findBillById(bills: readonly Bill[], id: string | null | undefined): Bill | null {
   if (!id) return null;
   return bills.find((bill) => bill.id === id) ?? null;

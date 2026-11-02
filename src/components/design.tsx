@@ -44,24 +44,7 @@ export function ScreenTitle({ title, topInset = 0, right, afterTitle }: { title:
       </View>
     </View>
   );
-}
-
-/** Tiêu đề của modal / tờ nổi (bottom sheet): tên thao tác bên trái, nút đóng bên phải. Nhỏ hơn `ScreenTitle` để phân cấp rõ với tiêu đề màn hình. */
-export function ModalHeader({ title, onClose }: { title: string; onClose: () => void }) {
-  const colors = useColors();
-  return (
-    <View style={styles.modalHeader}>
-      <AppText weight="bold" style={styles.modalTitle} accessibilityRole="header" numberOfLines={2}>
-        {title}
-      </AppText>
-      <Pressable accessibilityRole="button" accessibilityLabel="Đóng" hitSlop={10} onPress={onClose} style={[styles.modalClose, { backgroundColor: colors.surface2 }]}>
-        <SvgIcon name="close" size={16} color={colors.muted} strokeWidth={2.4} />
-      </Pressable>
-    </View>
-  );
-}
-
-/**
+}/**
  * Nút thao tác chính ở bên phải hàng tiêu đề của các tab chức năng ("+ Chi tiêu", "+ Tạo bill", "+ Giao dịch", "+ Giao dịch quỹ"):
  * nền navy, chữ trắng, biểu tượng dấu +. Dùng cùng `ScreenTitle` (tham số `right`) để mọi tab có cùng kích thước và vị trí.
  */
@@ -189,35 +172,7 @@ export function SectionCard({ children, ...head }: SectionCardProps) {
       {children}
     </View>
   );
-}
-
-interface HeroCardProps {
-  label: string;
-  amount: string;
-  caption?: string;
-}
-
-/** Thẻ tổng nền đậm của màn Chi tiết nợ: nhãn nhỏ, số tiền lớn, dòng chú thích. Dùng chung cho Chi tiết nợ và các trang Thanh toán. */
-export function HeroCard({ label, amount, caption }: HeroCardProps) {
-  const colors = useColors();
-  return (
-    <View style={[styles.hero, { backgroundColor: colors.heroBg }]}>
-      <AppText weight="medium" color={colors.heroSoft} style={styles.heroLabel}>
-        {label}
-      </AppText>
-      <AppText weight="display" color={colors.heroInk} style={styles.heroAmount} numberOfLines={1} adjustsFontSizeToFit>
-        {amount}
-      </AppText>
-      {!!caption && (
-        <AppText color={colors.heroSoft} style={styles.heroCaption}>
-          {caption}
-        </AppText>
-      )}
-    </View>
-  );
-}
-
-// ───────────────────────── Thẻ số liệu (chỉ xem) ─────────────────────────
+}// ───────────────────────── Thẻ số liệu (chỉ xem) ─────────────────────────
 
 /** Màu biểu tượng nhận diện nhóm chức năng (token `icon*`). */
 export type TileTint = 'blue' | 'purple' | 'teal' | 'orange';
@@ -261,51 +216,7 @@ export function SummaryCard({ label, value, tone, caption, icon, tint = 'blue', 
       )}
     </View>
   );
-}
-
-// ───────────────────────── Ô lối vào (bấm để mở) ─────────────────────────
-
-interface NavTileProps {
-  icon: IconName;
-  tint?: TileTint;
-  label: string;
-  caption?: string;
-  onPress: () => void;
-  style?: StyleProp<ViewStyle>;
-}
-
-/** Lối vào một chức năng: biểu tượng màu cạnh tên (cùng dáng với thẻ số liệu), mũi tên bên phải (khác thẻ số liệu chỉ xem). */
-export function NavTile({ icon, tint = 'teal', label, caption, onPress, style }: NavTileProps) {
-  const colors = useColors();
-  const tintColor = useTint(tint);
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      style={({ pressed }) => [styles.card, styles.tile, { backgroundColor: colors.surface, borderColor: colors.line, opacity: pressed ? 0.85 : 1 }, style]}
-    >
-      <View style={styles.tileTop}>
-        <View style={styles.cardHead}>
-          <SvgIcon name={icon} size={18} color={tintColor} strokeWidth={2} />
-          <AppText weight="medium" color={colors.muted} style={styles.cardLabel} numberOfLines={1}>
-            {label}
-          </AppText>
-        </View>
-        <SvgIcon name="chevronRight" size={16} color={colors.muted} strokeWidth={2} />
-      </View>
-      <View>
-        {!!caption && (
-          <AppText color={colors.muted} style={styles.caption} numberOfLines={2}>
-            {caption}
-          </AppText>
-        )}
-      </View>
-    </Pressable>
-  );
-}
-
-// ───────────────────────── Khung nhóm dòng ─────────────────────────
+}// ───────────────────────── Khung nhóm dòng ─────────────────────────
 
 /** Khung trắng bo vừa phải, viền mảnh, chứa một nhóm dòng. */
 export function Panel({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {

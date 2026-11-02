@@ -54,7 +54,7 @@ function expectConsistent(d: FundData) {
 describe('1. quỹ chi trực tiếp', () => {
   it('giảm số dư và tiền thực tế đúng khoản chi, tăng tổng chi, không có công nợ', () => {
     const p = expectConsistent(data({ expenses: [expense('e1', 400_000)] }));
-    expect(p).toMatchObject({ balance: 9_600_000, cash: 9_600_000, spent: 400_000, directSpent: 400_000, owed: 0, held: 0, advanced: false });
+    expect(p).toMatchObject({ balance: 9_600_000, cash: 9_600_000, spent: 400_000, owed: 0, held: 0 });
   });
 
   it('dữ liệu cũ (không có trường mới) vẫn là chi trực tiếp', () => {
@@ -69,7 +69,7 @@ describe('2–3. cá nhân tự ứng tiền', () => {
   it('ghi chi 300.000 ngay: tổng chi +300.000, quỹ nợ A 300.000, số còn lại giảm ngay 300.000', () => {
     const d = data({ expenses: [e] });
     const p = expectConsistent(d);
-    expect(p).toMatchObject({ spent: 300_000, directSpent: 0, owed: 300_000, cash: 9_700_000, balance: 9_700_000, advanced: true });
+    expect(p).toMatchObject({ spent: 300_000, owed: 300_000, cash: 9_700_000, balance: 9_700_000 });
     expect(personalDebt(d, e)).toMatchObject({ amount: 300_000, paid: 0, remaining: 300_000, state: 'unpaid' });
   });
 

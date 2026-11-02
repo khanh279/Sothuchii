@@ -1,7 +1,6 @@
 import type { Advance, Contribution, FundData, FundExpense, FundTxn } from '@/types/fund';
 
 import { checkAdvanceGive, checkDirectSpend, fundCash } from './fundAdvance';
-import { buildFundHistory, filterDaysByPerson, historyMembers } from './fundHistory';
 
 // DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng. Tiền: ĐỒNG.
 const F = 'f1';
@@ -41,34 +40,5 @@ describe('kiểm tra số tiền khi chi / giao ứng (không chặn theo số d
     expect(checkAdvanceGive(0)).toEqual({ ok: true, amount: 0 });
     expect(checkAdvanceGive(-1)).toMatchObject({ ok: false });
     expect(checkAdvanceGive(Number.NaN)).toMatchObject({ ok: false });
-  });
-});
-
-describe('lọc lịch sử quỹ theo thành viên', () => {
-  const d = data({
-    contribs: [contrib('c1', 1_000_000, ['Tôi', 'An']), contrib('c2', 500_000, ['Bình'])],
-    advances: [advance('a1', 200_000, 'Chi')],
-    expenses: [expense('e1', 100_000), expense('p1', 50_000, { mode: 'personal', payer: 'An' })],
-    txns: [txn('t1', 'payout', 50_000, { expenseId: 'p1', person: 'An' })],
-  });
-  const history = buildFundHistory(d, F, { mode: 'all' });
-
-  it('danh sách thành viên lấy từ dữ liệu thật (người đóng, người chi / nhận ứng / nhận thanh toán), không trùng', () => {
-    expect(historyMembers(history.days)).toEqual(['An', 'Bình', 'Chi', 'Tôi']);
-    expect(historyMembers([])).toEqual([]);
-  });
-
-  it('chọn thành viên chỉ giữ giao dịch liên quan; chi trực tiếp không thuộc ai', () => {
-    const ids = (person: string) => filterDaysByPerson(history.days, person).flatMap((day) => day.entries.map((e) => `${e.kind}:${e.id}`)).sort();
-    expect(ids('An')).toEqual(['contribution:c1', 'expense:p1', 'payout:t1']);
-    expect(ids('Bình')).toEqual(['contribution:c2']);
-    expect(ids('Chi')).toEqual(['advance:a1']);
-    expect(ids('Không có')).toEqual([]);
-  });
-
-  it('Tất cả (rỗng) khôi phục đủ lịch sử và không đổi dữ liệu gốc', () => {
-    const all = filterDaysByPerson(history.days, '');
-    expect(all.flatMap((day) => day.entries)).toHaveLength(history.count);
-    expect(all).toEqual(history.days);
   });
 });

@@ -5,7 +5,6 @@ import { EmptyState, SectionCard } from '@/components/design';
 import { HistoryCard } from '@/components/history-card';
 import { useToast } from '@/components/toast';
 import { deleteFundExpenseSynced } from '@/data/fundService';
-import { advanceById } from '@/domain/fundAdvance';
 import { buildPersonFundDetail } from '@/domain/fundPerson';
 import { FundEntryIcon } from '@/features/funds/FundEntryIcon';
 import { describeFundError } from '@/features/funds/hooks';
@@ -130,11 +129,6 @@ export function AdvanceSpendCard({
       )}
     </SectionCard>
   );
-}
-
-/** Tên người của một hồ sơ ứng (để đặt tiêu đề khung). */
-export const advancePersonOf = (data: FundData, advanceId: string) => advanceById(data, advanceId)?.person ?? '';
-
-const styles = StyleSheet.create({
+}const styles = StyleSheet.create({
   rows: { gap: 6 },
 });

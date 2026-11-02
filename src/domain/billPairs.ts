@@ -118,16 +118,7 @@ function pairsOf(statuses: ReturnType<typeof billTransferStatuses>, ordered: rea
 /** Tìm cặp theo khoá trong danh sách (null nếu cặp không còn khoản phải thanh toán). */
 export function findBillPair(pairs: readonly BillPair[], key: string | null): BillPair | null {
   return key ? (pairs.find((pair) => pair.key === key) ?? null) : null;
-}
-
-/** Chỉ giữ các bill thuộc phạm vi của cặp (không chọn cặp thì giữ nguyên). */
-export function filterBillsByPair<T extends Pick<Bill, 'id'>>(bills: readonly T[], pair: Pick<BillPair, 'billIds'> | null): T[] {
-  if (!pair) return [...bills];
-  const ids = new Set(pair.billIds);
-  return bills.filter((bill) => ids.has(bill.id));
-}
-
-/** Một khoản trong chi tiết của cặp: lấy từ một bill, theo chiều A → B của cặp (hoặc chiều ngược lại để bù trừ). */
+}/** Một khoản trong chi tiết của cặp: lấy từ một bill, theo chiều A → B của cặp (hoặc chiều ngược lại để bù trừ). */
 export interface BillPairItem {
   billId: string;
   title: string;

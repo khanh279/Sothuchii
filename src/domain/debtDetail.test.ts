@@ -1,7 +1,7 @@
 import type { Bill } from '@/types/bill';
 import type { Pay } from '@/types/pay';
 
-import { buildDebtDetail, buildPairDetail, groupDebtRowsByDay, groupDebtRowsByMonth, isMonthMode, ledgerSubtitle, toneOf } from './debtDetail';
+import { buildDebtDetail, groupDebtRowsByDay, groupDebtRowsByMonth, isMonthMode, ledgerSubtitle, toneOf } from './debtDetail';
 
 // DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng. Tiền là ĐỒNG.
 const p = (name: string, paid: number) => ({ name, paid, w: 1 });
@@ -123,39 +123,5 @@ describe('buildDebtDetail (một người)', () => {
     expect(d.history).toEqual([{ id: 'g1', date: '2025-10-05', createdAt: 20, loan: 10_000, bill: 10_000 }]);
     expect(d).toMatchObject({ loan: 40_000, bill: 0, hasBill: false, canMerge: false });
     expect(d.payActions.map((a) => a.ledger)).toEqual(['loan']);
-  });
-
-  it('không sửa đầu vào', () => {
-    const copy = JSON.parse(JSON.stringify({ bills, LOAN }));
-    buildDebtDetail(bills, [LOAN], 'An', month);
-    buildPairDetail(bills, [LOAN], 'Tôi', 'An', month);
-    expect({ bills, LOAN }).toEqual(copy);
-  });
-});
-
-describe('buildPairDetail (một cặp)', () => {
-  it('cặp có tôi: nhãn, màu, số tiền, dòng có dấu theo chiều của tôi; có thể thanh toán và gộp nợ', () => {
-    const d = buildPairDetail(bills, [LOAN], 'Tôi', 'An', { mode: 'all' });
-    expect(d).toMatchObject({ empty: false, label: 'Tôi nợ An', tone: 'owe', amount: 10_000, canPay: true, other: 'An', canMerge: true, mergeAmount: 10_000, monthMode: false });
-    expect(d.months).toHaveLength(1);
-    expect(d.months[0].days.flatMap((g) => g.rows.map((r) => [r.t, r.v, r.tone]))).toEqual([['B1', -30_000, 'owe'], ['B2', 20_000, 'get']]);
-  });
-
-  it('cùng cặp nhìn từ phía ngược lại cho cùng kết quả', () => {
-    expect(buildPairDetail(bills, [], 'An', 'Tôi', month)).toMatchObject({ label: 'Tôi nợ An', amount: 10_000, other: 'An' });
-    expect(buildPairDetail([B2], [], 'Tôi', 'An', month)).toMatchObject({ label: 'An nợ tôi', tone: 'get', amount: 20_000 });
-  });
-
-  it('cặp không có tôi: nhãn "X nợ Y", mọi dòng trung tính, không gộp nợ', () => {
-    const d = buildPairDetail(bills, [], 'An', 'Bình', month);
-    expect(d).toMatchObject({ label: 'Bình nợ An', tone: 'mid', amount: 30_000, other: null, canMerge: false, mergeAmount: 0, monthMode: true });
-    expect(d.days.flatMap((g) => g.rows.map((r) => r.tone))).toEqual(['mid']);
-  });
-
-  it('không có bill trong kỳ: trống, không thanh toán được; chênh lệch dưới 50 đồng thì không có nút thanh toán', () => {
-    expect(buildPairDetail(bills, [], 'Tôi', 'An', { mode: 'month', month: '2024-01' })).toMatchObject({ empty: true, amount: 0, canPay: false });
-    const paid = buildPairDetail(bills, [pay('a', 'Tôi', 'An', 9970, { kind: 'billpay' })], 'Tôi', 'An', { mode: 'all' });
-    expect(paid.amount).toBeCloseTo(30, 6);
-    expect(paid.canPay).toBe(false);
   });
 });

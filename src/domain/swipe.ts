@@ -39,23 +39,7 @@ export function swipeOffset(startOffset: number, dx: number): number {
 /** Khi thả tay: mở hẳn hay đóng lại. */
 export function swipeSettle(offset: number): 'open' | 'closed' {
   return offset < -SWIPE_ACTIONS_WIDTH / 2 ? 'open' : 'closed';
-}
-
-/** Quãng vuốt (px) để bật / tắt một ô trượt (Chia bill: ô hệ số / mức cố định). */
-export const SWIPE_TOGGLE_DISTANCE = 40;
-
-/**
- * Vuốt ô trượt không có nút (khác dòng Sửa / Xoá): vuốt trái đủ xa thì mở, vuốt phải đủ xa khi đang mở thì đóng.
- * Cử chỉ chưa rõ là ngang hoặc chưa đủ xa thì không làm gì (`null`).
- */
-export function swipeToggle(dx: number, dy: number, isOpen: boolean): 'open' | 'close' | null {
-  if (swipeIntent(dx, dy, isOpen) !== 'horizontal') return null;
-  if (dx <= -SWIPE_TOGGLE_DISTANCE) return 'open';
-  if (dx >= SWIPE_TOGGLE_DISTANCE && isOpen) return 'close';
-  return null;
-}
-
-/** Vận tốc vuốt (px/ms) đủ để chốt theo hướng vuốt dù chưa kéo quá nửa (ô trượt hai lớp của Chia bill). */
+}/** Vận tốc vuốt (px/ms) đủ để chốt theo hướng vuốt dù chưa kéo quá nửa (ô trượt hai lớp của Chia bill). */
 export const SLIDE_FLICK_VELOCITY = 0.35;
 
 /**

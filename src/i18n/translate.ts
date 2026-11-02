@@ -50,14 +50,7 @@ export function registerEnglish(dictionary: Dictionary): void {
     .map(([key, to]) => compilePattern(key, to))
     .sort((a, b) => b.weight - a.weight);
   cache = new Map();
-}
-
-/** Số khoá đã đăng ký (cho kiểm thử). */
-export function englishSize(): number {
-  return Object.keys(english).length;
-}
-
-const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+}const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 function fill(template: string, values: Record<number, string>): string {
   return template.replace(/\{(\d+)(?::(month))?(?:\|([^|}]*)\|([^}]*))?\}/g, (_, index: string, format?: string, one?: string, many?: string) => {

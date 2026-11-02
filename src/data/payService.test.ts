@@ -3,18 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { syncBillExpenses } from './billSync';
 import { createExpense } from './expenseRepository';
 import { loadPays } from './payRepository';
-import {
-  addTransferSynced,
-  deletePaySynced,
-  mergeDebtsSynced,
-  recordDebtPaymentSynced,
-  recordPairPaymentSynced,
-  recordPersonBillPaymentSynced,
-  recordPaymentSynced,
-  undoMergeSynced,
-  updatePayGroupSynced,
-  updateTransferSynced,
-} from './payService';
+import { addTransferSynced, deletePaySynced, mergeDebtsSynced, recordDebtPaymentSynced, recordPersonBillPaymentSynced, recordPaymentSynced, undoMergeSynced, updatePayGroupSynced, updateTransferSynced } from './payService';
 import { loadBills } from './billRepository';
 import { personBillRows } from '@/domain/billPerson';
 import { debtEvents, personLedger } from '@/domain/ledger';
@@ -112,13 +101,6 @@ describe('thanh toán', () => {
     expect(result.value.recorded).toBe(true);
     expect(await ledger('An')).toMatchObject({ loan: 0 });
     expect(await cbExpenses()).toEqual([]);
-  });
-
-  it('cả cặp trong kỳ: thanh toán toàn bộ chênh lệch', async () => {
-    await seedBills();
-    const result = await recordPairPaymentSynced('Tôi', 'An', { mode: 'all' });
-    expect(result.value).toEqual({ recorded: true, message: 'Đã ghi Tôi → An 30.000 ₫' });
-    expect((await recordPairPaymentSynced('Tôi', 'An', { mode: 'all' })).value.recorded).toBe(false);
   });
 });
 

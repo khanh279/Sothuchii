@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { Animated, BackHandler, Easing, PanResponder, Platform, Pressable, StyleSheet, View, type GestureResponderEvent, type HostInstance } from 'react-native';
-import Svg, { Defs, Path, Text as SvgText, TextPath } from 'react-native-svg';
+import Svg, { Defs, G, Path, Text as SvgText, TextPath } from 'react-native-svg';
 
 import { AppFonts } from '@/constants/fonts';
 import { SvgIcon } from '@/components/svg-icon';
@@ -31,7 +31,7 @@ const R_AIM = 30;
 const CENTER = -1;
 /** Giữ nút "+" lâu hơn chừng này (ms) mà không vuốt thì ô "Thêm nhanh" sáng lên, nhả tay là chọn nó; chạm nhanh thì menu chỉ mở ra để bấm chọn. */
 const HOLD_MS = 350;
-/** Sau khi chọn (bấm hoặc nhả tay) giữ hiệu ứng ô được chọn thêm chừng này (ms) rồi đóng menu (màn hình đích đã được mở ngay lúc chọn). */
+/** Sau khi chọn (bấm hoặc nhả tay) giữ hiệu ứng ô được chọn thêm chừng này (ms) rồi đóng menu và chuyển màn hình. */
 const SELECT_DELAY_MS = 70;
 /** Chữ cong theo cung đồng tâm gần mép trong (dưới) của ô: bán kính đường nền chữ; biểu tượng nằm phía ngoài chữ ở bán kính `ICON_RADIUS`. */
 const TEXT_RADIUS = 76;
@@ -87,6 +87,8 @@ function zoneAt(point: Point, center: Point, count: number, tap: boolean): { zon
 
 export interface RadialAdd {
   open: boolean;
+  /** Đang chạy hiệu ứng đóng (menu còn hiện thêm một nhịp ngắn rồi mới gỡ). */
+  closing: boolean;
   /** Tâm nút "+" theo toạ độ cửa sổ khi menu đang mở. */
   center: Point | null;
   /** Ô đang được ngón tay vuốt tới và nhả tay là chọn (ô quạt 0, 1, 2… hoặc `CENTER`; null = chưa tới ô nào). */
@@ -101,7 +103,12 @@ export interface RadialAdd {
   setHover: (index: number | null) => void;
   setAim: (index: number | null) => void;
   show: (center: Point) => void;
+  /** Đóng NGAY (không hiệu ứng): dùng khi chọn một ô để chuyển màn hình. */
   close: () => void;
+  /** Đóng có hiệu ứng thu về tâm: dùng khi bỏ qua menu (chạm ra ngoài, nhả tay ở chỗ trống, nút Back). */
+  dismiss: () => void;
+  /** Gọi khi hiệu ứng đóng xong để gỡ menu. */
+  finish: () => void;
   select: (index: number) => void;
 }
 
@@ -112,7 +119,7 @@ export interface RadialAdd {
 export function useRadialAdd(): RadialAdd {
   const { period } = useSharedPeriod();
   const funds = useFundData().data.funds;
-  const [open, setOpen] = useState(false);
+  const [phase, setPhase] = useState<'closed' | 'open' | 'closing'>('closed');
   const [center, setCenter] = useState<Point | null>(null);
   const [hover, setHover] = useState<number | null>(null);
   const [aim, setAim] = useState<number | null>(null);
@@ -136,10 +143,16 @@ export function useRadialAdd(): RadialAdd {
   };
 
   const close = () => {
-    setOpen(false);
+    setPhase('closed');
     setHover(null);
     setAim(null);
   };
+  const dismiss = () => {
+    setPhase((current) => (current === 'open' ? 'closing' : current));
+    setHover(null);
+    setAim(null);
+  };
+  const finish = () => setPhase((current) => (current === 'closing' ? 'closed' : current));
   const run = (key: RadialKey) => {
     if (key === 'expense')
       router.push({
@@ -156,7 +169,8 @@ export function useRadialAdd(): RadialAdd {
   };
 
   return {
-    open,
+    open: phase === 'open',
+    closing: phase === 'closing',
     center,
     hover,
     aim,
@@ -170,17 +184,22 @@ export function useRadialAdd(): RadialAdd {
       setCenter(next);
       setHover(null);
       setAim(null);
-      setOpen(true);
+      setPhase('open');
     },
     close,
+    dismiss,
+    finish,
     select: (index) => {
       const item = index === CENTER ? quick : items[index];
       if (!item || item.disabled) return;
-      // Chuyển màn hình NGAY; ô được chọn đổi màu nền một nhịp ngắn rồi menu mới tự đóng (đóng sau thì màn hình mới đã bắt đầu hiện, không thấy trễ).
+      // Ô được chọn đổi màu nền một nhịp ngắn, rồi ĐÓNG menu trước, sau đó mới chuyển màn hình (frame kế tiếp): trên web màn hình có menu bị ẩn đi ngay khi mở màn hình mới,
+      // cập nhật trạng thái lúc đó sẽ bị hoãn tới khi quay lại, làm menu còn hiện rồi mới tắt khi bấm Back.
       setHover(index);
       setAim(null);
-      run(item.key);
-      setTimeout(close, SELECT_DELAY_MS);
+      setTimeout(() => {
+        close();
+        requestAnimationFrame(() => run(item.key));
+      }, SELECT_DELAY_MS);
     },
   };
 }
@@ -280,7 +299,7 @@ export function usePlusGesture(radial: RadialAdd, plusRef: RefObject<HostInstanc
         hoverRef.current = null;
         aimRef.current = null;
         if (picked !== null) live.current.select(picked);
-        else if (moved.current) live.current.close();
+        else if (moved.current) live.current.dismiss();
         // Chạm nhanh không vuốt: để menu mở cho người dùng bấm chọn.
       },
       onPanResponderTerminate: () => {
@@ -301,8 +320,8 @@ export function usePlusGesture(radial: RadialAdd, plusRef: RefObject<HostInstanc
 export function RadialAddOverlay({ radial }: { radial: RadialAdd }) {
   return (
     <>
-      {radial.open && radial.center && <Fan radial={radial} center={radial.center} />}
-      {radial.fundSheet && <FundTxnSheet mode="chi" onClose={() => radial.setFundSheet(false)} />}
+      {(radial.open || radial.closing) && radial.center && <Fan radial={radial} center={radial.center} />}
+      {radial.fundSheet && <FundTxnSheet onClose={() => radial.setFundSheet(false)} />}
     </>
   );
 }
@@ -325,38 +344,48 @@ function Fan({ radial, center }: { radial: RadialAdd; center: Point }) {
   const rootRef = useRef<HostInstance>(null);
   const [origin, setOrigin] = useState<Point | null>(null);
   const [progress] = useState(() => new Animated.Value(0));
-  const { close, items, hover, aim, select, quick } = radial;
+  const { dismiss, items, hover, aim, select, quick, closing } = radial;
+  const finishRef = useRef(radial.finish);
+  useEffect(() => {
+    finishRef.current = radial.finish;
+  });
 
+  // Mở: bung ra với easing nảy nhẹ (vượt một chút rồi về); đóng (bỏ qua menu): thu nhanh về tâm rồi gỡ.
   useEffect(() => {
     Animated.timing(progress, {
-      toValue: 1,
-      duration: 190,
-      easing: Easing.out(Easing.cubic),
+      toValue: closing ? 0 : 1,
+      duration: closing ? 130 : 260,
+      easing: closing ? Easing.in(Easing.cubic) : Easing.out(Easing.back(1.5)),
       useNativeDriver: USE_NATIVE,
-    }).start();
-  }, [progress]);
+    }).start(({ finished }) => {
+      if (finished && closing) finishRef.current();
+    });
+  }, [closing, progress]);
   // Nút Back (Android) đóng menu.
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      close();
+      dismiss();
       return true;
     });
     return () => subscription.remove();
-  }, [close]);
+  }, [dismiss]);
 
   /** Chạm lên nền: trúng ô nào thì chọn ô đó, ngoài các ô thì đóng. */
   function onBackdropPress(event: GestureResponderEvent) {
     const { pageX, pageY } = event.nativeEvent;
     const { zone } = zoneAt({ x: pageX, y: pageY }, center, items.length, true);
     if (zone !== null) select(zone);
-    else close();
+    else dismiss();
   }
 
   const local = origin ? { x: center.x - origin.x, y: center.y - origin.y } : null;
   const box = R_OUT * 2;
   return (
     <View ref={rootRef} style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]} onLayout={() => rootRef.current?.measureInWindow((x, y) => setOrigin({ x, y }))}>
-      <Animated.View style={[StyleSheet.absoluteFill, { opacity: progress, backgroundColor: 'rgba(10, 22, 40, 0.5)' }]}>
+      <Animated.View
+        pointerEvents={closing ? 'none' : 'auto'}
+        style={[StyleSheet.absoluteFill, { opacity: progress.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' }), backgroundColor: 'rgba(10, 22, 40, 0.5)' }]}
+      >
         <Pressable accessibilityRole="button" accessibilityLabel="Đóng" onPress={onBackdropPress} style={StyleSheet.absoluteFill} />
       </Animated.View>
       {local && (
@@ -369,7 +398,7 @@ function Fan({ radial, center }: { radial: RadialAdd; center: Point }) {
             top: local.y - R_OUT,
             width: box,
             height: box,
-            opacity: progress,
+            opacity: progress.interpolate({ inputRange: [0, 0.6], outputRange: [0, 1], extrapolate: 'clamp' }),
             transform: [{ scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] }) }],
           }}
         >
@@ -385,16 +414,29 @@ function Fan({ radial, center }: { radial: RadialAdd; center: Point }) {
             </Defs>
             {items.map((item, index) => {
               const { from, to } = sectorAngles(index, items.length);
+              const d = sectorPath(from, to);
               // Cả bốn ô cùng màu nền trắng; trúng ô (nhả tay hoặc bấm là chọn) = màu chủ đạo; đang nhắm tới ô theo hướng vuốt = màu chủ đạo nhạt.
               const fill = hover === index ? colors.primary : aim === index ? colors.primarySoft : colors.surface;
-              return <Path key={item.key} d={sectorPath(from, to)} fill={fill} stroke={fill} strokeWidth={ROUND} strokeLinejoin="round" opacity={item.disabled ? 0.55 : 1} />;
+              return (
+                <G key={item.key} opacity={item.disabled ? 0.55 : 1}>
+                  {/* Bóng đổ mềm phía dưới: ba lớp mờ chồng nhau, lớp sau lệch xuống và loe rộng hơn. */}
+                  {[1, 2, 3].map((layer) => (
+                    <G key={layer} translateY={layer * 2.5}>
+                      <Path d={d} fill="rgba(10, 22, 40, 0.07)" stroke="rgba(10, 22, 40, 0.07)" strokeWidth={ROUND + layer * 3} strokeLinejoin="round" />
+                    </G>
+                  ))}
+                  {/* Viền mảnh màu đường kẻ của app cho ô nổi lên khỏi nền mờ. */}
+                  <Path d={d} fill={colors.line} stroke={colors.line} strokeWidth={ROUND + 2} strokeLinejoin="round" />
+                  <Path d={d} fill={fill} stroke={fill} strokeWidth={ROUND} strokeLinejoin="round" />
+                </G>
+              );
             })}
             {items.map((item) => (
               <SvgText
                 key={`label-${item.key}`}
                 fill={hover === items.indexOf(item) ? colors.primaryInk : colors.ink}
                 fontFamily={AppFonts.semibold}
-                fontSize={11}
+                fontSize={12}
                 opacity={item.disabled ? 0.55 : 1}
                 textAnchor="middle"
               >
@@ -424,7 +466,7 @@ function Fan({ radial, center }: { radial: RadialAdd; center: Point }) {
             );
           })}
           {/* Ô tròn "Thêm nhanh" ở chính tâm (đè lên nút "+"), chỉ có biểu tượng máy ảnh: cùng màu với ba ô quạt; đảo sang màu chủ đạo khi trúng (giữ nút "+" rồi nhả, vuốt về lại tâm, hoặc bấm chọn). */}
-          <View
+          <Animated.View
             accessible
             accessibilityRole="button"
             accessibilityLabel={quick.label}
@@ -436,11 +478,13 @@ function Fan({ radial, center }: { radial: RadialAdd; center: Point }) {
                 left: R_OUT - R_CENTER,
                 top: R_OUT - R_CENTER,
                 backgroundColor: hover === CENTER ? colors.primary : colors.surface,
+                opacity: progress.interpolate({ inputRange: [0.15, 0.6], outputRange: [0, 1], extrapolate: 'clamp' }),
+                transform: [{ scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }],
               },
             ]}
           >
             <SvgIcon name={quick.icon} size={28} color={hover === CENTER ? colors.primaryInk : colors.primary} strokeWidth={2} />
-          </View>
+          </Animated.View>
         </Animated.View>
       )}
     </View>
@@ -458,5 +502,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 2,
+    shadowColor: '#0B2A4A',
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
   },
 });

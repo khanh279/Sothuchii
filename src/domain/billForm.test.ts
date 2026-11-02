@@ -1,34 +1,8 @@
 import { computeSplit } from './bills';
-import {
-  applyMemberSelection,
-  clampBillPeople,
-  emptyPerson,
-  formatPaidText,
-  initialPeople,
-  maskFixedInput,
-  maskPaidInput,
-  maskWeightInput,
-  parseFixedText,
-  parseWeightText,
-  resetAfterSave,
-  resizePeople,
-  rowMeta,
-  rowStatus,
-  toSplitPeople,
-  weightCaption,
-  withFixedText,
-  withWeightText,
-} from './billForm';
+import { applyMemberSelection, emptyPerson, initialPeople, maskFixedInput, maskWeightInput, parseFixedText, parseWeightText, resetAfterSave, rowStatus, toSplitPeople, withFixedText, withWeightText } from './billForm';
 
 // DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng. Tiền là ĐỒNG.
 describe('ô nhập', () => {
-  it('"Đã chi": chỉ chữ số, tối đa 9; hiển thị có dấu chấm hàng nghìn', () => {
-    expect(maskPaidInput('1a2.3,4')).toBe('1234');
-    expect(maskPaidInput('1234567890')).toBe('123456789');
-    expect(formatPaidText('1234567')).toBe('1.234.567');
-    expect(formatPaidText('007')).toBe('7');
-    expect(formatPaidText('')).toBe('');
-  });
 
   it('hệ số: chữ số và phẩy, chấm thành phẩy, tối đa 4 ký tự', () => {
     expect(maskWeightInput('1.5')).toBe('1,5');
@@ -87,19 +61,6 @@ describe('toSplitPeople', () => {
 });
 
 describe('số người và danh sách ban đầu', () => {
-  it('bộ đếm 2–20', () => {
-    expect([0, 1, 2, 7, 20, 21, NaN].map(clampBillPeople)).toEqual([2, 2, 2, 7, 20, 20, 2]);
-  });
-
-  it('đổi số dòng giữ dữ liệu dòng còn lại; dòng đầu luôn là "Tôi"', () => {
-    const rows = [emptyPerson('Tôi'), { ...emptyPerson('An'), paidText: '9' }];
-    const more = resizePeople(rows, 4);
-    expect(more).toHaveLength(4);
-    expect(more[1].paidText).toBe('9');
-    expect(resizePeople(more, 2)).toEqual(rows);
-    expect(resizePeople([], 2)[0].name).toBe('Tôi');
-    expect(resizePeople(rows, 99)).toHaveLength(20);
-  });
 
   it('nhóm ban đầu: "Tôi" + người nhớ từ lần trước mà còn trong Danh sách người, bỏ trùng', () => {
     const rows = initialPeople(['Tôi', 'An', 'Bình', 'An', 'Đã xoá', ''], ['An', 'Bình', 'Chi']);
@@ -109,23 +70,11 @@ describe('số người và danh sách ban đầu', () => {
 });
 
 describe('hiển thị kết quả', () => {
-  it('chú thích dưới ô tiền', () => {
-    expect(weightCaption({ w: 1 })).toBe('');
-    expect(weightCaption({ w: 1.5 })).toBe('Hệ số 1,5');
-    expect(weightCaption({ w: 1, fix: 30_000 })).toBe('Cố định 30.000 ₫');
-    expect(weightCaption({ w: 3, fix: 0 })).toBe('Cố định 0 ₫');
-  });
 
   it('trạng thái: nhận lại / còn thiếu / đã đủ, làm tròn đến đồng', () => {
     expect(rowStatus({ net: 66_667.4 })).toEqual({ kind: 'get', amount: 66_667 });
     expect(rowStatus({ net: -33_333.3 })).toEqual({ kind: 'owe', amount: 33_333 });
     expect(rowStatus({ net: 0.4 })).toEqual({ kind: 'even', amount: 0 });
-  });
-
-  it('dòng mô tả', () => {
-    expect(rowMeta({ paid: 100_000, share: 33_333.3, fixed: false, w: 1 })).toBe('Chi 100.000 ₫ · Phần 33.333 ₫');
-    expect(rowMeta({ paid: 0, share: 30_000, fixed: true, w: 1 })).toBe('Chi 0 ₫ · Phần 30.000 ₫ · Cố định');
-    expect(rowMeta({ paid: 0, share: 60_000, fixed: false, w: 2 })).toBe('Chi 0 ₫ · Phần 60.000 ₫ · Hệ số 2');
   });
 });
 

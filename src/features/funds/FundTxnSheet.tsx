@@ -10,8 +10,6 @@ import { formatVnd } from '@/utils/format';
 import { router } from '@/utils/safe-router';
 
 interface Props {
-  /** 'thu': ghi lần đóng (thu) quỹ; 'chi': ghi khoản chi quỹ. */
-  mode: 'thu' | 'chi';
   onClose: () => void;
 }
 
@@ -20,10 +18,10 @@ interface Props {
  * Mỗi dòng: tên quỹ và số dư. Chọn một quỹ thì đóng thẻ và mở TRANG RIÊNG của form Thu quỹ / Chi tiêu quỹ cho quỹ đó (`/quy/thu-quy`, `/quy/chi-tieu`, tham số `fund`),
  * như trước đây. Thẻ chỉ để chọn: đóng thẻ không tạo giao dịch nào.
  */
-export function FundTxnSheet({ mode, onClose }: Props) {
+export function FundTxnSheet({ onClose }: Props) {
   const colors = useColors();
   const { data, loaded, error } = useFundData();
-  const title = mode === 'thu' ? 'Thu quỹ' : 'Chi tiêu quỹ';
+  const title = 'Chi quỹ';
 
   let body;
   if (error) {
@@ -40,7 +38,7 @@ export function FundTxnSheet({ mode, onClose }: Props) {
     body = (
       <View style={[styles.notice, { backgroundColor: colors.bg }]}>
         <AppText color={colors.muted} style={styles.noticeText}>
-          {mode === 'thu' ? 'Chưa có quỹ nào. Hãy tạo quỹ mới trước khi ghi khoản thu.' : 'Chưa có quỹ nào. Hãy tạo quỹ ở tab Quỹ nhóm trước khi ghi chi tiêu quỹ.'}
+          Chưa có quỹ nào. Hãy tạo quỹ ở tab Quỹ nhóm trước khi ghi chi tiêu quỹ.
         </AppText>
       </View>
     );
@@ -48,7 +46,7 @@ export function FundTxnSheet({ mode, onClose }: Props) {
     body = (
       <>
         <AppText color={colors.muted} style={styles.hint}>
-          {mode === 'thu' ? 'Chọn quỹ để ghi khoản thu' : 'Chọn quỹ để ghi khoản chi'}
+          Chọn quỹ để ghi khoản chi
         </AppText>
         {data.funds.map((item) => {
           const balance = fundCash(data, item.id);
@@ -61,7 +59,7 @@ export function FundTxnSheet({ mode, onClose }: Props) {
               label={`${item.name}, số dư ${formatVnd(balance)}`}
               onPress={() => {
                 onClose();
-                router.push({ pathname: mode === 'thu' ? '/quy/thu-quy' : '/quy/chi-tieu', params: { fund: item.id } });
+                router.push({ pathname: '/quy/chi-tieu', params: { fund: item.id } });
               }}
             />
           );

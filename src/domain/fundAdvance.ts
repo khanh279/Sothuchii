@@ -139,11 +139,8 @@ export interface FundPosition {
   owed: Vnd;
   /** Tiền ứng cá nhân còn giữ. */
   held: Vnd;
-  /** Tổng chi thực tế và phần quỹ chi trực tiếp. */
+  /** Tổng chi thực tế (mọi khoản chi ghi nhận). */
   spent: Vnd;
-  directSpent: Vnd;
-  /** Có phát sinh ứng trước / cá nhân ứng không (để ẩn các dòng phụ khi quỹ chỉ dùng chi trực tiếp). */
-  advanced: boolean;
 }
 
 export function fundPosition(data: Data, fundId: string | 'all'): FundPosition {
@@ -151,8 +148,6 @@ export function fundPosition(data: Data, fundId: string | 'all'): FundPosition {
   const expenses = data.expenses.filter((e) => inFund(e, fundId));
   const advances = advancesOf(data).filter((a) => inFund(a, fundId));
   const spent = sum(expenses.map((e) => e.amount));
-  // Chi trực tiếp = các khoản chi trực tiếp + phần QUỸ chi của các khoản cá nhân ứng đã chia nguồn tiền (đây là tiền thật rời quỹ).
-  const directSpent = sum(expenses.filter((e) => expenseKind(e) === 'direct').map((e) => e.amount)) + sum(expenses.map(expenseFundPart));
 
   let held = 0;
   let owed = 0;
@@ -169,8 +164,6 @@ export function fundPosition(data: Data, fundId: string | 'all'): FundPosition {
     owed,
     held,
     spent,
-    directSpent,
-    advanced: advances.length > 0 || expenses.some((e) => expenseKind(e) !== 'direct'),
   };
 }
 

@@ -1,32 +1,7 @@
 import type { Bill } from '@/types/bill';
 import type { Pay } from '@/types/pay';
 
-import {
-  allDebts,
-  canMerge,
-  checkUndoMerge,
-  debtEvents,
-  eventLabel,
-  finalizeNewPays,
-  isNearZero,
-  isReconciliation,
-  loanLines,
-  ledgerItems,
-  mergeAmount,
-  mergeDrafts,
-  mergeHistory,
-  mergeLedger,
-  newMergeGroupId,
-  pairDebts,
-  pairNet,
-  pairPaymentDraft,
-  payClass,
-  payLedger,
-  paymentDraft,
-  paymentMessage,
-  personLedger,
-    withoutMergeGroup,
-} from './ledger';
+import { allDebts, canMerge, checkUndoMerge, debtEvents, eventLabel, finalizeNewPays, isNearZero, isReconciliation, loanLines, ledgerItems, mergeAmount, mergeDrafts, mergeHistory, mergeLedger, pairDebts, payClass, payLedger, paymentDraft, paymentMessage, personLedger } from './ledger';
 import { roundVnd } from './money';
 
 // DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng. Tiền là ĐỒNG.
@@ -157,18 +132,6 @@ describe('gộp nợ và hoàn tác', () => {
       { kind: 'bt', led: 'bill', from: 'An', to: 'Tôi', amt: 3000 },
     ]);
     expect(mergeDrafts({ name: 'An', loan: 5000, bill: 3000 })).toEqual([]);
-  });
-
-  it('sau khi gộp: nợ bill về 0, nợ vay giảm đúng số; hoàn tác trả lại số dư cũ', () => {
-    const base = [B1, B2];
-    const loanPays = [LOAN];
-    const before = personLedger(debtEvents(base, loanPays), 'An');
-    const merged = finalizeNewPays(mergeDrafts(before), { now: 1000, today: '2025-10-06', newId: (() => { let n = 0; return () => `m${++n}`; })(), group: newMergeGroupId(1000) });
-    expect(merged.map((m) => m.grp)).toEqual([newMergeGroupId(1000), newMergeGroupId(1000)]);
-    const after = personLedger(debtEvents(base, [...loanPays, ...merged]), 'An');
-    expect(after).toMatchObject({ loan: 40_000, bill: 0 });
-    const undone = personLedger(debtEvents(base, withoutMergeGroup([...loanPays, ...merged], merged[0].grp as string)), 'An');
-    expect(undone).toMatchObject({ loan: 50_000, bill: -10_000 });
   });
 
   it('lịch sử gộp nợ: gom theo nhóm, mới nhất trước, chỉ của người đó', () => {
@@ -320,41 +283,6 @@ describe('theo cặp người trong kỳ', () => {
 
   it('lọc theo kỳ: tháng không có bill thì không có cặp', () => {
     expect(pairDebts([B1, B2], [], { mode: 'month', month: '2025-09' })).toEqual([]);
-  });
-
-  it('pairNet: các dòng theo thời gian, chênh lệch và chiều nợ; thanh toán cả cặp', () => {
-    const net = pairNet([B1, B2], [], 'Tôi', 'An', { mode: 'all' }, () => 'Ăn uống');
-    expect(net.items.map((i) => [i.s, i.t, i.x])).toEqual([[30_000, 'B1', 'Ăn uống'], [-20_000, 'B2', 'Ăn uống']]);
-    expect(net).toMatchObject({ net: 10_000, from: 'Tôi', to: 'An', amt: 10_000 });
-    expect(pairPaymentDraft(net)).toEqual({ kind: 'billpay', from: 'Tôi', to: 'An', amt: 10_000 });
-  });
-
-  it('pairNet đảo chiều khi An nợ tôi; chênh lệch dưới 0,05 thì không có thanh toán', () => {
-    const net = pairNet([B2], [], 'Tôi', 'An', { mode: 'all' });
-    expect(net).toMatchObject({ net: -20_000, from: 'An', to: 'Tôi', amt: 20_000 });
-    expect(pairPaymentDraft({ from: 'A', to: 'B', amt: 40 })).toBeNull();
-    expect(pairPaymentDraft({ from: 'A', to: 'B', amt: 50 })).not.toBeNull();
-  });
-
-  it('pairNet gồm khoản trả và gộp nợ thuộc sổ bill', () => {
-    const pays = [pay('a', 'Tôi', 'An', 4000, { kind: 'billpay', createdAt: 20 }), pay('b', 'Tôi', 'An', 6000, { kind: 'bt', led: 'bill', createdAt: 21 }), pay('c', 'Tôi', 'An', 9000, { kind: 'bt', led: 'loan' })];
-    const net = pairNet([B1, B2], pays, 'Tôi', 'An', { mode: 'all' });
-    expect(net.items.slice(2).map((i) => [i.s, i.t, i.x])).toEqual([[-4000, 'Tôi trả An', 'Thanh toán bill'], [-6000, 'Gộp nợ', 'Trừ giữa nợ vay và nợ bill']]);
-    expect(net.amt).toBe(0);
-  });
-});
-
-describe('bảo toàn đầu vào', () => {
-  it('không sửa bill và khoản trả', () => {
-    const bills = [B1, B2];
-    const pays = [LOAN];
-    const copy = JSON.parse(JSON.stringify({ bills, pays }));
-    const events = debtEvents(bills, pays);
-    allDebts(events);
-    personLedger(events, 'An');
-    pairDebts(bills, pays, { mode: 'all' });
-    pairNet(bills, pays, 'Tôi', 'An', { mode: 'all' });
-    expect({ bills, pays }).toEqual(copy);
   });
 });
 

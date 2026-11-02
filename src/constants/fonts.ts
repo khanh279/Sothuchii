@@ -14,12 +14,3 @@ export const AppFonts = {
 } as const;
 
 export type AppFontKey = keyof typeof AppFonts;
-
-/** Độ đậm CSS -> khóa font. 800 không có trong bản nạp của PWA nên trình duyệt dùng 700. */
-export function fontKeyForWeight(weight: number | string): Exclude<AppFontKey, 'display'> {
-  const value = Number(weight);
-  if (value >= 700) return 'bold';
-  if (value >= 600) return 'semibold';
-  if (value >= 500) return 'medium';
-  return 'regular';
-}

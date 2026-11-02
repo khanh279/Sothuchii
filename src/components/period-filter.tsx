@@ -7,9 +7,8 @@ import { DateField } from '@/components/date-field';
 import { PrimaryButton, SecondaryButton, SegmentedControl } from '@/components/design';
 import { SheetFrame } from '@/components/sheet-frame';
 import { SvgIcon } from '@/components/svg-icon';
-import { AppRadius } from '@/constants/palette';
 import { canGoNext, initialPeriodView, normalizeCustomRange, periodOf, periodTitle, type PeriodView } from '@/domain/expenses';
-import { periodHeading, periodRangeLabel, periodCompactHeading } from '@/domain/periodFilter';
+import { periodHeading, periodRangeLabel } from '@/domain/periodFilter';
 import { useColors } from '@/hooks/use-colors';
 import type { DateStr, Period } from '@/types/expense';
 import { addMonths, isValidDateStr } from '@/utils/date';
@@ -20,82 +19,6 @@ const MODES: { value: Period['mode']; label: string }[] = [
   { value: 'all', label: 'Tất cả' },
   { value: 'custom', label: 'Tuỳ chọn' },
 ];
-
-/** Bề rộng ô chọn kỳ dạng gọn: vừa chữ dài nhất ("T12/2026", "Tuỳ chọn") để mọi lựa chọn cho ô cùng kích thước. */
-const PILL_WIDTH = 124;
-
-interface Props {
-  view: PeriodView;
-  onChange: (view: PeriodView) => void;
-  today: DateStr;
-  /** Dạng gọn đặt cạnh tiêu đề màn hình: một viên thuốc (biểu tượng lịch + tên kỳ), không có dòng khoảng ngày, bề rộng CỐ ĐỊNH (`PILL_WIDTH`) dù chọn Tháng / Năm / Tất cả / Tuỳ chọn. */
-  compact?: boolean;
-}
-
-/**
- * Bộ lọc thời gian dùng chung: mặc định là MỘT dòng thu gọn (biểu tượng lịch, tên kỳ, khoảng ngày, mũi tên xuống). Bấm vào mở bảng chọn
- * (Tháng / Năm / Tất cả / Tuỳ chọn). Lựa chọn nằm trong bản nháp của bảng; chỉ khi bấm "Áp dụng" mới gọi `onChange` một lần, nên danh sách
- * không bị tải lại giữa chừng. "Đặt lại" đưa bản nháp về mặc định của các màn dùng bộ lọc này (`initialPeriodView`: tháng hiện tại).
- * Component chỉ chọn kỳ; việc lọc dữ liệu do màn hình dùng `periodOf(view)` như trước. Quy tắc cũ được giữ: không tới kỳ tương lai
- * (`canGoNext`), khoảng Tuỳ chọn không quá hôm nay, ngày bắt đầu không sau ngày kết thúc và tối đa 5 năm (`normalizeCustomRange`).
- */
-export function PeriodFilter({ view, onChange, today, compact = false }: Props) {
-  const colors = useColors();
-  const [open, setOpen] = useState(false);
-  const period = periodOf(view);
-
-  return (
-    <>
-      {compact ? (
-        <View style={[styles.pill, { backgroundColor: colors.surface, borderColor: open ? colors.primary : colors.line }]}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ expanded: open }}
-            accessibilityLabel={`Bộ lọc thời gian: ${periodHeading(period)}, ${periodRangeLabel(period)}`}
-            onPress={() => setOpen(true)}
-            style={({ pressed }) => [styles.pillMain, { opacity: pressed ? 0.85 : 1 }]}>
-            <SvgIcon name="calendar" size={18} color={colors.primary} strokeWidth={1.9} />
-            <AppText weight="semibold" style={styles.pillText} numberOfLines={1}>
-              {periodCompactHeading(period)}
-            </AppText>
-          </Pressable>
-        </View>
-      ) : (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ expanded: open }}
-          accessibilityLabel={`Bộ lọc thời gian: ${periodHeading(period)}, ${periodRangeLabel(period)}`}
-          onPress={() => setOpen(true)}
-          style={({ pressed }) => [styles.row, { backgroundColor: colors.surface, borderColor: open ? colors.primary : colors.line, opacity: pressed ? 0.85 : 1 }]}>
-          <SvgIcon name="calendar" size={20} color={colors.primary} strokeWidth={1.9} />
-          <View style={styles.rowText}>
-            <AppText weight="semibold" style={styles.heading} numberOfLines={1}>
-              {periodHeading(period)}
-            </AppText>
-            <AppText color={colors.muted} style={styles.range} numberOfLines={1}>
-              {periodRangeLabel(period)}
-            </AppText>
-          </View>
-          <View style={{ transform: [{ rotate: open ? '-90deg' : '90deg' }] }}>
-            <SvgIcon name="chevronRight" size={18} color={colors.muted} strokeWidth={2.2} />
-          </View>
-        </Pressable>
-      )}
-
-      {open && (
-        <PeriodSheet
-          initial={view}
-          today={today}
-          onClose={() => setOpen(false)}
-          onApply={(next) => {
-            setOpen(false);
-            onChange(next);
-          }}
-        />
-      )}
-    </>
-  );
-}
 
 /**
  * Ghi chú kỳ BẤM ĐƯỢC (dưới tiêu đề của thẻ ở các trang lịch sử): hiện kỳ đang xem ("Tháng 10/2026", "01/09/2026 – 27/10/2026", "Tất cả") kèm mũi tên nhỏ; bấm vào mở đúng bảng chọn thời gian của
@@ -274,12 +197,6 @@ const styles = StyleSheet.create({
   noteBtn: { alignSelf: 'flex-start', maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: 4 },
   noteText: { flexShrink: 1, fontSize: 12.5, lineHeight: 17 },
   noteArrow: { transform: [{ rotate: '90deg' }] },
-  row: { minHeight: 52, borderRadius: AppRadius.card, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  rowText: { flex: 1, minWidth: 0 },
-  pill: { width: PILL_WIDTH, height: 44, borderRadius: 22, borderWidth: 1, flexDirection: 'row', alignItems: 'center', flexShrink: 1 },
-  pillMain: { flex: 1, minWidth: 0, height: '100%', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  pillText: { flexShrink: 1, fontSize: 14, lineHeight: 19 },
-  heading: { fontSize: 15, lineHeight: 20 },
   range: { fontSize: 12.5, lineHeight: 17 },
   sheet: { gap: 14 },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

@@ -5,7 +5,7 @@
 
 import { BILL_OWNER_NAME } from '@/domain/bills';
 import { isOwnerName } from '@/domain/funds';
-import { formatVndInput, maskVndInput, parseVndInput, roundVnd } from '@/domain/money';
+import { formatVndInput, parseVndInput, roundVnd } from '@/domain/money';
 import { isInPeriod } from '@/domain/expenses';
 import { payClass } from '@/domain/ledger';
 import type { Bill } from '@/types/bill';
@@ -49,12 +49,7 @@ export function payTypeOf(pay: Pick<Pay, 'kind' | 'item'>): PayType {
 }
 
 /** Loại lưu của lựa chọn trên form: Trả bill → 'billpay', Chuyển tiền → 'vay'. */
-export const payKindFor = (type: PayType): 'billpay' | 'vay' => (type === 'bill' ? 'billpay' : 'vay');
-
-/** Ô số tiền: chỉ chữ số (ĐỒNG), tối đa 9 chữ số. */
-export const maskPayAmount = (text: string): string => maskVndInput(text, 9);
-
-/** Số tiền (ĐỒNG) từ chữ trong ô; trống hoặc không hợp lệ là 0. */
+export const payKindFor = (type: PayType): 'billpay' | 'vay' => (type === 'bill' ? 'billpay' : 'vay');/** Số tiền (ĐỒNG) từ chữ trong ô; trống hoặc không hợp lệ là 0. */
 export function parsePayAmount(text: string): Vnd {
   return parseVndInput(text);
 }

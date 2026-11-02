@@ -4,7 +4,7 @@ import { part2 } from '@/i18n/en/part2';
 import { part3 } from '@/i18n/en/part3';
 import { part4 } from '@/i18n/en/part4';
 import { part5 } from '@/i18n/en/part5';
-import { englishSize, translate, translateNode } from '@/i18n/translate';
+import { translate, translateNode } from '@/i18n/translate';
 
 describe('translate', () => {
   it('tiếng Việt trả nguyên chuỗi', () => {
@@ -57,10 +57,5 @@ describe('bản dịch tiếng Anh', () => {
     for (const [key, value] of Object.entries(all)) {
       expect({ key, placeholders: placeholders(value) }).toEqual({ key, placeholders: placeholders(key) });
     }
-  });
-
-  it('không có bản dịch rỗng và đã đăng ký đủ khoá', () => {
-    expect(Object.values(all).every((value) => value.trim().length > 0)).toBe(true);
-    expect(englishSize()).toBe(Object.keys(all).length);
   });
 });

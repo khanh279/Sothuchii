@@ -33,11 +33,7 @@ export interface NormalizeContext {
 }
 
 /** Khoản chi cá nhân do Quỹ tạo (`src:'quy'`) chỉ đổi được từ Quỹ; sửa/xoá trực tiếp sẽ bị đồng bộ hoàn tác. */
-export const FUND_LINKED_EDIT_MESSAGE = 'Khoản này được tạo từ Quỹ, vui lòng sửa tại Quỹ';
-export const FUND_LINKED_DELETE_MESSAGE = 'Khoản này được tạo từ Quỹ, vui lòng xoá tại Quỹ';
-export const isFundLinkedExpense = (expense: { src?: string }): boolean => expense.src === 'quy';
-
-const isRecord = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
+export const FUND_LINKED_EDIT_MESSAGE = 'Khoản này được tạo từ Quỹ, vui lòng sửa tại Quỹ';const isRecord = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 
 /**
  * Đọc dữ liệu thô của `quy_nhom_v1` thành dạng an toàn để TÍNH TOÁN và HIỂN THỊ (hàm `Pt` + `at` của PWA):

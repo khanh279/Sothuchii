@@ -3,7 +3,7 @@ import type { ExpenseWithId } from '@/types/expense';
 import type { Pay } from '@/types/pay';
 
 import { buildPayHistory } from './payForm';
-import { billOfExpense, buildTransactionEntries, expenseSourceLabel, filterTransactions, groupTransactionsByDay, isTransactionTab, searchTransactions, sumTransactions, type TransactionFilter } from './transactionList';
+import { billOfExpense, buildTransactionEntries, expenseSourceLabel, filterTransactions, groupTransactionsByDay, searchTransactions, sumTransactions, type TransactionFilter } from './transactionList';
 
 // DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng. Khoản chi và khoản trả đều là ĐỒNG.
 const exp = (id: string, d: string, t: number, a: number, over: Partial<ExpenseWithId> = {}): ExpenseWithId => ({ id, a, c: 'food', n: id, d, t, ...over });
@@ -100,14 +100,6 @@ describe('groupTransactionsByDay', () => {
       ['2025-10-05', 2],
       ['2025-10-04', 1],
     ]);
-  });
-});
-
-describe('isTransactionTab', () => {
-  it('chỉ nhận bốn mục', () => {
-    expect(['all', 'expense', 'loan', 'bill'].every(isTransactionTab)).toBe(true);
-    expect(isTransactionTab('fund')).toBe(false);
-    expect(isTransactionTab(undefined)).toBe(false);
   });
 });
 

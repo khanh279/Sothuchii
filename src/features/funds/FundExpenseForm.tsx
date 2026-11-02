@@ -366,7 +366,7 @@ export function FundExpenseForm({
           setError('Không tìm thấy khoản chi này. Có thể nó đã bị xoá.');
           return;
         }
-        toast.show(fundExpenseSavedMessage(!!existing, false));
+        toast.show(fundExpenseSavedMessage(!!existing));
       }
       if (!existing) {
         setAmount(0);

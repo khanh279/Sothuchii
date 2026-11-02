@@ -94,15 +94,7 @@ export const SoTienColors: { light: SoTienPalette; dark: SoTienPalette } = {
     iconOrange: '#FBBF24',
     scrim: 'rgba(0,0,0,0.62)',
   },
-};
-
-/**
- * Bộ màu sáng, dành cho các màn hình CHƯA chuyển sang `useColors()`.
- * Sẽ bị gỡ khi tất cả màn hình đã hỗ trợ chế độ tối (giao diện đang ép sáng trong lúc chuyển đổi).
- */
-export const PwaColors = SoTienColors.light;
-
-/** Bo góc đo được từ PWA (px). */
+};/** Bo góc đo được từ PWA (px). */
 export const AppRadius = {
   /** Ô nhập, dòng lịch sử, nút lưu */
   field: 14,

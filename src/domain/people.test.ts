@@ -1,4 +1,4 @@
-import { addPerson, cleanPersonName, memberOptions, mergePeople, normalizePeople, pickerOptions, removePerson, seedNamesFrom } from './people';
+import { addPerson, cleanPersonName, memberOptions, mergePeople, normalizePeople, removePerson, seedNamesFrom } from './people';
 
 // DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng.
 describe('chuẩn hoá tên và danh sách', () => {
@@ -50,16 +50,6 @@ describe('thêm / bỏ', () => {
 describe('tạo danh sách lần đầu từ dữ liệu cũ', () => {
   it('bỏ "Tôi", "Người N" và chữ A–T đơn lẻ; giữ tên thật', () => {
     expect(seedNamesFrom(['Tôi', 'Người 2', 'A', 'T', 'U', 'An', '  Bình  ', '', 'Người X'])).toEqual(['U', 'An', 'Bình', 'Người X']);
-  });
-});
-
-describe('bộ chọn một người', () => {
-  it('"Tôi" đứng đầu, rồi danh sách, rồi tên đang chọn nếu chưa có', () => {
-    expect(pickerOptions(['An', 'Bình'], null)).toEqual(['Tôi', 'An', 'Bình']);
-    expect(pickerOptions(['An'], 'Chi')).toEqual(['Tôi', 'An', 'Chi']);
-    expect(pickerOptions(['An'], 'An')).toEqual(['Tôi', 'An']);
-    expect(pickerOptions([], 'Tôi')).toEqual(['Tôi']);
-    expect(pickerOptions([], '  ')).toEqual(['Tôi']);
   });
 });
 

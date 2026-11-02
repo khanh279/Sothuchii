@@ -1,20 +1,7 @@
 import type { Bill } from '@/types/bill';
 import type { Pay } from '@/types/pay';
 
-import {
-  buildPayHistory,
-  canRecordPay,
-  formFromPay,
-  formatPayAmount,
-  maskPayAmount,
-  parsePayAmount,
-  payKindFor,
-  payLabel,
-  payNameOptions,
-  payRowSubtitle,
-  payTypeOf,
-  whoOptions,
-} from './payForm';
+import { buildPayHistory, canRecordPay, formFromPay, formatPayAmount, parsePayAmount, payKindFor, payLabel, payNameOptions, payRowSubtitle, payTypeOf, whoOptions } from './payForm';
 
 // DỮ LIỆU MẪU do tôi tự tạo; KHÔNG phải dữ liệu thật của người dùng. Tiền là ĐỒNG.
 const p = (name: string, paid: number) => ({ name, paid, w: 1 });
@@ -36,15 +23,6 @@ describe('lựa chọn người', () => {
 });
 
 describe('nhập liệu', () => {
-  it('số tiền theo đồng: chỉ chữ số, tối đa 9 chữ số', () => {
-    expect(maskPayAmount('1234567')).toBe('1234567');
-    expect(maskPayAmount('1.234.567')).toBe('1234567');
-    expect(maskPayAmount('12,3456')).toBe('123456');
-    expect(maskPayAmount('1234567890')).toBe('123456789');
-    expect(parsePayAmount('1.234.500')).toBe(1_234_500);
-    expect(parsePayAmount('')).toBe(0);
-    expect(parsePayAmount('abc')).toBe(0);
-  });
 
   it('đi và về giữa số và chữ', () => {
     for (const amount of [5000, 12_500, 1_234_567, 100_000]) expect(parsePayAmount(formatPayAmount(amount))).toBe(amount);

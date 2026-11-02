@@ -2,16 +2,13 @@ import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
-import { EmptyState } from '@/components/design';
 import { PaymentPanel, type PayChoice } from '@/components/payment-panel';
 import type { ReceiveQr } from '@/components/receive-qr-sheet';
-import { SelectableCard } from '@/components/selectable-card';
-import { SvgIcon } from '@/components/svg-icon';
 import { AppRadius } from '@/constants/palette';
 import { recordDebtPaymentSynced } from '@/data/payService';
 import { BILL_OWNER_NAME } from '@/domain/bills';
 import { buildDebtDetail } from '@/domain/debtDetail';
-import { buildDebtOverview, type DebtPersonRow } from '@/domain/debtOverview';
+import { buildDebtOverview } from '@/domain/debtOverview';
 import type { DebtPayOption } from '@/domain/debtPay';
 import { describeDebtError } from '@/features/debts/hooks';
 import { useColors } from '@/hooks/use-colors';
@@ -21,8 +18,6 @@ import type { Pay } from '@/types/pay';
 import { roundVnd } from '@/domain/money';
 import { formatVnd } from '@/utils/format';
 import { DEBT_ZERO } from '@/domain/ledger';
-
-const SIGN = { get: '+', owe: '−', mid: '' } as const;
 
 interface DataProps {
   bills: readonly Bill[];
@@ -57,60 +52,7 @@ export function DebtTotalTiles({ bills, pays }: { bills: readonly Bill[]; pays: 
       </View>
     </View>
   );
-}
-
-function personCaption(person: DebtPersonRow): string {
-  return person.tone === 'owe' ? 'Tôi nợ' : person.tone === 'get' ? 'Nợ tôi' : 'Hai khoản nợ bù nhau';
-}
-
-/**
- * Danh sách người chia ba vùng có tiêu đề, theo thứ tự: Nợ tôi → Tôi nợ → Bù nhau (tổng bằng 0, hai sổ triệt tiêu); vùng trống thì không hiện. Mỗi dòng: tên bên trái, số tiền có dấu / màu bên phải
- * và mũi tên; chạm một người để mở trang chi tiết nợ của người đó (`onOpen`). Không bọc thẻ.
- */
-export function DebtPeopleZones({ people, onOpen }: { people: readonly DebtPersonRow[]; onOpen: (name: string) => void }) {
-  const colors = useColors();
-  const groups = [
-    { title: 'Nợ tôi', people: people.filter((person) => person.tone === 'get') },
-    { title: 'Tôi nợ', people: people.filter((person) => person.tone === 'owe') },
-    { title: 'Bù nhau', people: people.filter((person) => person.tone !== 'get' && person.tone !== 'owe') },
-  ].filter((group) => group.people.length > 0);
-  if (people.length === 0) return <EmptyState text="Không còn khoản nợ nào" icon="check" />;
-  return (
-    <View style={styles.list}>
-      {groups.map((group) => (
-        <View key={group.title} style={styles.zone}>
-          <View style={styles.zoneHead}>
-            <AppText weight="semibold" color={colors.muted} style={styles.zoneTitle}>
-              {group.title}
-            </AppText>
-            <AppText color={colors.muted} style={styles.zoneCount}>
-              {group.people.length} người
-            </AppText>
-          </View>
-          {group.people.map((person) => {
-            const tint = person.tone === 'get' ? colors.success : person.tone === 'owe' ? colors.danger : colors.ink;
-            return (
-              <SelectableCard key={person.name} selected={false} onPress={() => onOpen(person.name)} accessibilityLabel={`Thanh toán với ${person.name}, ${personCaption(person)} ${formatVnd(Math.abs(person.total))}`}>
-                <View style={styles.cardRow}>
-                  <AppText weight="semibold" style={[styles.flex, styles.rowName]} numberOfLines={1}>
-                    {person.name}
-                  </AppText>
-                  <AppText weight="bold" color={tint} style={styles.amount}>
-                    {SIGN[person.tone]}
-                    {formatVnd(Math.abs(person.total))}
-                  </AppText>
-                  <SvgIcon name="chevronRight" size={14} color={colors.muted} strokeWidth={1.5} />
-                </View>
-              </SelectableCard>
-            );
-          })}
-        </View>
-      ))}
-    </View>
-  );
-}
-
-interface PanelProps extends DataProps {
+}interface PanelProps extends DataProps {
   name: string;
   onDone: () => void;
   onPaid: (message: string) => Promise<void> | void;
