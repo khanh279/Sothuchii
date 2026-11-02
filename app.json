@@ -8,7 +8,11 @@
     "scheme": "sothuchimobile",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/images/icon.png"
+      "icon": "./assets/images/icon.png",
+      "infoPlist": {
+        "CFBundleAllowMixedLocalizations": true,
+        "CFBundleLocalizations": ["vi", "en"]
+      }
     },
     "android": {
       "adaptiveIcon": {

@@ -18,6 +18,7 @@ import { router } from '@/utils/safe-router';
 /** Bán kính trong / ngoài của vành bán nguyệt (dp, từ tâm nút "+"): vành đồng tâm với nút, chia đều thành các ô quạt. */
 const R_IN = 66;
 const R_OUT = 118;
+const PAD = 16;
 /** Khe hở nhìn thấy giữa hai ô liền kề (dp, đo ở giữa vành) và độ dày viền bo góc (dp). */
 const GAP_PX = 12;
 const ROUND = 8;
@@ -402,7 +403,8 @@ function Fan({ radial, center }: { radial: RadialAdd; center: Point }) {
             transform: [{ scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] }) }],
           }}
         >
-          <Svg width={box} height={box}>
+          {/* Svg rộng hơn khung một lề PAD mỗi phía (viewBox lùi lại PAD) để viền và bóng đổ ngoài mép R_OUT không bị cắt vuông. */}
+          <Svg width={box + PAD * 2} height={box + PAD * 2} viewBox={`${-PAD} ${-PAD} ${box + PAD * 2} ${box + PAD * 2}`} style={{ position: 'absolute', left: -PAD, top: -PAD }}>
             <Defs>
               {items.map((item, index) => {
                 // Cung đường nền chữ chạy từ trái sang phải (theo chiều kim đồng hồ) nên chữ quay đầu lên phía ngoài, cong theo mép trong của ô.
