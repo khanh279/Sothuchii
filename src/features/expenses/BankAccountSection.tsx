@@ -62,9 +62,6 @@ export function BankAccountSection({ settings, save }: { settings: ExpenseSettin
         <AppText weight="display" style={styles.title}>
           Nhận tiền bằng mã QR
         </AppText>
-        <AppText color={colors.muted} style={styles.note}>
-          Lưu tài khoản của bạn (có thể nhiều tài khoản) để tạo mã QR khi người khác nợ bạn: họ quét bằng app ngân hàng là có sẵn số tiền và nội dung. Thông tin chỉ nằm trong máy này.
-        </AppText>
 
         {saved.map((item, index) => (
           <View key={`${item.bin}:${item.account}`} style={[styles.saved, { backgroundColor: colors.bg, borderColor: colors.line }]}>

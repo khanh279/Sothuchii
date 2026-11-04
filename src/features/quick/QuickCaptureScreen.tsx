@@ -124,77 +124,74 @@ export default function QuickCaptureScreen() {
       <Stack.Screen options={{ title: 'Chụp nhanh', headerShown: false }} />
       <ScreenTitle title="Chụp nhanh" topInset={insets.top} />
       <KeyboardAwareScrollView style={styles.screen} contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
-        <View style={[styles.card, { backgroundColor: colors.surface }]}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={photo ? 'Chụp lại' : 'Chụp ảnh'}
-            onPress={() => void takePhoto()}
-            style={[styles.shot, { backgroundColor: colors.bg, borderColor: colors.line }]}>
-            {photoUri ? (
+        <Pressable accessibilityRole="button" accessibilityLabel={photo ? 'Chụp lại' : 'Chụp ảnh'} onPress={() => void takePhoto()} style={[styles.shot, { backgroundColor: colors.surface, borderColor: colors.line }]}>
+          {photoUri ? (
+            <>
               <Image source={{ uri: photoUri }} style={styles.shotImage} contentFit="cover" />
-            ) : (
-              <View style={styles.shotEmpty}>
-                <SvgIcon name="camera" size={32} color={colors.primary} strokeWidth={2} />
-                <AppText weight="semibold" color={colors.primary} style={styles.shotText}>
-                  Chụp ảnh món đồ / hóa đơn
+              <View style={styles.retake}>
+                <SvgIcon name="camera" size={16} color="#FFFFFF" strokeWidth={2.2} />
+                <AppText weight="semibold" color="#FFFFFF" style={styles.retakeText}>
+                  Chụp lại
                 </AppText>
               </View>
-            )}
-          </Pressable>
-          {!!photo && (
-            <AppText color={colors.muted} style={styles.hint}>
-              Bấm vào ảnh để chụp lại.
-            </AppText>
-          )}
-
-          <View style={formStyles.field}>
-            <FormLabel>Nguồn chi</FormLabel>
-            <View style={styles.chips}>
-              {SOURCES.map((item) => {
-                const selected = item.key === source;
-                return (
-                  <Pressable
-                    key={item.key}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
-                    onPress={() => setSource(item.key)}
-                    style={[styles.chip, selected ? { backgroundColor: colors.primary, borderColor: colors.primary } : { backgroundColor: colors.bg, borderColor: colors.line }]}>
-                    <AppText weight="semibold" color={selected ? colors.primaryInk : colors.ink} style={styles.chipText}>
-                      {item.label}
-                    </AppText>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-
-          {source === 'fund' && funds.length > 1 && (
-            <View style={formStyles.field}>
-              <FormLabel>Quỹ</FormLabel>
-              <View style={styles.chips}>
-                {funds.map((fund) => {
-                  const selected = fund.id === activeFund?.id;
-                  return (
-                    <Pressable
-                      key={fund.id}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected }}
-                      onPress={() => setFundId(fund.id)}
-                      style={[styles.chip, selected ? { backgroundColor: colors.primary, borderColor: colors.primary } : { backgroundColor: colors.bg, borderColor: colors.line }]}>
-                      <AppText weight="semibold" color={selected ? colors.primaryInk : colors.ink} style={styles.chipText}>
-                        {fund.name}
-                      </AppText>
-                    </Pressable>
-                  );
-                })}
+            </>
+          ) : (
+            <View style={styles.shotEmpty}>
+              <View style={[styles.shotIcon, { backgroundColor: colors.primarySoft }]}>
+                <SvgIcon name="camera" size={34} color={colors.primary} strokeWidth={2} />
               </View>
+              <AppText weight="semibold" color={colors.primary} style={styles.shotText}>
+                Chụp ảnh món đồ / hóa đơn
+              </AppText>
             </View>
           )}
-          {noFund && (
-            <AppText color={colors.danger} style={styles.hint}>
-              Chưa có quỹ — tạo quỹ ở tab Quỹ nhóm.
-            </AppText>
-          )}
+        </Pressable>
+
+        <View style={[styles.segment, { backgroundColor: colors.surface2 }]}>
+          {SOURCES.map((item) => {
+            const selected = item.key === source;
+            return (
+              <Pressable
+                key={item.key}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                onPress={() => setSource(item.key)}
+                style={[styles.segmentItem, selected && { backgroundColor: colors.primary }]}>
+                <AppText weight="semibold" color={selected ? colors.primaryInk : colors.muted} style={styles.segmentText}>
+                  {item.label}
+                </AppText>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {source === 'fund' && funds.length > 1 && (
+          <View style={styles.chips}>
+            {funds.map((fund) => {
+              const selected = fund.id === activeFund?.id;
+              return (
+                <Pressable
+                  key={fund.id}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  onPress={() => setFundId(fund.id)}
+                  style={[styles.chip, selected ? { backgroundColor: colors.primary, borderColor: colors.primary } : { backgroundColor: colors.surface, borderColor: colors.line }]}>
+                  <AppText weight="semibold" color={selected ? colors.primaryInk : colors.ink} style={styles.chipText}>
+                    {fund.name}
+                  </AppText>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+        {noFund && (
+          <AppText color={colors.danger} style={styles.hint}>
+            Chưa có quỹ — tạo quỹ ở tab Quỹ nhóm.
+          </AppText>
+        )}
+
+        <View style={[styles.card, { backgroundColor: colors.surface }]}>
+          <AmountField value={amount} onChange={setAmount} />
 
           <View style={formStyles.field}>
             <FormLabel>Nội dung</FormLabel>
@@ -208,7 +205,7 @@ export default function QuickCaptureScreen() {
             />
           </View>
 
-          {suggestions.length > 0 ? (
+          {suggestions.length > 0 && (
             <View style={formStyles.field}>
               <FormLabel>Gợi ý từ các khoản đã nhập</FormLabel>
               <View style={styles.chips}>
@@ -229,13 +226,7 @@ export default function QuickCaptureScreen() {
                 ))}
               </View>
             </View>
-          ) : (
-            <AppText color={colors.muted} style={styles.hint}>
-              Chưa có khoản nào để gợi ý ở nguồn này. Nhập nội dung và số tiền rồi tiếp tục.
-            </AppText>
           )}
-
-          <AmountField value={amount} onChange={setAmount} />
         </View>
 
         <View style={formStyles.actions}>
@@ -249,11 +240,17 @@ export default function QuickCaptureScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { paddingHorizontal: 16, paddingTop: 8, gap: 12 },
-  card: { borderRadius: AppRadius.card, padding: 16, gap: 12 },
-  shot: { height: 180, borderRadius: AppRadius.card, borderWidth: 1, borderStyle: 'dashed', overflow: 'hidden' },
+  card: { borderRadius: AppRadius.card, padding: 16, gap: 14 },
+  shot: { height: 220, borderRadius: AppRadius.card, borderWidth: 1, borderStyle: 'dashed', overflow: 'hidden' },
   shotImage: { width: '100%', height: '100%' },
-  shotEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
-  shotText: { fontSize: 14 },
+  shotEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  shotIcon: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center' },
+  shotText: { fontSize: 14.5 },
+  retake: { position: 'absolute', right: 10, bottom: 10, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: 'rgba(10, 22, 40, 0.6)' },
+  retakeText: { fontSize: 13 },
+  segment: { flexDirection: 'row', padding: 4, borderRadius: 14, gap: 4 },
+  segmentItem: { flex: 1, minHeight: 44, borderRadius: 11, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center' },
+  segmentText: { fontSize: 12.5, lineHeight: 16, textAlign: 'center' },
   hint: { fontSize: 12.5, lineHeight: 17 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, maxWidth: '100%' },

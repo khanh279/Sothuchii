@@ -66,9 +66,6 @@ export function RecurringSection({ settings, save }: { settings: ExpenseSettings
         <AppText weight="display" style={styles.title}>
           Chi tiêu định kỳ
         </AppText>
-        <AppText color={colors.muted} style={styles.note}>
-          Khoản lặp hằng tháng (tiền nhà, internet…) được tự ghi vào chi tiêu vào đúng ngày hạn mỗi khi bạn mở app.
-        </AppText>
 
         {rules.map((rule) => (
           <View key={rule.id} style={[styles.saved, { backgroundColor: colors.bg, borderColor: colors.line }]}>

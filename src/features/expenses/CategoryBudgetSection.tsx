@@ -43,9 +43,6 @@ export function CategoryBudgetSection({ settings, save }: { settings: ExpenseSet
         <AppText weight="display" style={styles.title}>
           Hạn mức theo mục
         </AppText>
-        <AppText color={colors.muted} style={styles.note}>
-          Đặt số tiền tối đa mỗi tháng cho từng mục. Khi xem một tháng ở trang Chi tiêu, mục có hạn mức sẽ hiện thanh tiến độ và báo khi vượt.
-        </AppText>
         {categories.map((category) => (
           <View key={category.id} style={styles.row}>
             <View style={[styles.dot, { backgroundColor: category.color }]} />

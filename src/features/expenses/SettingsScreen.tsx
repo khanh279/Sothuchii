@@ -27,7 +27,6 @@ import { PERSON_NAME_LIMIT } from '@/domain/people';
 import { router } from '@/utils/safe-router';
 import { describeStorageError, useExpenseSettings } from '@/features/expenses/hooks';
 import { DataPanel } from '@/features/data/DataSheet';
-import { AboutSheet } from '@/features/expenses/AboutSheet';
 import { BankAccountSection } from '@/features/expenses/BankAccountSection';
 import { CategoryBudgetSection } from '@/features/expenses/CategoryBudgetSection';
 import { RecurringSection } from '@/features/expenses/RecurringSection';
@@ -42,14 +41,14 @@ import { formatVnd } from '@/utils/format';
 /** Các mục của danh sách Thiết lập; bấm một mục mở trang riêng của mục đó (route `thiet-lap-muc`). */
 export type SettingsView = 'budget' | 'people' | 'cats' | 'catBudget' | 'recurring' | 'bank' | 'data';
 
-export const SETTINGS_ITEMS: { key: SettingsView; title: string; note: string; icon: 'wallet' | 'people' | 'list' | 'receipt' | 'calendar' | 'qr' | 'download' }[] = [
-  { key: 'budget', title: 'Ngân sách chi tiêu hàng tháng', note: 'Số tiền tối đa mỗi tháng', icon: 'wallet' },
-  { key: 'catBudget', title: 'Hạn mức theo mục', note: 'Hạn mức riêng cho từng mục chi', icon: 'receipt' },
-  { key: 'people', title: 'Danh sách người', note: 'Người hay chia bill, ghi nợ', icon: 'people' },
-  { key: 'cats', title: 'Mục chi tiêu', note: 'Thêm hoặc xóa mục chi riêng', icon: 'list' },
-  { key: 'recurring', title: 'Chi định kỳ', note: 'Khoản tự ghi mỗi tháng', icon: 'calendar' },
-  { key: 'bank', title: 'Tài khoản nhận tiền', note: 'Tài khoản ngân hàng cho mã QR', icon: 'qr' },
-  { key: 'data', title: 'Sao lưu và khôi phục', note: 'Xuất, nhập và khôi phục dữ liệu', icon: 'download' },
+export const SETTINGS_ITEMS: { key: SettingsView; title: string; icon: 'wallet' | 'people' | 'list' | 'receipt' | 'calendar' | 'qr' | 'download' }[] = [
+  { key: 'budget', title: 'Ngân sách chi tiêu hàng tháng', icon: 'wallet' },
+  { key: 'catBudget', title: 'Hạn mức theo mục', icon: 'receipt' },
+  { key: 'people', title: 'Danh sách người', icon: 'people' },
+  { key: 'cats', title: 'Mục chi tiêu', icon: 'list' },
+  { key: 'recurring', title: 'Chi định kỳ', icon: 'calendar' },
+  { key: 'bank', title: 'Tài khoản nhận tiền', icon: 'qr' },
+  { key: 'data', title: 'Sao lưu và khôi phục', icon: 'download' },
 ];
 
 /** Số cột của lưới chọn biểu tượng (đo từ PWA). */
@@ -71,7 +70,6 @@ export default function SettingsScreen({ view }: { view?: SettingsView } = {}) {
   const [icon, setIcon] = useState<string>('star');
   const [name, setName] = useState('');
   const { people, error: peopleError, add: addPerson, remove: removePerson, reload: reloadPeople } = usePeople();
-  const [aboutOpen, setAboutOpen] = useState(false);
   const [personName, setPersonName] = useState('');
 
   const saved = budgetForMonth(settings, month);
@@ -150,13 +148,6 @@ export default function SettingsScreen({ view }: { view?: SettingsView } = {}) {
       <ScreenTitle
         title={view ? (SETTINGS_ITEMS.find((item) => item.key === view)?.title ?? 'Thiết lập') : 'Thiết lập'}
         topInset={insets.top}
-        afterTitle={
-          view ? undefined : (
-            <Pressable accessibilityRole="button" accessibilityLabel="Giới thiệu" hitSlop={6} onPress={() => setAboutOpen(true)} style={[styles.titleButton, { backgroundColor: colors.surface }]}>
-              <SvgIcon name="info" size={20} color={colors.muted} strokeWidth={1.9} />
-            </Pressable>
-          )
-        }
       />
       <KeyboardAwareScrollView ref={scrollRef} {...scrollProps} contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]} keyboardShouldPersistTaps="handled">
         {error ? (
@@ -369,20 +360,24 @@ export default function SettingsScreen({ view }: { view?: SettingsView } = {}) {
                       <AppText weight="bold" style={styles.dataTitle}>
                         {item.title}
                       </AppText>
-                      <AppText color={colors.muted} style={styles.note}>
-                        {item.note}
-                      </AppText>
                     </View>
                     <SvgIcon name="chevronRight" size={18} color={colors.muted} />
                   </Pressable>
                 ))}
+                <Pressable accessibilityRole="button" onPress={() => router.push('/gioi-thieu')} style={[styles.row, { borderTopColor: colors.line, borderTopWidth: StyleSheet.hairlineWidth }]}>
+                  <SvgIcon name="info" size={22} color={colors.primary} />
+                  <View style={styles.dataText}>
+                    <AppText weight="bold" style={styles.dataTitle}>
+                      Giới thiệu về ứng dụng
+                    </AppText>
+                  </View>
+                  <SvgIcon name="chevronRight" size={18} color={colors.muted} />
+                </Pressable>
               </View>
             )}
           </>
         )}
       </KeyboardAwareScrollView>
-
-      {aboutOpen && <AboutSheet onClose={() => setAboutOpen(false)} />}
     </View>
   );
 }
@@ -433,7 +428,6 @@ const styles = StyleSheet.create({
   monthLabel: { minWidth: 72, textAlign: 'center', fontSize: 14 },
   inline: { flexDirection: 'row', gap: 8 },
   grow: { flex: 1 },
-  titleButton: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
   /** Ô nhập số tiền có đơn vị ₫ đặt đè bên phải (chừa chỗ cho đơn vị). */
   moneyInput: { paddingRight: 34 },
   suffix: { position: 'absolute', right: 14, top: 0, bottom: 0, textAlignVertical: 'center', lineHeight: 46, fontSize: 15 },

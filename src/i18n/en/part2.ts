@@ -158,7 +158,6 @@ export const part2: Dictionary = {
   '{0} giao dịch': '{0} {0|transaction|transactions}',
   'Chưa có giao dịch nào trong kỳ này': 'No transactions in this period yet',
   'Giới thiệu': 'About',
-  'Nội dung giới thiệu sản phẩm sẽ được bổ sung sau.': 'The product description will be added later.',
   'Chưa có quỹ — tạo quỹ ở tab Quỹ nhóm': 'No fund yet — create one in the Group funds tab',
   'Chi tiêu quỹ': 'Fund expense',
   '{0} mục': '{0} {0|category|categories}',
