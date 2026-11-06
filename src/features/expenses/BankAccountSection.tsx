@@ -63,26 +63,6 @@ export function BankAccountSection({ settings, save }: { settings: ExpenseSettin
           Nhận tiền bằng mã QR
         </AppText>
 
-        {saved.map((item, index) => (
-          <View key={`${item.bin}:${item.account}`} style={[styles.saved, { backgroundColor: colors.bg, borderColor: colors.line }]}>
-            <View style={styles.savedText}>
-              <AppText weight="semibold" style={styles.savedTitle} numberOfLines={1}>
-                {bankByBin(item.bin)?.code ?? 'Ngân hàng'} · {item.account}
-              </AppText>
-              {!!item.name && (
-                <AppText color={colors.muted} style={styles.note} numberOfLines={1}>
-                  {item.name}
-                </AppText>
-              )}
-            </View>
-            <Pressable accessibilityRole="button" accessibilityLabel={`Xoá tài khoản ${item.account}`} hitSlop={8} onPress={() => void remove(index)} style={styles.removeButton}>
-              <AppText weight="semibold" color={colors.danger} style={styles.removeText}>
-                Xoá
-              </AppText>
-            </Pressable>
-          </View>
-        ))}
-
         {full ? (
           <AppText color={colors.muted} style={styles.note}>
             Đã có tối đa {MAX_BANK_ACCOUNTS} tài khoản. Xoá bớt để thêm tài khoản khác.
@@ -162,6 +142,30 @@ export function BankAccountSection({ settings, save }: { settings: ExpenseSettin
             </View>
           </>
         )}
+        {saved.length > 0 && (
+          <AppText weight="semibold" style={styles.subTitle}>
+            Tài khoản đã lưu
+          </AppText>
+        )}
+        {saved.map((item, index) => (
+          <View key={`${item.bin}:${item.account}`} style={[styles.saved, { backgroundColor: colors.bg, borderColor: colors.line }]}>
+            <View style={styles.savedText}>
+              <AppText weight="semibold" style={styles.savedTitle} numberOfLines={1}>
+                {bankByBin(item.bin)?.code ?? 'Ngân hàng'} · {item.account}
+              </AppText>
+              {!!item.name && (
+                <AppText color={colors.muted} style={styles.note} numberOfLines={1}>
+                  {item.name}
+                </AppText>
+              )}
+            </View>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Xoá tài khoản ${item.account}`} hitSlop={8} onPress={() => void remove(index)} style={styles.removeButton}>
+              <AppText weight="semibold" color={colors.danger} style={styles.removeText}>
+                Xoá
+              </AppText>
+            </Pressable>
+          </View>
+        ))}
         {full && !!error && (
           <AppText color={colors.danger} style={styles.note} accessibilityRole="alert">
             {error}
